@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
+#include <QMessageBox>
 #include <QLabel>
 #include <QPushButton>
 #include <QSpinBox>
@@ -53,7 +54,10 @@ int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNati
     Document large;std::vector<Record> rows;for(int i=0;i<400;++i)rows.push_back({"row"+std::to_string(i),std::string(40000,'A')});large.load(std::move(rows));const auto largePath=temp.filePath("large.kleio");{std::ofstream out(largePath.toStdString(),std::ios::binary);write_session(out,large);}MainWindow cancelWindow;cancelWindow.show();cancelWindow.open_path(largePath);auto* cancelView=dynamic_cast<AlignmentView*>(cancelWindow.centralWidget());until(app,[&]{return cancelView->isEnabled()&&cancelWindow.current_document().rows().size()==400;});stage=0;const auto before=cancelWindow.current_document().state_id();dialog(cancelWindow,"overallDistance",[&](QDialog& d){if(stage==0){stage=1;button(d,"distanceCalculate")->click();button(d,"distanceCancel")->click();}else if(button(d,"distanceCalculate")->isEnabled()){need(!button(d,"distanceCopy")->isEnabled()&&d.findChild<QLabel*>("distanceStatus")->text().contains("cancel",Qt::CaseInsensitive),"Cancellation clears partial result");d.reject();return true;}return false;});need(cancelWindow.current_document().state_id()==before,"Cancellation preserves document");
     dialog(cancelWindow,"overallDistance",[&](QDialog& d){button(d,"distanceCalculate")->click();d.reject();return true;});need(cancelWindow.current_document().state_id()==before,"Close during running job cancels before destruction");
     const auto protectedPath=temp.filePath("protected.tsv");{QFile existing(protectedPath);need(existing.open(QIODevice::WriteOnly),"Prepare existing export destination");existing.write("original contents");}
+    bool replacementConfirmed=false;QTimer confirmReplacement;confirmReplacement.setInterval(2);
+    QObject::connect(&confirmReplacement,&QTimer::timeout,&cancelWindow,[&]{if(auto* box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget());box&&box->windowTitle()=="Replace existing file?"){replacementConfirmed=true;box->button(QMessageBox::Yes)->click();}});confirmReplacement.start();
     QTimer exportPicker;exportPicker.setInterval(2);QObject::connect(&exportPicker,&QTimer::timeout,&cancelWindow,[&]{if(auto* chooser=cancelWindow.findChild<QFileDialog*>()){exportPicker.stop();chooser->setOption(QFileDialog::DontConfirmOverwrite);chooser->selectFile(protectedPath);QMetaObject::invokeMethod(chooser,"accept",Qt::DirectConnection);}});exportPicker.start();cancelView->select_fragment({{1},0,1});stage=0;
     dialog(cancelWindow,"pairwiseDistances",[&](QDialog& d){if(stage==0){combo(d,"distanceColumns")->setCurrentIndex(1);stage=1;button(d,"distanceCalculate")->click();}else if(stage==1&&button(d,"distanceCopy")->isEnabled()){stage=2;button(d,"distanceExport")->click();button(d,"distanceCancel")->click();}else if(stage==2&&button(d,"distanceCalculate")->isEnabled()){QFile existing(protectedPath);need(existing.open(QIODevice::ReadOnly)&&existing.readAll()=="original contents","Cancelled export preserves existing destination atomically");d.reject();return true;}return false;});
+    confirmReplacement.stop();need(replacementConfirmed,"Replacing an existing table requires explicit approval");
     std::cout<<"PASS distance/SD/SE/version GUI: all reports, both molecules, scope, matrix/counts, TSV copy/export, invalidation, sort preview/cancel/apply/Undo/Redo, cancellation/close, atomic export cancellation and screenshots\n";
 }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}return 0;}

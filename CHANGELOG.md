@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.26.12 — implementation checkpoint A
+
+- Add an eagerly maintained sequence-ID index with preallocated transactional
+  updates for insert, delete, reorder and Undo/Redo; failed allocations retain
+  document content, published lookup state and history. Add failure-injection
+  regressions and a row-scaling benchmark.
+- Route merge FASTA and identity/composition/distance table exports through
+  protected-path checks, explicit replacement confirmation and atomic streaming
+  output. Preserve existing files on failed or cancelled writes.
+- Resolve MAFFT Automatic (safe) to a positive logical-core count capped at 8;
+  migrate the old -1 preference. Retry the specific core-count failure once
+  with one thread; capture bounded batch-wrapper diagnostics and missing output.
+- Add View → Toolbars → Editing controls and Restore default layout. Prevent
+  accidental toolbar hiding through the default toolbar-area menu.
+- Add synchronized exclusive Edit → Mode actions for View/Edit, Rewrite/Insert
+  and all applicable right-click modes; retain right-click choice in sessions.
+- Ctrl+Left/Right now slides one column; Shift+Left/Right slides as far as
+  permitted. Update context hints and regression checks.
+- Promote MAFFT and mode-control workflows into release-check: 33 tests total.
+  Record local 33/33 and 150%-scale 11/11 GUI results; native Windows and real
+  ARM MAFFT retests remain pending. Settings/recovery/trace linking are not yet
+  implemented.
+
 ## 0.26.11 — installer test revision 2, ARM64 compatibility
 
 - Replace the native-x64-only install guard with native x64 acceptance plus

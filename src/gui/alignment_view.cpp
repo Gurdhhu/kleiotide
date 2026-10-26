@@ -939,10 +939,10 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
         if(copy_translation_requested){auto* translated=menu.addAction("Copy translated fragment",[this]{copy_translation_requested();});translated->setEnabled(can_copy_translation());}
         menu.addSeparator();
         if (mode_!=Mode::View) {
-            shortcut_hint(menu.addAction("Move left one column", [this] { slide_fragment(-1); }),QKeySequence(Qt::SHIFT|Qt::Key_Left));
-            shortcut_hint(menu.addAction("Move right one column", [this] { slide_fragment(1); }),QKeySequence(Qt::SHIFT|Qt::Key_Right));
-            shortcut_hint(menu.addAction("Move left as far as possible", [this] { slide_fragment(-std::numeric_limits<std::int64_t>::max()); }),QKeySequence(Qt::CTRL|Qt::Key_Left));
-            shortcut_hint(menu.addAction("Move right as far as possible", [this] { slide_fragment(std::numeric_limits<std::int64_t>::max()); }),QKeySequence(Qt::CTRL|Qt::Key_Right));
+            shortcut_hint(menu.addAction("Move left one column", [this] { slide_fragment(-1); }),QKeySequence(Qt::CTRL|Qt::Key_Left));
+            shortcut_hint(menu.addAction("Move right one column", [this] { slide_fragment(1); }),QKeySequence(Qt::CTRL|Qt::Key_Right));
+            shortcut_hint(menu.addAction("Move left as far as possible", [this] { slide_fragment(-std::numeric_limits<std::int64_t>::max()); }),QKeySequence(Qt::SHIFT|Qt::Key_Left));
+            shortcut_hint(menu.addAction("Move right as far as possible", [this] { slide_fragment(std::numeric_limits<std::int64_t>::max()); }),QKeySequence(Qt::SHIFT|Qt::Key_Right));
             menu.addSeparator();
         }
         if (mode_!=Mode::View) {
@@ -1019,8 +1019,8 @@ void AlignmentView::keyPressEvent(QKeyEvent* event) {
     const auto modifiers=event->modifiers();
     if(mode_!=Mode::View&&fragment_&&horizontal&&
        !modifiers.testFlag(Qt::AltModifier)&&!modifiers.testFlag(Qt::MetaModifier)&&
-       (modifiers.testFlag(Qt::ShiftModifier)||modifiers.testFlag(Qt::ControlModifier))){
-        const auto distance=modifiers.testFlag(Qt::ControlModifier)?std::numeric_limits<std::int64_t>::max():1;
+       (modifiers==Qt::ShiftModifier||modifiers==Qt::ControlModifier)){
+        const auto distance=modifiers==Qt::ShiftModifier?std::numeric_limits<std::int64_t>::max():1;
         slide_fragment(event->key()==Qt::Key_Left?-distance:distance);
         const auto& rows=document_->rows();const auto id=fragment_->ids.front();
         for(std::size_t i=0;i<rows.size();++i)if(rows[i].id==id){

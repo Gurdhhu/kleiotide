@@ -1,4 +1,4 @@
-# Windows 11 on ARM — test installer revision 2
+# Windows 11 on ARM — compatibility status
 
 The reported laptop has a Snapdragon X Elite ARM64 processor, 16 GB RAM and
 Windows 11 Home 25H2. Test installer 1 explicitly accepted only native x64
@@ -9,36 +9,28 @@ Windows 11 supports x64 user-mode application emulation. Test installer 2 permit
 ARM64 Windows 11 when the Windows capability query confirms x64 user-mode
 support. The application and Qt libraries remain **x64**, built with the same
 Qt 6.5.3 / MSVC2022 x64 Release kit. This is not a native ARM64 build or a claim
-that the application has already passed ARM testing.
+that all ARM workflows have passed.
 
-## Build and give the updated setup to the colleague
+## Reported result and current retest
 
-Follow the final section of WINDOWS_INSTALLER.md. Use the updated source ZIP,
-a fresh source/build folder and installer revision **2**. Reuse the existing
-matching Qt source archive and original Microsoft `vc_redist.x64.exe`. The
-current Microsoft x64 Redistributable includes ARM64 components as well.
+The colleague's 0.26.11 test-2 installer worked. Start menu launch, basic
+FASTA/AB1 import, session save/reopen and editing passed without development
+tools. MAFFT 7.526 failed with “Cannot count the number of physical cores” and
+Cygwin FAST_CWD warnings. The toolbar disappeared in a separate screenshot.
+Broader analyses, uninstall/reinstall and workload limits remain unconfirmed.
 
-The result is `Kleiotide_0.26.11_test2_Windows_x64_Setup.exe`. Its x64 filename
-describes the application binaries; ARM computers use Windows 11 emulation.
-Keep corresponding source available beside the installer when distributing it.
+0.26.12 test 1 retains the ARM64 capability guard and adds safe positive MAFFT
+threads, bounded retry/diagnostics and toolbar restoration. Follow
+WINDOWS_INSTALLER.md to build it with the existing x64 kit and exact matching
+source ZIP. The version change is an application change; do not overwrite the
+old test-2 installer or its corresponding source.
 
-## First ARM test
-
-1. Install test 2 and note any exact setup/runtime error. The earlier test-1
-   architecture rejection installed no Kleiotide files and needs no uninstall.
-2. Launch from Start as an ordinary user. Confirm Help > About says 0.26.11.
-3. With copies of small files, open FASTA, AB1 and .kleio; edit, Undo/Redo,
-   save into Documents and reopen. Check a group import and a small analysis.
-4. Check cancellation and display scaling. Start with modest inputs before
-   comparing larger-file performance with the native x64 laptop.
-5. If MAFFT is installed/configured on that computer, test a small alignment
-   and cancellation. Its external executable/launcher needs its own ARM
-   compatibility result; mark it Not tested if unavailable.
-6. Close Kleiotide, uninstall, confirm saved files remain, then reinstall and
-   launch again. Include setup revision and emulated ARM64 status in feedback.
-
-If an error remains, send its exact text and the step where it occurred. Do not
-change Windows compatibility settings or bypass installer checks to continue.
+Test a tiny alignment using Automatic (safe), then an explicit thread count of
+1 if it fails; keep both job reports. Check cancellation, Edit → Mode, View →
+Toolbars → Editing controls, and Restore default layout. Check save/reopen and
+uninstall/reinstall with test data. Native rendering/touch and the real MAFFT
+package cannot be validated by Linux fixture tests. Do not replace individual
+Cygwin DLLs to work around an unexplained failure.
 
 ## Authoritative references
 

@@ -1,12 +1,20 @@
 # Next steps
 
-Use WINDOWS_TESTING.md for step-by-step Windows checks and RELEASE_CHECKLIST.md for the current release gates. The application license is GPL version 3 only; branding permissions and the artwork credit are in BRANDING.md. Complete native Windows/clean-machine acceptance and dependency/source distribution review before RC1. No additional feature work is planned during stabilization. Earlier development checkpoints are retained under docs/history/.
+0.26.12 completes implementation checkpoint A and brings forward the requested
+shortcut swap and Edit → Mode controls. Read IMPLEMENTATION_STATUS.md for the
+full boundary and VALIDATION.md for results. The application is not RC1.
 
-The native 0.26.11 rerun now passes 30/30 and all reported manual checks. Next:
-produce the first internal test installer with WINDOWS_INSTALLER.md; accept it
-on a Windows machine without development tools, then collect colleague feedback.
-The source adds packaging only; the application baseline remains 0.26.11.
+Build in a fresh Qt 6.5.3 / MSVC2022 x64 Release directory and run release-check
+(33 tests). Check the changed controls and exports using WINDOWS_TESTING.md.
+Use WINDOWS_INSTALLER.md to produce 0.26.12 test 1; keep the exact corresponding
+source and Qt source available alongside the setup. Retest real MAFFT 7.526 and
+toolbar recovery on native x64 and the colleague's ARM laptop.
 
-Installer revision 2 enables compatibility testing on the reported ARM64 Windows
-11 laptop through x64 emulation. Build test 2 from the updated source ZIP and
-collect the focused ARM report before making a compatibility claim.
+Continue checkpoint B with typed global settings, new-session precedence,
+recovery and bounded overview. Implement trace linking as checkpoint C with
+coordinate-ground-truth tests before enabling its UI. Keep the broader storage
+rewrites deferred as specified in docs/IMPLEMENTATION_PLAN_2026-10-26.md.
+
+The license remains GPL-3.0-only; branding/artwork permissions remain in
+BRANDING.md. Existing native 0.26.11 acceptance and partial ARM test-2 acceptance
+are retained in WINDOWS_ACCEPTANCE.md; changed code needs new native acceptance.

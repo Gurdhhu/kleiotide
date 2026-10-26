@@ -16,6 +16,14 @@ int main(int argc,char** argv){
         std::cerr<<"fixture-child-pid="<<child.processId()<<"\nfixture-align-ready\n"<<std::flush;
         for(;;)QThread::msleep(50);
     }
+    const auto threadOption=args.indexOf("--thread");
+    const auto threads=threadOption>=0?args.value(threadOption+1).toInt():0;
+    if(const auto marker=qEnvironmentVariable("KLEIOTIDE_FIXTURE_ATTEMPTS");!marker.isEmpty()){
+        QFile file(marker);if(file.open(QIODevice::WriteOnly|QIODevice::Append))file.write(QByteArray::number(threads)+'\n');
+    }
+    if(mode=="corealways"||((mode=="corefailure"||mode=="coreempty")&&threads!=1)){
+        std::cerr<<"Cannot count the number of physical cores.\n";return mode=="coreempty"?0:17;
+    }
     if(mode=="failure"){std::cerr<<"Fixture failure diagnostic\n";return 17;}
     if(mode=="empty")return 0;
     if(mode=="corrupt"){std::cout<<">kleio_999\nAT\n";return 0;}

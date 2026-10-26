@@ -20,6 +20,7 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
+#include <QToolBar>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -42,6 +43,21 @@ int main(int argc,char** argv){
         require(argc>=2,"Pass the process fixture executable");const auto fixture=QString::fromLocal8Bit(argv[1]);QTemporaryDir directory;require(directory.isValid(),"Temporary fixture folder");
         auto source=std::make_shared<Document>();source->load({{"same Я","AaCG~~TT"},{"same Я","AA~CG~TT"},{"mask","01234567"},{"empty",""}});const auto before=fasta(*source);
         auto result=run(app,source,fixture);require(result.result&&result.error.isEmpty()&&!result.cancelled,"Whole process result");require(fasta(*source)==before&&result.result->rows()[0].symbols.text()=="AaCGTT~"&&result.result->rows()[2].symbols.text()=="01234567","Source and masks unchanged, returned case preserved");require(result.report.contains("--preservecase")&&result.report.contains("7.525")&&result.report.contains("Masks excluded: 1"),"Job report records options/version/masks");
+        require(safe_mafft_thread_count(-1)==1&&safe_mafft_thread_count(0)==1&&safe_mafft_thread_count(3)==3&&safe_mafft_thread_count(1024)==8,"Safe automatic thread bounds");
+        const auto attempts=directory.filePath("attempts.txt");qputenv("KLEIOTIDE_FIXTURE_ATTEMPTS",attempts.toUtf8());
+        for(const auto& mode:{"corefailure","coreempty"}){
+            QFile::remove(attempts);qputenv("KLEIOTIDE_FIXTURE_MODE",mode);auto retried=run(app,source,fixture);
+            require(retried.result&&retried.error.isEmpty()&&fasta(*source)==before,"Core-detection failure safely retries without source edits");
+            QFile calls(attempts);require(calls.open(QIODevice::ReadOnly),"Attempt record");const auto lines=calls.readAll().trimmed().split('\n');
+            const auto resolved=safe_mafft_thread_count(QThread::idealThreadCount());
+            require(lines.size()==(resolved>1?2:1)&&lines.back()=="1","At most one automatic retry, using one thread");
+            if(resolved>1)require(retried.report.contains("Retry:")&&retried.report.contains("--thread 1"),"Retry report records actual final options");
+        }
+        qputenv("KLEIOTIDE_FIXTURE_MODE","corealways");QFile::remove(attempts);const auto failedCore=run(app,source,fixture);
+        require(!failedCore.result&&failedCore.error.contains("physical cores")&&fasta(*source)==before,"Repeated core-count failure stops with a useful diagnostic");
+        QFile::remove(attempts);MafftOptions explicitThreads;explicitThreads.threads=2;const auto explicitFailure=run(app,source,fixture,{},explicitThreads);
+        require(!explicitFailure.result&&!explicitFailure.report.contains("Retry:"),"Explicit thread requests do not silently change");
+        qunsetenv("KLEIOTIDE_FIXTURE_MODE");qunsetenv("KLEIOTIDE_FIXTURE_ATTEMPTS");
         auto fragment=run(app,source,fixture,Document::ColumnRange{2,4});require(fragment.result&&fragment.result->rows()[0].symbols.text()=="AaCG~~TT"&&fragment.result->rows()[1].symbols.text()=="AACG~~TT","Column process merge and exact outside context");
         for(const auto& mode:{"badversion","failure","empty","corrupt"}){qputenv("KLEIOTIDE_FIXTURE_MODE",mode);const auto failure=run(app,source,fixture);require(!failure.result&&!failure.error.isEmpty()&&fasta(*source)==before,"Failed process cannot change source");}qunsetenv("KLEIOTIDE_FIXTURE_MODE");
         auto mixed=std::make_shared<Document>();mixed->load({{"selected1","AaCGTT"},{"unselected protein","MEF*",RowKind::Protein},{"selected2","AACGTT"},{"unselected mask","012345",RowKind::Mask}});mixed->apply_groups({{1,"Keep",0x0072b2}},{{1,1},{2,1}});
@@ -61,6 +77,9 @@ int main(int argc,char** argv){
         }
         // Exercise the real settings dialog/menu and result-window lifecycle.
         const auto path=directory.filePath("input Я with spaces.fasta");QFile file(path);require(file.open(QIODevice::WriteOnly),"GUI source file");file.write(QByteArray::fromStdString(before));file.close();MainWindow window;window.show();window.open_path(path);auto* view=dynamic_cast<AlignmentView*>(window.centralWidget());wait(app,[&]{return view->isEnabled();});
+        const auto toolbarState=fasta(window.current_document());auto* toolbar=window.findChild<QToolBar*>("editingToolbar");require(toolbar&&toolbar->isVisible(),"Editing toolbar starts visible");
+        toolbar->hide();app.processEvents();require(!toolbar->isVisible(),"Hide toolbar fixture");action(window,"Editing controls")->trigger();require(toolbar->isVisible(),"View menu restores editing controls without restart");
+        toolbar->hide();action(window,"Restore default layout")->trigger();app.processEvents();require(toolbar->isVisible()&&fasta(window.current_document())==toolbarState,"Restore layout retains document content");
         auto launchMenu=[&](const QString& label){QTimer::singleShot(0,[&]{auto* dialog=dynamic_cast<QDialog*>(QApplication::activeModalWidget());require(dialog&&dialog->objectName()=="mafftSettings","Friendly MAFFT settings dialog");auto* launcher=dialog->findChild<QLineEdit*>("mafftLauncher");require(launcher,"Launcher chooser");launcher->setText(fixture);if(argc>3)require(dialog->grab().save(QString::fromLocal8Bit(argv[3])),"Settings screenshot");dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();});action(window,label)->trigger();wait(app,[&]{return view->isEnabled();});};
         launchMenu("Align whole alignment…");MainWindow* resultWindow=nullptr;for(auto* widget:app.topLevelWidgets())if(auto* w=dynamic_cast<MainWindow*>(widget);w&&w!=&window&&w->windowTitle().startsWith("MAFFT"))resultWindow=w;require(resultWindow,"Result opens separately");
         require(window.windowTitle().contains("input Я with spaces")&&!window.windowTitle().contains(" *"),"Original remains saved and unchanged");

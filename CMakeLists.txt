@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.26.11 LANGUAGES CXX)
+project(Kleiotide VERSION 0.26.12 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -16,6 +16,9 @@ endif()
 include(CTest)
 target_sources(kleiotide_core PRIVATE src/core/merge.cpp src/core/identity_groups.cpp)
 if(BUILD_TESTING)
+  add_executable(kleiotide_row_index_tests tests/row_index_tests.cpp)
+  target_link_libraries(kleiotide_row_index_tests PRIVATE kleiotide_core)
+  add_test(NAME row_index COMMAND kleiotide_row_index_tests)
   add_executable(kleiotide_identity_group_tests tests/identity_group_tests.cpp)
   target_link_libraries(kleiotide_identity_group_tests PRIVATE kleiotide_core)
   add_test(NAME identity_groups COMMAND kleiotide_identity_group_tests)
@@ -70,7 +73,7 @@ if(BUILD_TESTING)
 endif()
 option(KLEIOTIDE_BUILD_DEVELOPER_TOOLS "Build probes and benchmarks" OFF)
 if(KLEIOTIDE_BUILD_DEVELOPER_TOOLS)
-  foreach(tool abif_export_probe identity_group_benchmark core_benchmark)
+  foreach(tool abif_export_probe identity_group_benchmark core_benchmark row_index_benchmark)
     add_executable(kleiotide_${tool} tools/${tool}.cpp)
     target_link_libraries(kleiotide_${tool} PRIVATE kleiotide_core)
   endforeach()
@@ -151,6 +154,7 @@ if(KLEIOTIDE_BUILD_GUI)
     MAFFT_PROTEINS.md
     MERGING.md
     NEXT_STEPS.md
+    IMPLEMENTATION_STATUS.md
     PROTEIN_TRANSLATION_PLAN.md
     README.md
     RELEASE_CHECKLIST.md
@@ -232,24 +236,31 @@ if(KLEIOTIDE_BUILD_GUI)
     endif()
     kleiotide_workflow(mafft_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
+      set(workflow_test_name "gui.${workflow}")
+      if(workflow STREQUAL "stage0191_check")
+        set(workflow_test_name "gui.mode_controls")
+      endif()
       file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qa/${workflow}")
       set(workflow_output "${CMAKE_CURRENT_BINARY_DIR}/qa/${workflow}")
-      if(workflow STREQUAL "abif_export_check" OR workflow STREQUAL "collapse_check")
+      if(workflow STREQUAL "abif_export_check" OR workflow STREQUAL "collapse_check" OR workflow STREQUAL "stage0191_check")
         set(workflow_output "${workflow_output}/preview.png")
       endif()
       if(workflow STREQUAL "save_safety_check")
         add_dependencies(kleiotide_save_safety_check kleiotide_mafft_fixture)
-        add_test(NAME gui.${workflow} COMMAND kleiotide_${workflow} "${workflow_output}"
+        add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}"
             $<TARGET_FILE:kleiotide_mafft_fixture>)
+      elseif(workflow STREQUAL "mafft_check")
+        add_dependencies(kleiotide_mafft_check kleiotide_mafft_fixture)
+        add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} $<TARGET_FILE:kleiotide_mafft_fixture>)
       else()
-        add_test(NAME gui.${workflow} COMMAND kleiotide_${workflow} "${workflow_output}")
+        add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}")
       endif()
-      set_tests_properties(gui.${workflow} PROPERTIES LABELS "gui;release"
+      set_tests_properties(${workflow_test_name} PROPERTIES LABELS "gui;release"
           ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
-      kleiotide_qt_test_runtime(gui.${workflow})
+      kleiotide_qt_test_runtime(${workflow_test_name})
     endforeach()
     add_custom_target(release-check
       COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --no-tests=error -C $<CONFIG>

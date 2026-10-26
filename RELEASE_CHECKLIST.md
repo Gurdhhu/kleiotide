@@ -1,12 +1,10 @@
 # Release checklist
 
-0.26.11 is a stabilization build. Do not label it RC1 until the unchecked gates below have evidence. Feature development is frozen during this pass. Start with WINDOWS_TESTING.md for beginner instructions using Qt Creator, including the existing Qt 6.5.3 / MSVC 2022 x64 kit. Qt-dependent CTest entries resolve the selected kit's runtime directory themselves on Windows.
-
-The user's 0.26.11 follow-up confirms **30/30 automatic tests and all manual
-tests passing**, including the bulk-memory guard. WINDOWS_ACCEPTANCE.md records
-the tested Windows/Qt/MSVC environment, hardware and MAFFT 7.526. Packaging and
-clean-machine acceptance remain pending. Begin with WINDOWS_INSTALLER.md to
-produce a versioned internal test installer from this baseline.
+0.26.12 is implementation checkpoint A, not RC1. Settings, recovery and trace
+linking remain planned; see IMPLEMENTATION_STATUS.md. The following checked
+native items record **0.26.11 baseline acceptance**, not a new 0.26.12 result.
+Repeat the changed workflows and retain new logs before distributing this build.
+WINDOWS_ACCEPTANCE.md also records the colleague's limited test-2 ARM results.
 
 ## Repeatable automated checks
 
@@ -18,7 +16,7 @@ From the x64 Native Tools for VS 2022 environment, run PowerShell with your Qt M
 
 This configures Release with the release regression suite, builds, runs CTest, and retains logs plus JUnit and environment/result records. It does not change machine execution policy. You may run the CMake/CTest commands inside the script directly instead.
 
-The `release-check` CMake target builds all registered unit tests and nine GUI workflow programs, then runs CTest (30 entries). It retains text and JUnit reports as `release-tests-Release.log` and `release-tests-Release.xml` in the Release build directory and fails when no tests are found. GUI checks cover AB1 import notices, save safety, identity/group management/import, translation, merge, AB1 export, collapse and distances. Historical workflow executables remain available separately.
+The `release-check` CMake target builds all registered unit tests and eleven GUI workflow programs, then runs CTest (33 entries). It retains text and JUnit reports as `release-tests-Release.log` and `release-tests-Release.xml` in the Release build directory and fails when no tests are found. GUI checks cover AB1 import notices, save safety, identity/group management/import, translation, merge, AB1 export, collapse, distances, MAFFT and synchronized mode controls. Historical workflow executables remain available separately.
 
 ## Native Windows acceptance — user-reported baseline passes
 
@@ -41,8 +39,8 @@ Do not infer those narrower checks from a general Pass.
 ## Distribution acceptance — results/decisions still required
 
 For the new installer workflow, use **WINDOWS_INSTALLER.md** and the
-`test-installer` target. The first actual installer still requires a Windows
-build and clean-machine installation test.
+`test-installer` target. The new 0.26.12 installer requires a Windows build and acceptance. Basic
+0.26.11 test-2 ARM installation/launch was reported; broader checks remain.
 
 For the older folder/ZIP packaging workflow after validation:
 
@@ -59,14 +57,19 @@ The script installs into a new versioned folder, runs that kit's `windeployqt`, 
 - [ ] Decide installer/file associations, signing and public distribution channel. The portable package does not register associations.
 - [ ] Record acceptance results and any remaining known limitations before tagging RC1.
 
-## Refactoring boundary
+## New-version gates
 
-The reviewed save/export policies, operation locking, duplicate parser and repeated build definitions are addressed in this stabilization build. Old codon-span session migration remains supported; unreachable Document editing branches were removed after checking entry-point normalization. Large controller/undo rewrites remain deferred to avoid mixing structural churn into RC validation.
+- [x] Transactional row index and focused allocation-failure regressions.
+- [x] Shared protected atomic output for audited dialog exports.
+- [x] Controlled MAFFT failures/retry/cancellation and toolbar recovery tests.
+- [x] Shared mode actions and swapped shortcut regressions.
+- [x] Local 33/33 suite and 150%-scale 11/11 GUI workflows.
+- [ ] Qt 6.5.3 / MSVC2022 x64 Release: 33/33, changed native UI/export checks.
+- [ ] Real MAFFT 7.526 success/cancellation on native x64 and ARM Windows.
+- [ ] Native toolbar/mode controls at relevant DPI, narrow windows and touch.
+- [ ] Complete checkpoint B/C feature acceptance before RC freeze.
+- [ ] Build and accept the matching 0.26.12 test installer, including uninstall.
 
-## Installer test revision 2 — ARM report
-
-The colleague's ARM64 Windows 11 laptop was rejected by test 1's native-only
-guard. Test 2 adds a Windows-reported x64 user-mode capability check. Build the
-new setup using WINDOWS_INSTALLER.md and complete ARM64_COMPATIBILITY.md.
-ARM runtime acceptance remains open; Oleg's existing native x64 application
-acceptance is retained. A native ARM64 build is outside this packaging change.
+Large controller/storage rewrites remain deferred. No global exception handler
+attempts to continue after an unknown Qt event failure. The source snapshot has
+no Git remote; importing/committing it remains an operation in Oleg's checkout.

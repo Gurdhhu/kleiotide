@@ -1,117 +1,85 @@
-# Validation of Kleiotide 0.26.11
+# Validation of Kleiotide 0.26.12 — checkpoint A
 
-Executed on 22 October 2026. This patch follows the supplied Windows 0.26.10
-29/30 automatic result, manual acceptance and large-file observations recorded
-in WINDOWS_ACCEPTANCE.md. Changes cover merge-test synchronization, search-event
-explanations, Windows output-name validation, and bounded bulk editing.
+Executed 26 October 2026. Source baseline: supplied GitHub-ready 0.26.11.
+See IMPLEMENTATION_STATUS.md for implemented and pending plan items. The old
+0.26.11 validation record is retained in docs/history/VALIDATION_0.26.11.md.
 
-## Passed locally
+## Results
 
-- Release application/tests rebuilt with GCC 13.3/C++20. The final build has no
-  compiler warnings; early mistakes in new test code were corrected before this
-  delivered build.
-- Actual release-check target: **30/30 CTest entries passed**, with text/JUnit
-  output. The suite remains 17 core, four Qt unit and nine GUI workflow entries.
-- Nine GUI workflow suites at 150% scaling: **9/9 passed**. The merge workflow
-  additionally passed **10 consecutive runs at 125%**.
-- All 17 core suites rebuilt against the changed Document layout with
-  AddressSanitizer and UndefinedBehaviorSanitizer: **17/17 passed**. Leak
-  detection disabled; no GUI sanitizer or leak-check claim.
-- A controlled 50 ms initial-preview delay plus immediate test polling
-  reproduces the old merge assertion exactly. With the completion-state wait,
-  the same dialog/test scenario passes. The production preview retains its
-  normal zero-delay scheduling. This fixture establishes the timing hole without
-  weakening the required error-banner assertion.
-- Added merge regression: two incompatible substitutions plus one compatible
-  ambiguity difference require a search allowance of 3, produce 2 final residue
-  conflicts, and report 3 substitutions / 0 inserted-deleted bases / 1 compatible
-  IUPAC difference. Known/random existing exact/tolerant/indel cases still pass.
-- Windows filename-rule checks cover wildcards, forbidden characters, reserved
-  device names and trailing dot/space, while accepting Unicode/spaces. A real
-  Qt dialog in forced Windows-rules mode rejects ???? with a warning, retains
-  its file-model filters, and accepts a valid retry while returning the selected
-  file type. This runs the custom dialog path on Linux; native Windows still
-  needs confirmation.
-- Core regressions prove memory-limit refusals retain content/state/history;
-  bounded Flush and Undo/Redo still work afterwards; already-ungapped rows are
-  skipped; a ten-billion-cell virtual Flush refuses without allocating padding;
-  and a one-base edit in a million-base ordinary row works with a tiny text
-  working budget. A GUI workflow also triggers the real 2 GiB default Flush
-  limit and verifies the live editor/document remain usable.
-- Merge-preview captures inspected for complete, partial and error states, with
-  the expanded edit breakdown fitting the result banner. Existing output safety,
-  sessions, trace provenance, translation and group workflows remain covered.
+- Release application, unit tests and release workflows compiled with GCC
+  13.3 / C++20. Final C++ build completed without compiler warnings.
+- Complete registered suite: **33/33 passed**, no skipped entries: 18 core,
+  four Qt unit and eleven GUI workflow suites. JUnit report retained.
+- GUI suites with QT_SCALE_FACTOR=1.5: **11/11 passed**. The mode/toolbar
+  capture was visually inspected: controls, alignment and status hints fit.
+  Offscreen rendering does not establish native Windows DPI/touch behavior.
+- Targeted AddressSanitizer + UndefinedBehaviorSanitizer run of the changed
+  alignment implementation and row-index regression: passed, no diagnostics.
+  Other linked core objects were not instrumented in this targeted run; this
+  is not a new whole-core or GUI sanitizer claim. Leak detection was disabled.
 
-## Memory policy and scope
+## New regressions
 
-Bulk preflight estimates additional text/undo work before large allocations.
-The default limit is 2 GiB and is distinct from input size and the 64 MiB nominal
-history-retention budget. Gap/case transformations skip unaffected rows. Ordinary
-rows no longer build full temporary Sequence objects merely to validate absent
-protein metadata. Rich trace/protein edits retain their required validation.
-Flush catches allocation/limit exceptions through its GUI action.
+Row-index failure injection tries each allocation failure position before a
+successful operation: append 11, multi-span erase 13, reorder 19, load 4,
+restore session 110, composite collapse 20, splice Undo 5 and splice Redo 5.
+Every refusal retains rows, IDs, content/saved-state identity, next sequence ID
+and Undo/Redo availability. Two hundred structural cycles check lookup identity;
+const lookup is checked while allocations are forbidden.
 
-The estimate is conservative text working storage, not an exact physical-RAM
-reservation; allocator/metadata overhead and existing document/history/system
-usage still matter. Low available memory can still cause allocations to fail.
-No disk-backed or unlimited rectangular editing is implemented. Refused plans
-are rejected before sequence changes; no user history is discarded to make room.
+Export checks cover protected ABIF/session data under misleading extensions,
+streamed table commit, serialization failures and preservation of old output.
+Distance export cancellation now explicitly accepts replacement of its test
+output before testing cancellation; production replacement remains user-driven.
 
-## Environment, native results and remaining checks
+The MAFFT workflow covers a positive safe default, one targeted retry, both
+nonzero and zero-with-empty-output core-count failures, refusal of repeated
+retries, no retry for an explicit numeric choice, process errors/cancellation,
+separate result windows and source preservation. It uses a controlled fixture,
+not the colleague's MAFFT/Cygwin package. Toolbar hide/restore and default-layout
+recovery keep the document intact.
 
-Local execution uses Qt 6.4.2 on Linux and CMake/CTest 3.28.3. The validation copy
-lowers only the Qt package minimum and selects the working local CTest path;
-application/test source matches the delivered source. Delivered CMake retains
-Qt >=6.5 and CMake >=3.21.
+The promoted gui.mode_controls suite covers toolbar/menu synchronization,
+View restrictions, remembered rewrite/right-click preferences, session round
+trip, the swapped sliding shortcuts, caret navigation and existing gap behavior.
+Existing translation-preview/session regressions pass with shared actions.
 
-The follow-up Windows 11 / Qt Creator 15.0.1 / Qt 6.5.3 MSVC2022 x64 Release
-report confirms **30/30 automatic tests and all manual tests passing**, including
-filename handling and oversized bulk-operation prevention. MAFFT 7.526 and the
-hardware configuration are recorded in WINDOWS_ACCEPTANCE.md. The latest result
-is user-reported; no additional raw logs accompanied that follow-up. Explorer
-associations remain unconfigured and clean-machine deployment remains untested.
+## Row-scaling experiment
 
-The separate licensing/branding policy and native format 4 are unchanged. Prior
-validation records are retained under docs/history/.
+Same Linux host and GCC 13.3 -O3, using the same benchmark against baseline and
+changed core libraries. Each row contains 200 A residues. Times below are one
+run in milliseconds, not a statistical performance guarantee. Results include
+fingerprint checks after Undo. No Windows, process-RAM or chromosome-length
+performance claim is made.
 
-## Installer-preparation validation (packaging revision 1)
+| Rows | Build | Delete one column | Undo | Insert gap in every row | Delete first half of rows |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 20,000 | 0.26.11 | 543.51 | 359.07 | 723.93 | 20.67 |
+| 20,000 | 0.26.12 | 8.87 | 1.12 | 7.61 | 1.66 |
+| 40,000 | 0.26.11 | 6,986.18 | 4,560.18 | 9,270.91 | 95.73 |
+| 40,000 | 0.26.12 | 13.25 | 2.00 | 14.93 | 3.31 |
+| 80,000 | 0.26.12 | 27.86 | 3.69 | 29.44 | 7.16 |
 
-- Application sources, test sources and supplied examples are byte-for-byte
-  identical to the original 0.26.11 archive. No new native application test
-  result is claimed; the user's passing Windows baseline remains the evidence.
-- PowerShell 7.4.6 parser accepts the packaging script. It uses Windows
-  PowerShell 5.1-compatible constructs; execution under Windows 5.1 is pending.
-- CMake 3.28.3 configures the unchanged core-only path. A simulated MSVC/Windows
-  configure registers test-installer with app/release-check dependencies and
-  correctly quotes a Qt path containing spaces.
-- The packaging script runs end-to-end against controlled fake Qt/runtime/app
-  inputs using the real NSIS 3.09 compiler. It compiles installer/uninstaller,
-  includes referenced license files beyond filename matching, emits source and
-  build records, cleans its stage and produces valid SHA256 checksums. This
-  establishes packaging control flow/syntax; the dummy payload cannot run the
-  application and is not included in the delivered source archive.
-- Refusal checks reject a mismatched source ZIP, an invalid mocked Microsoft
-  signature and existing output. The existing setup hash remains unchanged.
-- Actual MSVC binary deployment, Microsoft signature/runtime installation,
-  Windows setup/UI/shortcuts, close-running-app handling, ordinary-user launch
-  and uninstall require the clean-machine checks in WINDOWS_INSTALLER.md.
+The baseline 80,000-row case was not run. Reproduce with the optional
+row_index_benchmark developer target; its source is tools/row_index_benchmark.cpp.
+This supports removing repeated row scans in these operations. It does not
+remove full-row copying costs for edits to very long sequences.
 
-## Installer revision 2: ARM64 eligibility
+## Environment and remaining acceptance
 
-The native-only guard explains the colleague's Snapdragon/Windows 11 rejection
-before any application file was installed. Revised eligibility retains native
-x64 Windows 10/11 and permits ARM64 Windows 11 (build >=22000) only if the
-GetMachineTypeAttributes query succeeds and its UserEnabled bit is set for
-IMAGE_FILE_MACHINE_AMD64 (0x8664). Application source/tests/examples are unchanged.
+Local Qt is **6.4.2**, Linux offscreen platform, CMake/CTest 3.28.3. Only the
+Qt package minimum is lowered in a separate validation copy. Delivered source
+retains **Qt >=6.5**, CMake >=3.21 and the production code used in these tests.
+A CMake configure warning about unavailable XKB development files did not
+prevent offscreen compilation/execution.
 
-The actual Windows API query and all installation/execution behavior on ARM
-require testing on the colleague's machine; source/compile checks cannot
-establish runtime compatibility or performance.
+The user's 0.26.11 native Windows 30/30/manual acceptance remains the baseline;
+it is not transferred to changed 0.26.12 code. This version still needs the
+Qt 6.5.3 / MSVC2022 x64 release-check run, native dialogs/shortcuts/toolbar checks,
+and real MAFFT 7.526 on x64 and ARM. The colleague's test-2 ARM basic workflows
+passed, but MAFFT failed and the toolbar disappeared, motivating these fixes.
 
-Revision-2 packaging checks: the real NSIS 3.09 compiler successfully compiled
-the updated installer and uninstaller using controlled placeholder application
-and runtime files. This checks script syntax/expansion and inclusion of the
-System plug-in; it does not execute the Windows API or application. The dummy
-setup and payload are not shipped. The 147 archived application/test/example
-files are byte-for-byte unchanged from installer revision 1. No native or
-emulated application tests were rerun in this environment for this packaging fix.
+The installer retains the existing ARM64 Windows-11 capability guard; the new
+application version starts packaging revision 1. No real Windows installer or
+MSVC binary was produced here. Reuse the accepted packaging inputs and build
+with WINDOWS_INSTALLER.md. Settings/recovery/trace linking are pending.

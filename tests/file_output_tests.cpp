@@ -60,6 +60,18 @@ int main(int argc,char** argv){QApplication app(argc,argv);try{
     const auto trace=directory.filePath("original.data");put(trace,QByteArray::fromStdString(test::synthetic_abif()));
     std::istringstream input(test::synthetic_abif());Document source;source.load({read_abif(input,"trace",trace.toUtf8().toStdString())});
     need(!output_path_error(trace,OutputFormat::Fasta,&source).isEmpty()&&!output_path_error(trace,OutputFormat::Abif,&source).isEmpty(),"Imported trace cannot be overwritten");
+    for(auto format:{OutputFormat::Fasta,OutputFormat::Table}){
+        const auto original=get(trace);
+        auto blocked=write_export_atomic(trace,format,&source,[](auto& out){out<<"must not overwrite";});
+        need(!blocked.isEmpty()&&get(trace)==original,"Shared exporter refuses an imported trace before writing");
+        const auto sessionBefore=get(opaque);
+        blocked=write_export_atomic(opaque,format,&source,[](auto& out){out<<"must not overwrite";});
+        need(!blocked.isEmpty()&&get(opaque)==sessionBefore,"Shared exporter protects session contents even with another suffix");
+    }
+    const auto table=directory.filePath("analysis.tsv");
+    need(write_export_atomic(table,OutputFormat::Table,&source,[](auto& out){out<<"name\tvalue\nrow\t1\n";}).isEmpty(),"Table export commits atomically");
+    const auto savedTable=get(table);error=write_export_atomic(table,OutputFormat::Table,&source,[](auto& out){out<<"partial";throw std::runtime_error("Injected table failure");});
+    need(!error.isEmpty()&&get(table)==savedTable,"Failed table export preserves existing output");
     const auto alias=directory.filePath("alias.ab1");std::error_code ec;
 #ifdef _WIN32
     std::filesystem::create_hard_link(std::filesystem::path(trace.toStdWString()),std::filesystem::path(alias.toStdWString()),ec);

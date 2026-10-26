@@ -1,4 +1,4 @@
-# Kleiotide 0.26.11
+# Kleiotide 0.26.12
 
 Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This is a stabilization build preparing for a release candidate. It is not yet a publicly released RC.
 
@@ -6,7 +6,7 @@ Open FASTA, AB1 chromatograms, or native `.kleio` sessions. Save uses a native s
 
 ## Build
 
-Requirements: CMake 3.21+, C++20 compiler, Qt 6.5+ Widgets and Concurrent. The primary Windows acceptance kit is Qt Creator 15.0.1 / Qt 6.8.1 / MSVC 2022 x64.
+Requirements: CMake 3.21+, C++20 compiler, Qt 6.5+ Widgets and Concurrent. The accepted baseline used Qt Creator 15.0.1 with the Qt 6.5.3 / MSVC 2022 x64 application kit. Qt Creator itself uses Qt 6.8.1.
 
 In Qt Creator, open `CMakeLists.txt`, select the MSVC x64 Qt kit, configure, and build `kleiotide`.
 
@@ -53,6 +53,8 @@ Copyright (C) 2026 Oleg Shchepin. Kleiotide is free software under the **GNU GPL
 Native Windows acceptance and the user's scale observations are recorded in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md). Bulk edits have a 2 GiB estimated additional working-memory limit; operations above it report an error before making sequence changes. This is separate from stored alignment size and the undo-history budget.
 
 Windows test installer preparation is described in [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
-The application baseline remains 0.26.11 (30/30 automatic and all manual Windows
-checks reported passing); installer revision 2 permits experimental Windows 11 ARM64 x64-emulation tests;
-clean-machine and ARM64 acceptance remain pending. See ARM64_COMPATIBILITY.md.
+This is checkpoint A of the approved implementation plan, with shared mode controls
+and the shortcut swap brought forward. Local regression results are 33/33;
+Windows acceptance for this version is pending. File → Settings, recovery,
+bounded overview and trace linking are subsequent checkpoints, documented in
+[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).

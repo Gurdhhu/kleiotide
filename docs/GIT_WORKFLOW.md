@@ -1,10 +1,15 @@
 # Initialize the Kleiotide GitHub repository (Windows)
 
-This archive is the **source tree**, not a Git repository. It has no `.git` folder and contains no connection to your private GitHub account. The `Kleiotide_0.26.11/` folder is the repository root: Git should track the files **inside** that folder, not a single ZIP file.
+This archive is the **source tree**, not a Git repository. It has no `.git` folder and contains no connection to your private GitHub account. The `Kleiotide_0.26.12/` folder is the repository root: Git should track the files **inside** that folder, not a single ZIP file.
+
+If your repository already contains 0.26.11, update that checkout with these source
+files, inspect `git diff` and make a normal commit. Do not initialize a second
+repository or force-push over existing history. No remote operation was performed
+while preparing this archive.
 
 ## Initial import into an empty private GitHub repository
 
-1. Extract `Kleiotide_0.26.11_GitHub_Ready.zip` and open **PowerShell** in the extracted `Kleiotide_0.26.11` directory (the one containing `CMakeLists.txt` and `.gitignore`).
+1. Extract `Kleiotide_0.26.12_GitHub_Ready.zip` and open **PowerShell** in the extracted `Kleiotide_0.26.12` directory (the one containing `CMakeLists.txt` and `.gitignore`).
 2. Run the following commands, replacing `YOUR_ACCOUNT/YOUR_REPOSITORY` with the address shown on the empty repository's GitHub page:
 
 ```powershell
@@ -12,7 +17,7 @@ git --version
 git init
 git add .
 git status --short
-git commit -m "Import Kleiotide 0.26.11 source"
+git commit -m "Import Kleiotide 0.26.12 source"
 git branch -M main
 git remote add origin "https://github.com/YOUR_ACCOUNT/YOUR_REPOSITORY.git"
 git push -u origin main
@@ -46,21 +51,21 @@ git push
 For a new release, complete the build/test checklist and then add an annotated tag:
 
 ```powershell
-git tag -a v0.26.11 -m "Kleiotide 0.26.11 baseline"
-git push origin v0.26.11
+git tag -a v0.26.12 -m "Kleiotide 0.26.12 checkpoint A"
+git push origin v0.26.12
 ```
 
-Tagging 0.26.11 is optional; it is best done after confirming this snapshot matches your accepted local sources. GitHub **Releases** and distributable installers should be created only after their separate acceptance and dependency checks. A repository push does not build or upload an installer.
+Tagging 0.26.12 is optional; it is best done after confirming this snapshot matches your accepted local sources. GitHub **Releases** and distributable installers should be created only after their separate acceptance and dependency checks. A repository push does not build or upload an installer.
 
 ## Building a matched source ZIP for the Windows test-installer script
 
 `tools/windows/make-installer.ps1` expects an exact versioned source ZIP and checks its files against the working tree before embedding it. If you use the GitHub-ready tree rather than the older installer-preparation source ZIP, **regenerate the matched source ZIP** after any tracked non-hidden source/documentation change:
 
 ```powershell
-python .\tools\package_source.py "..\Kleiotide_0.26.11_Source_For_Installer.zip"
+python .\tools\package_source.py "..\Kleiotide_0.26.12_Source_For_Installer.zip"
 ```
 
-Use the resulting ZIP as `KLEIOTIDE_SOURCE_ARCHIVE` in Qt Creator. It has the required internal `Kleiotide_0.26.11/` prefix. The GitHub-ready ZIP is intended for import into Git, not necessarily as the exact installer-embedded source archive. Third-party runtime licenses and sources remain governed by [WINDOWS_INSTALLER.md](../WINDOWS_INSTALLER.md).
+Use the resulting ZIP as `KLEIOTIDE_SOURCE_ARCHIVE` in Qt Creator. It has the required internal `Kleiotide_0.26.12/` prefix. The GitHub-ready ZIP is intended for import into Git, not necessarily as the exact installer-embedded source archive. Third-party runtime licenses and sources remain governed by [WINDOWS_INSTALLER.md](../WINDOWS_INSTALLER.md).
 
 ## Notes
 

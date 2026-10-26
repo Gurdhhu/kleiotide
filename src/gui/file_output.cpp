@@ -133,6 +133,16 @@ QString approve_output_path(QWidget* parent, QString path, OutputFormat format,
     }
     return path;
 }
+QString choose_export_path(QWidget* parent,const QString& caption,const QString& initial,
+                           const QString& filters,OutputFormat format,const Document* source){
+    const auto path=choose_output_filename(parent,caption,initial,filters,nullptr,QFileDialog::DontConfirmOverwrite);
+    return approve_output_path(parent,path,format,source);
+}
+QString write_export_atomic(const QString& path,OutputFormat format,const Document* source,
+                            const OutputWriter& writer,const std::function<bool()>& cancelled){
+    if(const auto error=output_path_error(path,format,source);!error.isEmpty())return error;
+    return write_output_atomic(path,writer,cancelled);
+}
 void write_output(QIODevice& device, const OutputWriter& writer) {
     DeviceBuffer buffer(device);
     std::ostream output(&buffer);

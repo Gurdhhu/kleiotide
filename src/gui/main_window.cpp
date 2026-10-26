@@ -355,7 +355,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     for(int i=0;i<residue_palette_count;++i){const auto palette=static_cast<ResiduePalette>(i);auto* option=paletteMenu->addAction(palette_label(palette));option->setObjectName("residuePalette."+palette_id(palette));option->setCheckable(true);paletteGroup->addAction(option);option->setChecked(i==0);option->setIcon(view_icon(5,palette));
         option->setToolTip("Change alignment residue colors and trace-channel colors. High contrast, Okabe–Ito and Paul Tol text is darkened where needed for contrast on white; Kleio and Chromas-style keep their exact base colors.");connect(option,&QAction::triggered,this,[this,palette]{set_residue_palette(palette);});}
     auto* fontAction=action(view, "Alignment &font…", {}, [this] { choose_font(); });fontAction->setObjectName("alignmentFont");
-    toolbar->setObjectName("editingToolbar");toolbar->setMovable(false);
+    toolbar->setObjectName("editingToolbar");toolbar->setMovable(false);toolbar->setFloatable(false);
     auto makeSwitch=[&](const char* object,const QString& accessible){
         auto* frame=new QFrame(toolbar);frame->setObjectName(object);frame->setAccessibleName(accessible);
         frame->setStyleSheet("QFrame { background: #edf1f5; border: 1px solid #aab7c5; border-radius: 7px; } QToolButton { color: #354456; background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 3px 10px; min-width: 30px; } QToolButton:checked { color: white; background: #285b8f; border-color: #285b8f; } QToolButton:!checked:hover { background: #dce5ef; } QToolButton:focus { border-color: #536b85; } QToolButton:disabled { color: #8a929a; } QToolButton:checked:disabled { color: #edf0f3; background: #8294a5; border-color: #8294a5; }");
@@ -372,17 +372,30 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* viewToggle=addSegment(modeSwitch,"viewToggle","View","View and select residues without editing them");editToggle->setChecked(true);
     addSpacing("editingModeSpacing");
     auto* editingSwitch=makeSwitch("rewriteInsertSwitch","Rewrite or Insert mode");
-    auto* rewriteToggle=addSegment(editingSwitch,"rewriteToggle","Rewrite","Replace the selected single-row fragment. Arrows move the caret; Shift+Left/Right slides one column, Ctrl+Left/Right moves across adjacent open gaps.");
-    auto* insertToggle=addSegment(editingSwitch,"insertToggle","Insert","Insert after one selected symbol. Drag selected residues/blocks to slide; Shift+Left/Right slides one column, Ctrl+Left/Right moves across adjacent open gaps.");rewriteToggle->setChecked(true);
-    connect(editToggle,&QToolButton::clicked,this,[this]{if(view_->mode()==AlignmentView::Mode::View)view_->set_mode(static_cast<AlignmentView::Mode>(editMode_));view_->setFocus();});
-    connect(viewToggle,&QToolButton::clicked,this,[this]{if(view_->mode()!=AlignmentView::Mode::View)view_->set_mode(AlignmentView::Mode::View);view_->setFocus();});
-    connect(rewriteToggle,&QToolButton::clicked,this,[this]{view_->set_mode(AlignmentView::Mode::Rewrite);view_->setFocus();});
-    connect(insertToggle,&QToolButton::clicked,this,[this]{view_->set_mode(AlignmentView::Mode::Insert);view_->setFocus();});
+    auto* rewriteToggle=addSegment(editingSwitch,"rewriteToggle","Rewrite","Replace the selected single-row fragment. Arrows move the caret; Ctrl+Left/Right slides one column, Shift+Left/Right moves across adjacent open gaps.");
+    auto* insertToggle=addSegment(editingSwitch,"insertToggle","Insert","Insert after one selected symbol. Drag selected residues/blocks to slide; Ctrl+Left/Right slides one column, Shift+Left/Right moves across adjacent open gaps.");rewriteToggle->setChecked(true);
     addSpacing("rightClickSpacing");
     auto* gapMode = new QComboBox(toolbar);gapMode->setObjectName("rightClickMode");
     gapMode->addItems({"Right click: menu", "Right click: insert gap", "Right click: delete open gap", "Right click: insert gaps in others", "Right click: delete open gaps in others"});
     gapMode->setToolTip("Gap actions are available in Edit only. Locked gaps require unlocking before deletion.");toolbar->addWidget(gapMode);
-    connect(gapMode,&QComboBox::currentIndexChanged,this,[this](int index){gapMode_=index;view_->set_right_click(static_cast<AlignmentView::RightClick>(index));});
+    connect(gapMode,&QComboBox::currentIndexChanged,this,[this](int index){gapMode_=index;view_->set_right_click(static_cast<AlignmentView::RightClick>(index));update_state();});
+    auto* modes=edit->addMenu("Mode");modes->setObjectName("editModeMenu");
+    auto modeAction=[&](QMenu* menu,QActionGroup* group,const QString& label,const char* id,auto callback){
+        auto* a=action(menu,label,{},callback);a->setObjectName(id);a->setCheckable(true);group->addAction(a);return a;
+    };
+    auto* viewModes=new QActionGroup(this);viewModes->setExclusive(true);modes->addSection("View / Edit");
+    auto* viewMode=modeAction(modes,viewModes,"View","mode.view",[this]{view_->set_mode(AlignmentView::Mode::View);view_->setFocus();});
+    auto* editMode=modeAction(modes,viewModes,"Edit","mode.edit",[this]{view_->set_mode(static_cast<AlignmentView::Mode>(editMode_));view_->setFocus();});
+    auto* editingModes=new QActionGroup(this);editingModes->setExclusive(true);modes->addSection("Rewrite / Insert");
+    auto* rewriteMode=modeAction(modes,editingModes,"Rewrite","mode.rewrite",[this]{view_->set_mode(AlignmentView::Mode::Rewrite);view_->setFocus();});
+    auto* insertMode=modeAction(modes,editingModes,"Insert","mode.insert",[this]{view_->set_mode(AlignmentView::Mode::Insert);view_->setFocus();});
+    auto* rightMenu=modes->addMenu("Right-click");auto* rightModes=new QActionGroup(this);rightModes->setExclusive(true);
+    const char* rightLabels[]={"Context menu","Insert gap","Delete open gap","Insert gaps in others","Delete open gaps in others"};
+    for(int i=0;i<5;++i){auto* a=action(rightMenu,rightLabels[i],{},[this,i]{gapMode_=i;view_->set_right_click(static_cast<AlignmentView::RightClick>(i));update_state();view_->setFocus();});a->setObjectName("mode.right."+QString::number(i));a->setCheckable(true);rightModes->addAction(a);}
+    for(const auto& pair:std::array<std::pair<QToolButton*,QAction*>,4>{{{viewToggle,viewMode},{editToggle,editMode},{rewriteToggle,rewriteMode},{insertToggle,insertMode}}}){
+        pair.first->parentWidget()->findChild<QButtonGroup*>()->setExclusive(false);
+        pair.second->setToolTip(pair.first->toolTip());pair.first->setDefaultAction(pair.second);
+    }
     toolbar->addSeparator();
     for(auto* toggle:{dots,traceToggle,overviewToggle}) {
         toolbar->addAction(toggle);
@@ -394,6 +407,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* stretch=new QWidget(toolbar);stretch->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);toolbar->addWidget(stretch);
     auto* sizeToolbar=addToolBar("Alignment size");sizeToolbar->setObjectName("alignmentSizeToolbar");sizeToolbar->setMovable(false);sizeToolbar->setFloatable(false);sizeToolbar->toggleViewAction()->setVisible(false);sizeToolbar->setSizePolicy(QSizePolicy::Fixed,QSizePolicy::Fixed);
     auto* sizeLabel=new QLabel(sizeToolbar);sizeLabel->setObjectName("alignmentSize");sizeLabel->setAlignment(Qt::AlignRight|Qt::AlignVCenter);sizeLabel->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);sizeLabel->setContentsMargins(8,0,8,0);sizeLabel->setTextFormat(Qt::PlainText);sizeLabel->setToolTip("Total sequences (including masks and proteins) and alignment columns. Independent of name and residue selections.");sizeToolbar->addWidget(sizeLabel);
+    auto* toolbarMenu=view->addMenu("Toolbars");
+    auto* editingVisibility=toolbar->toggleViewAction();editingVisibility->setText("Editing controls");editingVisibility->setObjectName("editingToolbarView");toolbarMenu->addAction(editingVisibility);
+    action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
+        removeToolBar(toolbar);removeToolBar(sizeToolbar);
+        addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
+        addDockWidget(Qt::BottomDockWidgetArea,overviewDock);addDockWidget(Qt::BottomDockWidgetArea,traceDock_);splitDockWidget(overviewDock,traceDock_,Qt::Vertical);
+        overviewDock->show();traceDock_->setVisible(traces_->has_traces());motifDock_->hide();update_toolbar_layout();
+    })->setObjectName("restoreDefaultLayout");
     auto* help = menuBar()->addMenu("&Help");
     auto* about = help->addAction("About Kleiotide");
     about->setObjectName("aboutKleiotide");
@@ -432,6 +453,9 @@ void MainWindow::update_state() {
         QSignalBlocker guardRewrite(rewrite),guardInsert(insert);(editMode_==1?insert:rewrite)->setChecked(true);
         if(auto* control=findChild<QWidget*>("rewriteInsertSwitch"))control->setEnabled(edit&&!busy_);
     }
+    for(const auto& choice:std::array<std::pair<const char*,bool>,4>{{{"mode.view",!edit},{"mode.edit",edit},{"mode.rewrite",editMode_!=1},{"mode.insert",editMode_==1}}})
+        if(auto* a=findChild<QAction*>(choice.first)){a->setChecked(choice.second);a->setEnabled(!busy_&&(edit||choice.first==std::string_view("mode.view")||choice.first==std::string_view("mode.edit")));}
+    for(int i=0;i<5;++i)if(auto* a=findChild<QAction*>("mode.right."+QString::number(i))){a->setChecked(i==(edit?gapMode_:0));a->setVisible(edit||i==0);a->setEnabled(!busy_&&(edit||i==0));}
     if(auto* label=findChild<QLabel*>("alignmentSize")){
         label->setText(QString("%1 sequences · %2 columns").arg(static_cast<qulonglong>(document_->rows().size())).arg(static_cast<qulonglong>(document_->columns())));
         if(auto* bar=findChild<QToolBar*>("alignmentSizeToolbar"))bar->setMinimumWidth(label->sizeHint().width()+12);
@@ -477,12 +501,13 @@ void MainWindow::update_selection_state() {
         const auto& fragment=view_->fragment();const bool single=fragment&&fragment->ids.size()==1;
         const bool writable=view_->mode()==AlignmentView::Mode::Insert||view_->mode()==AlignmentView::Mode::Rewrite;
         const auto enable=[this](const char* id,bool enabled){if(auto* a=findChild<QAction*>(id))a->setEnabled(enabled);};
-        const bool copyable=single&&fragment->start<document_->sequence(fragment->ids.front()).symbols.size();
+        const auto* fragmentRow=single?document_->find_sequence(fragment->ids.front()):nullptr;
+        const bool copyable=fragmentRow&&fragment->start<fragmentRow->symbols.size();
         enable("copyFragment",copyable);
         enable("cutFragment",writable&&copyable&&view_->complete_selection());
         enable("pasteFragment",writable&&view_->complete_selection()&&view_->caret().has_value()&&(!fragment||(single&&(view_->mode()==AlignmentView::Mode::Rewrite||view_->insertable_selection()))));
         enable("copySequences",!selected.empty());enable("cutSequences",!selected.empty());enable("unlockSelection",edit&&fragment.has_value());enable("lockSelection",edit&&fragment.has_value());
-        const bool canMerge=selected.size()>1&&std::all_of(selected.begin(),selected.end(),[this](SequenceId id){return document_->sequence(id).kind==RowKind::Nucleotide;});
+        const bool canMerge=selected.size()>1&&std::all_of(selected.begin(),selected.end(),[this](SequenceId id){const auto* row=document_->find_sequence(id);return row&&row->kind==RowKind::Nucleotide;});
         enable("mergeSelectedSequences",canMerge);enable("findOverlapAndMerge",canMerge);
         undoAction_->setEnabled(document_->can_undo());
         redoAction_->setEnabled(document_->can_redo());
@@ -492,9 +517,14 @@ void MainWindow::update_selection_state() {
                 .arg(static_cast<qulonglong>(fragment->start + 1))
                 .arg(static_cast<qulonglong>(fragment->start + fragment->width))
                 .arg(static_cast<qulonglong>(fragment->ids.size()))
-                .arg(edit?" · Shift+Left/Right or drag to slide":""));
+                .arg(edit?" · Ctrl+Left/Right: one column; Shift+Left/Right: maximum; drag to slide":""));
         }else statusBar()->clearMessage();
     }
+}
+QMenu* MainWindow::createPopupMenu(){
+    auto* menu=QMainWindow::createPopupMenu();
+    if(menu)if(auto* bar=findChild<QToolBar*>("editingToolbar"))menu->removeAction(bar->toggleViewAction());
+    return menu;
 }
 void MainWindow::update_toolbar_layout(){
     auto* controls=findChild<QToolBar*>("editingToolbar");auto* counts=findChild<QToolBar*>("alignmentSizeToolbar");auto* label=findChild<QLabel*>("alignmentSize");
@@ -657,7 +687,8 @@ void MainWindow::set_sequence_type(){
 }
 void MainWindow::delete_selected() {
     if (busy_) return;
-    document_->erase_rows(view_->selected_ids()); view_->refresh(); update_state();
+    try{document_->erase_rows(view_->selected_ids()); view_->refresh(); update_state();}
+    catch(const std::exception& e){QMessageBox::warning(this,"Delete selected sequences",QString::fromUtf8(e.what()));}
 }
 void MainWindow::align_mafft(bool columns){
     if(busy_)return;
@@ -958,7 +989,7 @@ void MainWindow::save(bool saveAs, std::function<void()> onSuccess, bool exportF
     }));
 }
 std::string MainWindow::session_view()const {
-    QJsonObject state;state["version"]=1;state["mode"]=static_cast<int>(view_->mode());state["editMode"]=editMode_;state["names"]=view_->name_area_width();state["font"]=view_->font().toString();
+    QJsonObject state;state["version"]=1;state["mode"]=static_cast<int>(view_->mode());state["editMode"]=editMode_;state["rightClick"]=gapMode_;state["names"]=view_->name_area_width();state["font"]=view_->font().toString();
     state["identityDots"]=view_->identity_dots();
     if(translation_)state["translation"]=translation_->state();
     state["residuePalette"]=palette_id(view_->residue_palette());state["residueDisplay"]=display_id(view_->residue_display());
@@ -978,7 +1009,7 @@ void MainWindow::restore_view(const std::string& bytes){
     set_residue_palette(palette_from_id(state["residuePalette"].toString()));set_residue_display(display_from_id(state["residueDisplay"].toString()));
     auto ids=[&](const QJsonArray& values){std::vector<SequenceId> result;for(const auto& v:values){const auto id=v.toString().toULongLong();for(const auto& row:document_->rows())if(row.id==id){if(std::find(result.begin(),result.end(),id)==result.end())result.push_back(id);break;}}return result;};
     QFont font;if(font.fromString(state["font"].toString())&&font.pointSize()>=6&&font.pointSize()<=48)view_->setFont(font);
-    view_->set_name_area_width(state["names"].toInt(230));editMode_=state["editMode"].toInt(2)==1?1:2;const int storedMode=state["mode"].toInt(2);view_->set_mode(storedMode==0?AlignmentView::Mode::View:storedMode==1?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
+    view_->set_name_area_width(state["names"].toInt(230));gapMode_=std::clamp(state["rightClick"].toInt(0),0,4);editMode_=state["editMode"].toInt(2)==1?1:2;const int storedMode=state["mode"].toInt(2);view_->set_mode(storedMode==0?AlignmentView::Mode::View:storedMode==1?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
     if(translation_)translation_->restore(state["translation"].toObject());
     view_->select_ids(ids(state["selected"].toArray()));const auto f=state["fragment"].toObject();const auto start=f["start"].toString().toULongLong(),width=f["width"].toString().toULongLong();auto rows=ids(f["ids"].toArray());
     if(!rows.empty()&&width&&start<document_->columns()&&width<=document_->columns()-start)view_->select_fragment({rows,static_cast<std::size_t>(start),static_cast<std::size_t>(width),f["columns"].toBool(false)});

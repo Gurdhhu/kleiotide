@@ -3,8 +3,8 @@
 Reports supplied by Oleg Shchepin for 0.26.10 and the subsequent **0.26.11**
 rerun. These are the user's native results, separate from local Linux regression
 runs. The latest report confirms **30/30 automatic tests and all manual tests
-pass**, including prevention of oversized bulk operations. Installer/clean-machine
-acceptance is a separate next step and has not yet been reported.
+pass**, including prevention of oversized bulk operations. A later colleague report confirms limited test-2 ARM acceptance, recorded below.
+Acceptance of the changed 0.26.12 code remains pending.
 
 ## Environment
 
@@ -84,6 +84,20 @@ installing Kleiotide. This is a packaging restriction; application execution was
 not tested. Device, product and machine identifiers are intentionally omitted.
 
 Revision 2 allows ARM64 Windows 11 when Windows reports x64 user-mode support.
-Installation, ordinary-user launch, data save/reopen, analyses, optional real
-MAFFT and uninstall/reinstall on that machine remain **pending**. These are
-separate from Oleg's passing native x64 application baseline.
+
+## ARM colleague test — installer revision 2
+
+The supplied feedback confirms installation, Start menu launch and basic
+FASTA/AB1/session/editing workflows on the Snapdragon laptop, without Qt or
+development tools. The reported setup SHA256 is
+E8C205431D050F6CEC51428675CE6EC0598D5403D0D368D17D43EBD1530BEE33.
+
+MAFFT 7.526 failed with “Cannot count the number of physical cores” and Cygwin
+FAST_CWD warnings. Another screenshot shows the editing toolbar absent while
+the menu/alignment remain visible. The exact hiding trigger is not established.
+Uninstall/reinstall, broader analyses and workload limits remain unconfirmed.
+
+0.26.12 adds bounded positive automatic threads, one specific-error retry and
+batch diagnostics, plus permanent toolbar/menu recovery commands. Those fixes
+have local fixture coverage; real MAFFT and native UI retests on this machine
+are pending. No blanket ARM/MAFFT compatibility claim follows from installation.

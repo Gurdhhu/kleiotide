@@ -11,7 +11,6 @@
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QFileDialog>
-#include <QSaveFile>
 #include <QSpinBox>
 #include <QFutureWatcher>
 #include <QHeaderView>
@@ -91,8 +90,8 @@ private:
         try{
             if(!model_->plan)return;
             const auto bytes=QByteArray::fromStdString(identity_groups_tsv(*source_,*model_->plan));
-            auto path=choose_output_filename(this,"Save clustering preview", "clustering_preview.tsv","Tab-separated table (*.tsv);;All files (*)");if(path.isEmpty())return;
-            QSaveFile file(path);if(!file.open(QIODevice::WriteOnly)||file.write(bytes)!=bytes.size()||!file.commit())throw std::runtime_error("Cannot save preview table: "+file.errorString().toStdString());
+            auto path=choose_export_path(this,"Save clustering preview", "clustering_preview.tsv","Tab-separated table (*.tsv);;All files (*)",OutputFormat::Table,source_.get());if(path.isEmpty())return;
+            const auto error=write_export_atomic(path,OutputFormat::Table,source_.get(),[&](auto& out){out.write(bytes.constData(),bytes.size());});if(!error.isEmpty())throw std::runtime_error("Cannot save preview table: "+error.toStdString());
             status_->setText("Preview table saved. Group memberships are unchanged until Apply.");
         }catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));}
     }

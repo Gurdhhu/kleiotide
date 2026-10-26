@@ -1,17 +1,20 @@
-# Windows test installer — revision 2
+# Windows test installer — Kleiotide 0.26.12 test 1
 
-The application baseline is **0.26.11**. Oleg reports **30/30 automatic tests
-and all manual tests passing**, including refusal of oversized bulk edits.
-This archive adds packaging and updates acceptance records; application code
-is identical to that baseline. The current package is **0.26.11 test 2**, not RC1. Revision 2 permits
-ARM64 Windows 11 when Windows reports that x64 user-mode applications can run.
-The application and Qt libraries remain x64; native ARM64 binaries are not built.
-No native installer has yet been built or accepted in this environment.
+This source contains application changes for implementation checkpoint A.
+Local results are 33/33 automatic tests; native Windows acceptance is pending.
+The previous 0.26.12 test-2 ARM installer successfully installed and ran basic
+workflows. Its MAFFT/toolbar findings are addressed here and need retesting.
+The application and Qt libraries remain x64. The ARM64 Windows 11 capability
+guard from test 2 is retained; no native ARM64 binary is built.
+
+Use the nested **Kleiotide_0.26.12_Source_For_Installer.zip** as the source ZIP
+for packaging, not the outer checkpoint bundle. Extract that source to a fresh
+folder for Qt Creator. No Windows setup executable is included in this package.
 
 ## What the installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.26.11-2`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.26.12-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -34,10 +37,10 @@ Windows 11 (build 22000+) and reported x64 user-mode support are required. Windo
 current x64 Redistributable also includes ARM64 components; keep using the
 original latest `vc_redist.x64.exe`, not a renamed ARM64-only package.
 
-**ARM64 compatibility is experimental and needs an actual install/run test.**
+**Broader ARM64 compatibility remains experimental. Retest this changed version.**
 See ARM64_COMPATIBILITY.md for the focused procedure and the test-1 finding.
 
-The official icon can be added later. This first installer is unsigned and uses
+The official icon can be added later. This test installer is unsigned and uses
 the default installer artwork. Signing is a later distribution improvement.
 Windows may warn about an unfamiliar unsigned installer; colleagues should
 verify its origin/checksum and follow their organisation's software policy.
@@ -78,7 +81,7 @@ provide the source for the bundled Qt libraries.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt 6.8.1 is
    unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.26.11` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.26.12` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -86,13 +89,14 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.26.11_Installer_Prep_Source.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.26.12_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
    Normally leave `KLEIOTIDE_NSIS_COMPILER` empty; the standard NSIS location is
    detected. For a custom install, point it at the actual `makensis.exe`.
-   Leave `KLEIOTIDE_INSTALLER_REVISION` at **2** for this package.
+   Set `KLEIOTIDE_INSTALLER_REVISION` to **1** for this new application version,
+   including when copying CMake settings from the old version.
 5. Run CMake again. In Build Steps > CMake Build, select **`test-installer`**
    as the only build target, then press **Ctrl+B**. This builds the app, reruns
    the enabled `release-check` suite and creates the installer. The script uses
@@ -102,7 +106,7 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.26.11_test2/
+test-installers/Kleiotide_0.26.12_test1/
 ```
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,
@@ -112,7 +116,7 @@ No network download occurs during installation on a colleague's computer.
 
 An error leaves the partial output for inspection and does not overwrite a
 previous package. Correct the reported problem and increase
-`KLEIOTIDE_INSTALLER_REVISION` to **3** before retrying. Return the build target
+`KLEIOTIDE_INSTALLER_REVISION` to **2** before retrying. Return the build target
 to `kleiotide` for ordinary development after packaging.
 
 ## 3. Accept the package on a clean Windows computer
@@ -153,16 +157,16 @@ resolution of any failures that threaten data integrity or ordinary workflows.
   https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
 - NSIS: https://nsis.sourceforge.io/License
 
-## Rebuilding revision 2 after the ARM laptop report
+## Focused retest after the ARM report
 
-1. Download the updated installer-preparation source ZIP. Extract into a fresh
-   source folder and use a fresh build folder, for example `C:/Kleiotide-build/test2`.
-2. Select the same Qt 6.5.3 / MSVC2022 x64 Release kit. Reuse the existing Qt
-   source ZIP and original Microsoft x64 Redistributable.
-3. Set KLEIOTIDE_SOURCE_ARCHIVE to this **updated ZIP**, not the earlier test-1
-   ZIP. Source validation requires the exact archive used for the current build.
-4. Enable the same release tests and set KLEIOTIDE_INSTALLER_REVISION to **2**
-   explicitly if reusing any CMake settings. Select test-installer and Ctrl+B.
-5. Give your colleague the new `...test2_Windows_x64_Setup.exe`. A failed test-1
-   processor check installed no Kleiotide files, so it needs no uninstall. If a
-   test-1 installation exists on another PC, test 2 can be installed beside it.
+Build 0.26.12 with the same Qt 6.5.3 / MSVC2022 x64 Release kit. The 33-entry
+release-check runs before packaging. Reuse the existing matching Qt source ZIP
+and original Microsoft runtime; point KLEIOTIDE_SOURCE_ARCHIVE at this version's
+Source_For_Installer ZIP. The previous .11 test-2 setup must remain unchanged.
+
+On both native x64 and the ARM laptop, try a tiny MAFFT alignment using Automatic
+(safe), retain the report, and check cancellation. If it fails, try an explicit
+Threads=1 once and retain that report too. The controlled fixture cannot prove
+compatibility with the installed MAFFT/Cygwin runtime. Check View → Toolbars →
+Editing controls, View → Restore default layout and Edit → Mode. Confirm the
+new Ctrl/Shift sliding assignments with alignment focus. See WINDOWS_TESTING.md.

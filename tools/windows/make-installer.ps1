@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory=$true)][string]$VcRedist,
     [string]$CmakeExecutable = 'cmake',
     [string]$NsisCompiler,
-    [ValidatePattern('^[1-9][0-9]*$')][string]$TestRevision = '2',
+    [ValidatePattern('^[1-9][0-9]*$')][string]$TestRevision = '1',
     [string]$OutputRoot
 )
 $ErrorActionPreference = 'Stop'

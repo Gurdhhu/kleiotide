@@ -26,9 +26,9 @@ int main(int argc,char**argv){
   auto drag=[&](QPointF a,QPointF b){mouse(QEvent::MouseButtonPress,a,Qt::LeftButton,Qt::LeftButton);mouse(QEvent::MouseMove,b,Qt::NoButton,Qt::LeftButton);mouse(QEvent::MouseButtonRelease,b,Qt::LeftButton,Qt::NoButton);};
   auto key=[&](int code,Qt::KeyboardModifiers mods=Qt::NoModifier){QKeyEvent event(QEvent::KeyPress,code,mods);QApplication::sendEvent(&v,&event);app.processEvents();};
   drag(point(0,3),point(0,4));require(v.fragment()&&v.fragment()->start==3&&v.fragment()->width==2&&v.fragment()->ids.size()==1,"Mouse rectangle");
-  key(Qt::Key_Right,Qt::ShiftModifier);require(d.rows()[0].symbols.text()=="A~~~CG~~T"&&v.fragment()->start==4,"Arrow slide");
-  key(Qt::Key_Right,Qt::ControlModifier);require(d.rows()[0].symbols.text()=="A~~~~~CGT"&&v.fragment()->start==6,"Maximum slide");
-  key(Qt::Key_Left,Qt::ControlModifier);require(d.rows()[0].symbols.text()=="ACG~~~~~T"&&v.fragment()->start==1,"Maximum left");
+  key(Qt::Key_Right,Qt::ControlModifier);require(d.rows()[0].symbols.text()=="A~~~CG~~T"&&v.fragment()->start==4,"Arrow slide");
+  key(Qt::Key_Right,Qt::ShiftModifier);require(d.rows()[0].symbols.text()=="A~~~~~CGT"&&v.fragment()->start==6,"Maximum slide");
+  key(Qt::Key_Left,Qt::ShiftModifier);require(d.rows()[0].symbols.text()=="ACG~~~~~T"&&v.fragment()->start==1,"Maximum left");
   d.undo();v.refresh();app.processEvents();require(v.fragment()->start==6,"Undo selection position");
   drag(point(0,6),point(0,4));require(d.rows()[0].symbols.text()=="A~~~CG~~T"&&v.fragment()->start==4,"Drag rigid block");
   d.undo();v.refresh();require(v.fragment()->start==6,"Drag undo");
@@ -62,11 +62,11 @@ int main(int argc,char**argv){
   key(Qt::Key_Escape);require(!v.fragment(),"Escape clears selection");
   // Pushing via Shift+arrows/drag must cross locks and grow the document.
   d.load({{"push","A-CG~~T"},{"other","TT"}});v.set_document(&d);v.set_mode(AlignmentView::Mode::Rewrite);app.processEvents();
-  drag(point(0,2),point(0,3));key(Qt::Key_Left,Qt::ShiftModifier);
+  drag(point(0,2),point(0,3));key(Qt::Key_Left,Qt::ControlModifier);
   require(d.rows()[0].symbols.text()=="A-CG~~T"&&v.fragment()->start==2,"Leading content cannot be lost");
   drag(point(0,2),point(0,7));require(v.fragment()->start==7&&d.rows()[0].symbols.text()=="A-~~~~~CGT"&&d.columns()==10,"Drag pushes suffix beyond end");
   d.undo();v.refresh();require(v.fragment()->start==2&&d.rows()[0].symbols.text()=="A-CG~~T","Extended drag undo");
-  key(Qt::Key_Right,Qt::ShiftModifier);key(Qt::Key_Right,Qt::ShiftModifier);key(Qt::Key_Right,Qt::ShiftModifier);
+  key(Qt::Key_Right,Qt::ControlModifier);key(Qt::Key_Right,Qt::ControlModifier);key(Qt::Key_Right,Qt::ControlModifier);
   require(v.fragment()->start==5&&d.rows()[0].symbols.text()=="A-~~~CGT","Arrow pushes terminal residue");
   // Vertical autoscroll while selecting, then release must stop the timer.
   std::vector<Record> records;for(int i=0;i<40;++i)records.push_back({std::to_string(i),"ACGT~~~~"});d.load(records);v.set_document(&d);v.set_mode(AlignmentView::Mode::Rewrite);app.processEvents();

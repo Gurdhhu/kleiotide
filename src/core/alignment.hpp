@@ -8,6 +8,7 @@
 #include <vector>
 #include <array>
 #include <optional>
+#include <unordered_map>
 #include "core/chromatogram.hpp"
 #include "core/translation_types.hpp"
 
@@ -74,6 +75,7 @@ struct Sequence {
 class Document {
 public:
     const std::vector<Sequence>& rows() const noexcept { return rows_; }
+    const Sequence* find_sequence(SequenceId id) const noexcept;
     const Sequence& sequence(SequenceId id) const;
     std::size_t columns() const noexcept;
     std::uint64_t state_id() const noexcept { return stateId_; }
@@ -184,11 +186,16 @@ private:
     GroupPatch group_patch(std::vector<SequenceGroup>,const std::vector<std::pair<SequenceId,GroupId>>&)const;
     Sequence& mutable_sequence(SequenceId id);
     void execute(Command command);
-    void prepare(Command& command, bool forward);
-    void apply(Command& command, bool forward);
+    using RowIndex = std::unordered_map<SequenceId,std::size_t>;
+    static RowIndex make_index(const std::vector<Sequence>& rows);
+    // A structural transaction owns a fully allocated working index before any
+    // row changes. Const lookups never rebuild or mutate the published index.
+    std::optional<RowIndex> prepare(Command& command, bool forward);
+    void apply(Command& command, bool forward, RowIndex* preparedIndex);
     void trim_history();
     TranslationSettings translation_;
     std::vector<Sequence> rows_;
+    RowIndex rowIndex_;
     std::vector<SequenceGroup> groups_;
     GroupId nextGroupId_=1;
     std::vector<Command> undo_, redo_;

@@ -16,7 +16,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSaveFile>
 #include <QTableView>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
@@ -60,7 +59,7 @@ public:
         status_=new QLabel("Choose scope and ambiguity handling, then Calculate. Changing a setting clears the previous results.",this);status_->setObjectName("compositionStatus");status_->setWordWrap(true);layout->addWidget(status_);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Close,this);layout->addWidget(buttons);calculate_=buttons->addButton("Calculate",QDialogButtonBox::ActionRole);calculate_->setObjectName("compositionCalculate");calculate_->setDefault(true);copy_=buttons->addButton("Copy",QDialogButtonBox::ActionRole);copy_->setObjectName("compositionCopy");export_=buttons->addButton("Export TSV…",QDialogButtonBox::ActionRole);export_->setObjectName("compositionExport");copy_->setEnabled(false);export_->setEnabled(false);close_=buttons->button(QDialogButtonBox::Close);
         connect(buttons,&QDialogButtonBox::rejected,this,&CompositionDialog::reject);connect(calculate_,&QPushButton::clicked,this,[this]{calculate();});connect(copy_,&QPushButton::clicked,this,[this]{QApplication::clipboard()->setText(utf8(tsv_));});
-        connect(export_,&QPushButton::clicked,this,[this]{const auto path=choose_output_filename(this,"Export nucleotide composition","nucleotide_composition.tsv","Tab-separated table (*.tsv);;All files (*)");if(path.isEmpty())return;QSaveFile file(path);if(!file.open(QIODevice::WriteOnly)||file.write(tsv_.data(),static_cast<qint64>(tsv_.size()))!=static_cast<qint64>(tsv_.size())||!file.commit())QMessageBox::warning(this,"Export composition",file.errorString());});
+        connect(export_,&QPushButton::clicked,this,[this]{const auto path=choose_export_path(this,"Export nucleotide composition","nucleotide_composition.tsv","Tab-separated table (*.tsv);;All files (*)",OutputFormat::Table,source_.get());if(path.isEmpty())return;const auto error=write_export_atomic(path,OutputFormat::Table,source_.get(),[&](auto& out){out.write(tsv_.data(),static_cast<std::streamsize>(tsv_.size()));});if(!error.isEmpty())QMessageBox::warning(this,"Export composition",error);});
         connect(rows_,&QComboBox::currentIndexChanged,this,[this]{invalidate();});connect(columnsBox_,&QComboBox::currentIndexChanged,this,[this]{invalidate();});connect(fractional_,&QCheckBox::toggled,this,[this]{invalidate();});
     }
 protected:

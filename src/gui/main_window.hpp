@@ -10,6 +10,7 @@
 class QAction;
 class QCloseEvent;
 class QDockWidget;
+class QMenu;
 namespace kleiotide {
 class AlignmentView;
 class AlignmentOverview;
@@ -29,6 +30,7 @@ protected:
     void closeEvent(QCloseEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void changeEvent(QEvent*) override;
+    QMenu* createPopupMenu() override;
 private:
     friend class TranslationUI;
     TranslationUI* translation_=nullptr;

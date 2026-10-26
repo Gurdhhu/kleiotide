@@ -17,7 +17,6 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QSaveFile>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTableWidget>
@@ -130,9 +129,10 @@ private:
     void save_fasta(){
         if(running_||!usable())return;
         if(plan_->revision!=source_->state_id()){invalidate();notice("error","Merge preview expired","The alignment changed. Preview again before saving.");return;}
-        const auto path=choose_output_filename(this,"Save merged sequence",{},"FASTA (*.fasta *.fas *.fa);;All files (*)");if(path.isEmpty())return;
-        QSaveFile file(path);const auto bytes=(">"+name_->text().trimmed()+"\n"+text(plan_->symbols)+"\n").toUtf8();
-        if(!file.open(QIODevice::WriteOnly)||file.write(bytes)!=bytes.size()||!file.commit()){notice("error","Could not save FASTA",file.errorString());return;}
+        const auto path=choose_export_path(this,"Save merged sequence",{},"FASTA (*.fasta *.fas *.fa);;All files (*)",OutputFormat::Fasta,source_.get());if(path.isEmpty())return;
+        const auto bytes=(">"+name_->text().trimmed()+"\n"+text(plan_->symbols)+"\n").toUtf8();
+        const auto error=write_export_atomic(path,OutputFormat::Fasta,source_.get(),[&](auto& out){out.write(bytes.constData(),bytes.size());});
+        if(!error.isEmpty()){notice("error","Save merged sequence failed",error);return;}
         render();status_->setText(status_->text()+"\nSaved FASTA: "+path);
     }
     void apply(){if(running_||!usable())return;try{appended=apply_sequence_merge(*source_,*plan_,name_->text().trimmed().toUtf8().toStdString());accept();}catch(const std::exception& e){invalidate();notice("error","Merge preview failed",QString::fromUtf8(e.what()));}}

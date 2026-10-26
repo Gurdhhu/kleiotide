@@ -2,6 +2,9 @@
 #include "core/fasta.hpp"
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
+#include <QThread>
+#include <algorithm>
 #include <QFutureWatcher>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -30,6 +33,9 @@ std::filesystem::path native(const QString& text){
     return std::filesystem::path(text.toStdString());
 #endif
 }
+}
+int safe_mafft_thread_count(int availableLogicalCores) noexcept {
+    return std::clamp(availableLogicalCores,1,8);
 }
 QString mafft_batch_command(const QStringList& options,bool versionOnly,std::optional<bool> fragments){
     for(const auto& arg:options)if(!QRegularExpression("\\A[-a-zA-Z0-9.]+\\z").match(arg).hasMatch())throw std::invalid_argument("Invalid batch option.");
@@ -79,6 +85,8 @@ MafftRun::~MafftRun(){data_->cancelled=true;stop_tree();if(process_->state()!=QP
 }
 void MafftRun::start(){
     elapsed_.start();
+    automaticThreads_=configuration_.options.threads==-1;
+    if(automaticThreads_)configuration_.options.threads=safe_mafft_thread_count(QThread::idealThreadCount());
     try{(void)configuration_.options.arguments();if(range_&&configuration_.options.direction!=MafftDirection::Keep)throw std::invalid_argument("Column alignment must keep the original strand.");if(!configuration_.selectedRows.empty()&&(range_||configuration_.templateRequest))throw std::invalid_argument("Selected-only alignment cannot combine with columns or templates.");if(range_&&configuration_.templateRequest)throw std::invalid_argument("Template addition operates on whole target rows.");if(configuration_.templateRequest&&(configuration_.options.algorithm==MafftAlgorithm::PartTree||(configuration_.templateRequest->fragments&&configuration_.options.algorithm!=MafftAlgorithm::Auto)))throw std::invalid_argument("Template addition does not support PartTree; fragment addition uses Automatic.");}
     catch(const std::exception& e){finish(QString::fromUtf8(e.what()));return;}
     if(status)status(configuration_.options.molecule==RowKind::Protein?"Preparing protein sequences…":"Preparing nucleotide sequences…");
@@ -97,7 +105,7 @@ void MafftRun::start(){
 }
 void MafftRun::launch(bool versionOnly){
     if(data_->cancelled){finish();return;}
-    phase_=versionOnly?Phase::Version:Phase::Align;
+    phase_=versionOnly?Phase::Version:Phase::Align;attemptTail_.clear();
     if(status)status(versionOnly?"Checking MAFFT installation…":"MAFFT is aligning sequences…");
     QStringList options;for(const auto& arg:configuration_.options.arguments())options.push_back(QString::fromStdString(arg));
     const auto& request=configuration_.templateRequest;
@@ -105,6 +113,7 @@ void MafftRun::launch(bool versionOnly){
         report_="MAFFT "+version_+"\nLauncher: "+configuration_.launcher+"\nArguments: "+options.join(' ');
         if(request)report_+=QString(request->fragments?" --addfragments targets.fa":" --add targets.fa");
         report_+=QString(" input.fa\nMolecule: ")+(configuration_.options.molecule==RowKind::Protein?"Protein (--amino); B/Z/J/X/U/O/*/? are retained and scored as unknown.\n":"Nucleotide (--nuc)\n");
+        report_+="\nThread policy: "+QString(automaticThreads_?"Automatic (safe; bounded positive count)":"Explicit count")+"; resolved "+QString::number(configuration_.options.threads)+"\n"+retryNote_;
         report_+="Source revision: "+QString::number(source_->state_id())+"\nScope: ";
         if(request){
             report_+="selected targets against chosen templates\nTarget rows sent: "+QString::number(data_->templateAlignment->target_count())+"\nTemplate rows sent: "+QString::number(data_->templateAlignment->template_count());
@@ -132,7 +141,7 @@ void MafftRun::launch(bool versionOnly){
 }
 void MafftRun::read_log(){
     const auto text=QString::fromUtf8(process_->readAllStandardError());if(phase_==Phase::Version)versionText_=(versionText_+text).right(16384);
-    logTail_=(logTail_+text).right(65536);if(log&&!text.isEmpty())log(text.right(16384));
+    logTail_=(logTail_+text).right(65536);attemptTail_=(attemptTail_+text).right(65536);if(log&&!text.isEmpty())log(text.right(16384));
 }
 void MafftRun::process_finished(int code,bool crashed){
     if(phase_==Phase::Done)return;
@@ -150,7 +159,32 @@ void MafftRun::process_finished(int code,bool crashed){
         }
         launch(false);return;
     }
-    if(code!=0||crashed){finish("MAFFT failed (exit code "+QString::number(code)+").\n"+logTail_.right(4096));return;}
+#ifdef _WIN32
+    // Batch launchers can report failure on stdout and still return zero.
+    QFile diagnostic(data_->temporary->filePath("launcher.stdout"));
+    if(diagnostic.open(QIODevice::ReadOnly)){
+        diagnostic.seek(std::max<qint64>(0,diagnostic.size()-65536));
+        const auto text=QString::fromUtf8(diagnostic.readAll());
+        logTail_=(logTail_+text).right(65536);attemptTail_=(attemptTail_+text).right(65536);
+        if(log&&!text.isEmpty())log(text.right(16384));
+    }
+#endif
+    const QFileInfo output(data_->temporary->filePath("result.fa"));
+    const bool missingOutput=!output.isFile()||output.size()==0;
+    const bool coreFailure=attemptTail_.contains("Cannot count the number of physical cores",Qt::CaseInsensitive);
+    if(automaticThreads_&&!retriedThreads_&&configuration_.options.threads>1&&
+       !crashed&&(code!=0||missingOutput)&&coreFailure){
+        retriedThreads_=true;
+        retryNote_="Retry: core detection failed with "+QString::number(configuration_.options.threads)+" threads; one retry with --thread 1.\n";
+        logTail_=(logTail_+"\n"+retryNote_).right(65536);if(log)log(retryNote_);
+        if(output.exists()&&!QFile::remove(output.filePath())){finish("Cannot clear an incomplete MAFFT result before retry.");return;}
+        configuration_.options.threads=1;launch(false);return;
+    }
+    if(code!=0||crashed||missingOutput){
+        QString error=code!=0||crashed?"MAFFT failed (exit code "+QString::number(code)+(crashed?", crashed).":")."):"MAFFT did not create a nonempty output alignment (exit code 0).";
+        if(coreFailure)error+="\nThe MAFFT/Cygwin package could not count physical cores. An explicit thread count was supplied; check this MAFFT installation's compatibility with Windows on this computer.";
+        error+="\n"+attemptTail_.right(8192);finish(error);return;
+    }
     phase_=Phase::Merge;if(status)status("Checking residues and building the result…");
     auto* watcher=new QFutureWatcher<void>(this);const auto data=data_;const auto source=source_;const bool allowReverse=configuration_.options.direction!=MafftDirection::Keep;
     connect(watcher,&QFutureWatcher<void>::finished,this,[this,watcher]{watcher->deleteLater();finish(data_->error);});

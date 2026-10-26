@@ -21,6 +21,11 @@ void validate_name(const std::string& name) {
     if (blank || name.find_first_of("\r\n") != std::string::npos || name.find('\0') != std::string::npos)
         throw std::invalid_argument("A sequence name must be nonblank and contain no newline or null byte.");
 }
+struct IdReservation {
+    SequenceId& next;SequenceId before;bool committed=false;
+    explicit IdReservation(SequenceId& value):next(value),before(value){}
+    ~IdReservation(){if(!committed)next=before;}
+};
 constexpr std::size_t rankBlockSize = 1024;
 std::string normalize_symbols(std::string_view text,RowKind kind) {
     if(kind==RowKind::Nucleotide)return normalize_nucleotides(text);
@@ -95,15 +100,23 @@ std::size_t SequenceBuffer::residue_rank(std::size_t end) const {
     return rankBlocks_[block] + residues(std::string_view(text_).substr(
         block * rankBlockSize, end % rankBlockSize));
 }
+Document::RowIndex Document::make_index(const std::vector<Sequence>& rows) {
+    RowIndex result;result.reserve(rows.size());
+    for(std::size_t i=0;i<rows.size();++i)
+        if(!result.emplace(rows[i].id,i).second)throw std::invalid_argument("Repeated sequence ID.");
+    return result;
+}
+const Sequence* Document::find_sequence(SequenceId id) const noexcept {
+    const auto it=rowIndex_.find(id);return it==rowIndex_.end()?nullptr:&rows_[it->second];
+}
 const Sequence& Document::sequence(SequenceId id) const {
-    const auto it = std::find_if(rows_.begin(), rows_.end(), [id](const auto& r) { return r.id == id; });
-    if (it == rows_.end()) throw std::out_of_range("Unknown sequence ID.");
-    return *it;
+    if(const auto* row=find_sequence(id))return *row;
+    throw std::out_of_range("Unknown sequence ID.");
 }
 Sequence& Document::mutable_sequence(SequenceId id) {
-    const auto it = std::find_if(rows_.begin(), rows_.end(), [id](const auto& r) { return r.id == id; });
-    if (it == rows_.end()) throw std::out_of_range("Unknown sequence ID.");
-    return *it;
+    const auto it=rowIndex_.find(id);
+    if(it==rowIndex_.end())throw std::out_of_range("Unknown sequence ID.");
+    return rows_[it->second];
 }
 std::size_t Document::columns() const noexcept {
     std::size_t result = 0;
@@ -130,9 +143,11 @@ std::vector<Sequence> Document::make_rows(std::vector<Record> records,const std:
     nextSequenceId_=next;return result;
 }
 void Document::load(std::vector<Record> records) {
+    IdReservation ids(nextSequenceId_);
     const std::vector<SequenceGroup> empty;auto rows = make_rows(std::move(records),&empty); // Validate before mutation.
+    auto index=make_index(rows);
     groups_.clear();nextGroupId_=1;translation_={};
-    rows_ = std::move(rows);
+    rows_.swap(rows);rowIndex_.swap(index);ids.committed=true;
     undo_.clear();
     redo_.clear();
     stateId_ = nextStateId_++; contentId_ = nextContentId_++;
@@ -144,18 +159,20 @@ void Document::restore_session(std::vector<Record> records,const std::vector<Seq
     Document result;result.translation_=std::move(translation);auto patch=result.group_patch(std::move(groups),{});for(const auto& g:patch.other)if(g.id>=nextGroup)throw std::invalid_argument("Invalid next group ID.");
     result.groups_=std::move(patch.other);result.nextGroupId_=nextGroup;result.rows_=result.make_rows(std::move(records));
     for(std::size_t i=0;i<ids.size();++i)result.rows_[i].id=ids[i];
+    result.rowIndex_=make_index(result.rows_);
     result.nextSequenceId_=next;result.stateId_=result.nextStateId_++;result.contentId_=result.nextContentId_++;*this=std::move(result);
 }
 void Document::append(std::vector<Record> records){insert_records(std::move(records),rows_.size());}
 void Document::insert_records(std::vector<Record> records,std::size_t position,std::optional<std::vector<SequenceGroup>> catalog){
     if(position>rows_.size())throw std::out_of_range("Paste position outside alignment.");
     if(records.empty())return;
+    IdReservation ids(nextSequenceId_);
     Command command;command.cost=sizeof(Command)+sizeof(RowSplice);
     if(catalog){auto patch=group_patch(std::move(*catalog),{});command.cost+=sizeof(GroupPatch)+patch.assignments.size()*sizeof(GroupAssignment);for(const auto& g:groups_)command.cost+=sizeof(SequenceGroup)+g.name.size();for(const auto& g:patch.other)command.cost+=sizeof(SequenceGroup)+g.name.size();command.edits.emplace_back(std::move(patch));}
     const auto* incoming=catalog?&std::get<GroupPatch>(command.edits.front()).other:&groups_;
     auto rows=make_rows(std::move(records),incoming);
     for(const auto& r:rows)command.cost+=r.name.size()+r.symbols.size()+sizeof(Sequence)+trace_storage_bytes(r.trace)+protein_storage_bytes(r.protein);
-    command.edits.emplace_back(RowSplice{position,0,rows.size(),{},std::move(rows)});execute(std::move(command));
+    command.edits.emplace_back(RowSplice{position,0,rows.size(),{},std::move(rows)});execute(std::move(command));ids.committed=true;
 }
 Document Document::derive(std::vector<Record> records)const {
     if(records.size()!=rows_.size())throw std::invalid_argument("Derived alignment must retain every source row.");
@@ -520,7 +537,7 @@ void Document::rename(const std::vector<std::pair<SequenceId, std::string>>& nam
     }
     if (!command.edits.empty()) execute(std::move(command));
 }
-void Document::prepare(Command& command, bool forward) {
+std::optional<Document::RowIndex> Document::prepare(Command& command, bool forward) {
     // All allocations that can affect row/sequence storage are attempted before
     // applying the command. Reserve may change capacity, not document content.
     std::size_t requiredRows = rows_.size();
@@ -545,26 +562,47 @@ void Document::prepare(Command& command, bool forward) {
             auto& incoming = forward ? splice.inserted : splice.removed;
             auto& parked = forward ? splice.removed : splice.inserted;
             const auto take = forward ? splice.removeCount : splice.insertCount;
+            if(incoming.size()>rows_.max_size()-requiredRows)throw std::length_error("Too many sequence rows.");
             requiredRows += incoming.size(); // Conservative reserve for a multi-splice transaction.
             parked.reserve(take);
         }
     }
     rows_.reserve(requiredRows);
+    const bool structural=std::any_of(command.edits.begin(),command.edits.end(),[](const auto& e){return std::holds_alternative<RowSplice>(e)||std::holds_alternative<RowOrder>(e);});
+    if(!structural)return {};
+    RowIndex working=rowIndex_;working.reserve(requiredRows);
+    for(const auto& edit:command.edits)if(const auto* splice=std::get_if<RowSplice>(&edit)){
+        const auto& incoming=forward?splice->inserted:splice->removed;
+        for(const auto& row:incoming)working.try_emplace(row.id,std::numeric_limits<std::size_t>::max());
+    }
+    return working;
 }
-void Document::apply(Command& command, bool forward) {
+void Document::apply(Command& command, bool forward, RowIndex* preparedIndex) {
+    bool indexDirty=false;
+    auto reindex=[&]{
+        // Every node was allocated by prepare(). These updates cannot allocate.
+        for(auto& [id,position]:*preparedIndex){(void)id;position=std::numeric_limits<std::size_t>::max();}
+        for(std::size_t i=0;i<rows_.size();++i)preparedIndex->at(rows_[i].id)=i;
+        indexDirty=false;
+    };
+    auto rowFor=[&](SequenceId id)->Sequence&{
+        if(!preparedIndex)return mutable_sequence(id);
+        if(indexDirty)reindex();
+        return rows_[preparedIndex->at(id)];
+    };
     auto applyEdit = [&](Edit& edit) {
         if(auto* t=std::get_if<TranslationPatch>(&edit)){std::swap(translation_,t->other);
         } else if (auto* p = std::get_if<TextPatch>(&edit)) {
-            mutable_sequence(p->id).symbols.replace(p->start,
+            rowFor(p->id).symbols.replace(p->start,
                 forward ? p->before.size() : p->after.size(),
                 forward ? std::string_view(p->after) : std::string_view(p->before));
-            mutable_sequence(p->id).trace=forward?p->afterTrace:p->beforeTrace;
-            mutable_sequence(p->id).protein=forward?p->afterProtein:p->beforeProtein;
+            rowFor(p->id).trace=forward?p->afterTrace:p->beforeTrace;
+            rowFor(p->id).protein=forward?p->afterProtein:p->beforeProtein;
         } else if (auto* name = std::get_if<NamePatch>(&edit)) {
-            mutable_sequence(name->id).name.assign(forward ? name->after : name->before);
+            rowFor(name->id).name.assign(forward ? name->after : name->before);
         } else if (auto* kind=std::get_if<KindPatch>(&edit)) {
-            mutable_sequence(kind->id).kind=forward?kind->after:kind->before;
-            mutable_sequence(kind->id).protein=forward?kind->afterProtein:kind->beforeProtein;
+            rowFor(kind->id).kind=forward?kind->after:kind->before;
+            rowFor(kind->id).protein=forward?kind->afterProtein:kind->beforeProtein;
         } else if (auto* groups=std::get_if<GroupPatch>(&edit)) {
             groups_.swap(groups->other);nextGroupId_=std::max(nextGroupId_,groups->next);
             // group_patch emits assignments in source row order. History restores
@@ -574,6 +612,7 @@ void Document::apply(Command& command, bool forward) {
         } else if (auto* order=std::get_if<RowOrder>(&edit)) {
             if(forward){for(const auto& [a,b]:order->swaps)std::swap(rows_[a],rows_[b]);}
             else{for(auto i=order->swaps.rbegin();i!=order->swaps.rend();++i)std::swap(rows_[i->first],rows_[i->second]);}
+            indexDirty=true;
         } else {
             auto& s = std::get<RowSplice>(edit);
             auto& incoming = forward ? s.inserted : s.removed;
@@ -586,13 +625,19 @@ void Document::apply(Command& command, bool forward) {
             rows_.erase(first, first + static_cast<std::ptrdiff_t>(take));
             rows_.insert(rows_.begin() + static_cast<std::ptrdiff_t>(s.index),
                 std::make_move_iterator(incoming.begin()), std::make_move_iterator(incoming.end()));
-            incoming.clear();
+            incoming.clear();indexDirty=true;
         }
     };
     if (forward) {
         for (auto& edit : command.edits) applyEdit(edit);
     } else {
         for (auto it = command.edits.rbegin(); it != command.edits.rend(); ++it) applyEdit(*it);
+    }
+    if(preparedIndex){
+        if(indexDirty)reindex();
+        for(auto it=preparedIndex->begin();it!=preparedIndex->end();)
+            if(it->second==std::numeric_limits<std::size_t>::max())it=preparedIndex->erase(it);else ++it;
+        rowIndex_.swap(*preparedIndex);
     }
     stateId_ = forward ? command.after : command.before;
     contentId_ = forward ? command.contentAfter : command.contentBefore;
@@ -604,8 +649,8 @@ void Document::execute(Command command) {
     const bool contentChanged=std::any_of(command.edits.begin(),command.edits.end(),[](const auto& edit) {return !std::holds_alternative<NamePatch>(edit)&&!std::holds_alternative<GroupPatch>(edit)&&!std::holds_alternative<TranslationPatch>(edit);});
     command.contentAfter = contentChanged ? nextContentId_++ : contentId_;
     undo_.reserve(undo_.size() + 1);
-    prepare(command, true);
-    apply(command, true);
+    auto index=prepare(command, true);
+    apply(command, true,index?&*index:nullptr);
     redo_.clear();
     undo_.push_back(std::move(command));
     trim_history();
@@ -632,16 +677,16 @@ std::optional<Document::ResidueLocation> Document::redo_residue_location() const
 void Document::undo() {
     if (!can_undo()) return;
     redo_.reserve(redo_.size() + 1);
-    prepare(undo_.back(), false);
-    apply(undo_.back(), false);
+    auto index=prepare(undo_.back(), false);
+    apply(undo_.back(), false,index?&*index:nullptr);
     redo_.push_back(std::move(undo_.back()));
     undo_.pop_back();
 }
 void Document::redo() {
     if (!can_redo()) return;
     undo_.reserve(undo_.size() + 1);
-    prepare(redo_.back(), true);
-    apply(redo_.back(), true);
+    auto index=prepare(redo_.back(), true);
+    apply(redo_.back(), true,index?&*index:nullptr);
     undo_.push_back(std::move(redo_.back()));
     redo_.pop_back();
 }

@@ -9,6 +9,7 @@
 class QProcess;
 namespace kleiotide {
 // Only validated options and generated input/output paths enter the batch command.
+int safe_mafft_thread_count(int availableLogicalCores) noexcept;
 QString mafft_batch_command(const QStringList& options,bool versionOnly=false,std::optional<bool> fragments={});
 struct MafftConfiguration {QString launcher;MafftOptions options;std::optional<MafftTemplateRequest> templateRequest;std::vector<SequenceId> selectedRows;};
 class MafftRun final:public QObject {
@@ -33,7 +34,8 @@ private:
     std::shared_ptr<Data> data_;
     QProcess* process_;
     Phase phase_=Phase::Prepare;
-    QString version_,versionText_,report_,logTail_;
+    QString version_,versionText_,report_,logTail_,attemptTail_,retryNote_;
+    bool automaticThreads_=false,retriedThreads_=false;
     QElapsedTimer elapsed_;
     qint64 processGroup_=0;
     bool timedOut_=false;
