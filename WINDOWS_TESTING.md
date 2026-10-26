@@ -222,3 +222,12 @@ additional working-memory limit. Dismiss the message and verify that the rows,
 undo history and subsequent small edits remain usable. The limit prevents
 attempting enormous padding/history buffers; it does not restrict opening the
 same input for inspection, searching or small edits.
+
+## 0.26.12 toolbar assertion follow-up
+
+The supplied Windows run passes 32/33; gui.mode_controls reports “Persistent
+toolbar dimensions”. The corrected source removes its fixed-window-width
+assumption and tests actual space, normal/enlarged fonts, narrow hiding and
+restored visibility. No application behavior or suite count changes. Rebuild
+from the updated source and its matching Source_For_Installer ZIP, following
+docs/WINDOWS_TOOLBAR_TEST_FIX.md. Keep the new logs; do not disable the test.

@@ -2,6 +2,11 @@
 
 ## 0.26.12 — implementation checkpoint A
 
+- Windows test correction: replace the fixed-1280 counter-visibility assumption
+  in gui.mode_controls with font-aware wide/narrow layout checks, enlarged-font
+  coverage and actionable diagnostics. Application code and installer scripts
+  are unchanged by this correction; all 33 tests remain enabled.
+
 - Add an eagerly maintained sequence-ID index with preallocated transactional
   updates for insert, delete, reorder and Undo/Redo; failed allocations retain
   document content, published lookup state and history. Add failure-injection

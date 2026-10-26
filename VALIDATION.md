@@ -83,3 +83,23 @@ The installer retains the existing ARM64 Windows-11 capability guard; the new
 application version starts packaging revision 1. No real Windows installer or
 MSVC binary was produced here. Reuse the accepted packaging inputs and build
 with WINDOWS_INSTALLER.md. Settings/recovery/trace linking are pending.
+
+## Windows release-check follow-up: toolbar test
+
+Oleg reports 32/33 for 0.26.12 on Qt 6.5.3 / MSVC2022 x64, with only
+“Persistent toolbar dimensions” failing in gui.mode_controls. Installer assembly
+was blocked by this prerequisite. An 18-pt toolbar font reproduces the original
+assertion locally: the counter is legitimately hidden at fixed width 1280.
+
+The test now checks exact text independently of visibility, sizes a fitting
+window from actual metrics, requires full visibility/right alignment there,
+checks deliberate narrow-window hiding and recovery, and repeats with an
+increased font. Application code and installer scripts are unchanged. The
+corrected workflow passed six local combinations: Fusion 100%/150%; Qt Windows
+style 100%/125%/150%/200%, all offscreen on Linux. Native Windows confirmation
+is still required. See docs/WINDOWS_TOOLBAR_TEST_FIX.md for rebuilding steps.
+
+After this correction, the actual release-check target was rerun locally:
+**33/33 passed**, no skipped entries (13.28 seconds). The targeted six-style/
+scaling runs all passed as well. The delivered source still requires Qt >=6.5;
+only the local validation copy uses Qt 6.4.2, as described above.

@@ -17,12 +17,14 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSettings>
+#include <QStyle>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <fstream>
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 using namespace kleiotide;
@@ -38,6 +40,55 @@ QAction* menu_action(QMenu* menu,const QString& text){for(auto* a:menu->actions(
 template<class F>void modal(MainWindow& w,const QString& id,F inspect){bool called=false;QString error;QObject context;QTimer::singleShot(0,&context,[&]{called=true;auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());try{require(d,"Modal dialog");inspect(d);}catch(const std::exception& e){error=e.what();if(d)d->reject();}});action(w,id)->trigger();require(called,"Modal inspected");if(!error.isEmpty())throw std::runtime_error(error.toStdString());}
 void save(MainWindow& w,const QString& path){modal(w,"Save &as…",[&](QDialog* d){auto* f=qobject_cast<QFileDialog*>(d);require(f,"Save chooser");f->selectFile(path);QMetaObject::invokeMethod(f,"accept",Qt::DirectConnection);});wait([&]{return w.centralWidget()->isEnabled();});}
 QRect row_rect(AlignmentView& v,int r,int c){const auto scale=v.devicePixelRatioF();return {qRound((v.name_area_width()+c*v.cell_width())*scale),qRound((v.ruler_height()+r*v.row_height())*scale),qRound(v.cell_width()*scale),qRound(v.row_height()*scale)};}
+void toolbar_dimensions(MainWindow& w,AlignmentView& v){
+    auto* label=w.findChild<QLabel*>("alignmentSize");
+    auto* controls=w.findChild<QToolBar*>("editingToolbar");
+    auto* counts=w.findChild<QToolBar*>("alignmentSizeToolbar");
+    require(label&&controls&&counts,"Alignment dimension widgets exist");
+    const auto expected=QStringLiteral("4 sequences \u00b7 8 columns");
+    auto check=[&](bool ok,const char* message){
+        if(ok)return;
+        const auto details=QString("%1 [window=%2, controls hint=%3, counter hint=%4, visible=%5, text='%6', label width=%7, visible width=%8]")
+            .arg(QString::fromLatin1(message)).arg(w.width()).arg(controls->sizeHint().width())
+            .arg(counts->sizeHint().width()).arg(counts->isVisible()).arg(label->text())
+            .arg(label->width()).arg(label->visibleRegion().boundingRect().width());
+        throw std::runtime_error(details.toStdString());
+    };
+    auto wide_width=[&]{return std::max(1280,controls->sizeHint().width()+counts->sizeHint().width()+64);};
+    auto fully_visible=[&]{
+        const int right=label->mapTo(&w,QPoint(label->width(),0)).x();
+        const int gap=w.contentsRect().right()+1-right;
+        const int margin=counts->contentsMargins().right()+label->contentsMargins().right()+
+            counts->style()->pixelMetric(QStyle::PM_ToolBarItemMargin)+
+            counts->style()->pixelMetric(QStyle::PM_ToolBarFrameWidth)+8;
+        check(label->isVisible()&&label->visibleRegion().boundingRect().width()>=label->width()-1&&
+              gap>=0&&gap<=std::max(20,margin),"Counter is fully visible and right-aligned when space allows");
+    };
+    // Window width alone does not establish whether Windows fonts/styles leave
+    // room for the counter. Exercise both fitting and deliberately narrow layouts.
+    // A larger font reproduces the old fixed-1280 assertion on Linux as well.
+    const auto originalFont=w.font();
+    for(bool enlarged:{false,true}){
+        auto font=originalFont;
+        if(enlarged)font.setPointSize(std::max(18,originalFont.pointSize()+6));
+        w.setFont(font);QApplication::processEvents();
+        w.resize(wide_width(),800);QApplication::processEvents();
+        check(label->text()==expected,"Persistent toolbar dimension text");
+        fully_visible();
+        v.select_ids({1,2});v.select_fragment({{1,2},2,3});
+        check(label->text()==expected,"Selection does not replace dimensions");fully_visible();
+        for(int width:{1280,900,720,wide_width()}){
+            w.resize(width,800);QApplication::processEvents();
+            check(label->text()==expected,"Dimension text survives narrow layouts");
+            if(w.width()+32<controls->sizeHint().width()+label->sizeHint().width())
+                check(!counts->isVisible(),"Narrow layouts give editing controls priority");
+            if(counts->isVisible())fully_visible();
+        }
+        std::cout<<"PASS toolbar dimensions: font "<<font.pointSize()<<" pt, fitting window "<<w.width()<<" px\n";
+    }
+    w.setFont(originalFont);QApplication::processEvents();
+    w.resize(wide_width(),800);QApplication::processEvents();fully_visible();
+}
 void editing(AlignmentView::Mode mode){
     Document d;d.load({{"one","~~ACG~~T"},{"two","~~ACT~~T"}});AlignmentView v;v.resize(900,340);v.set_document(&d);v.set_mode(mode);v.show();QApplication::processEvents();const auto initial=d.state_id();
     v.select_fragment({{1},2,1});key(v,Qt::Key_Right);require(v.caret()==std::pair<SequenceId,std::size_t>{1,3}&&d.state_id()==initial,"Right arrow only moves caret");key(v,Qt::Key_Left);key(v,Qt::Key_Down);require(v.caret()==std::pair<SequenceId,std::size_t>{2,2},"Vertical caret movement");key(v,Qt::Key_Up);require(v.caret()==std::pair<SequenceId,std::size_t>{1,2},"Up arrow caret");
@@ -56,7 +107,7 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     MainWindow w;w.resize(1280,800);w.show();w.open_path(path);auto* v=dynamic_cast<AlignmentView*>(w.centralWidget());wait([&]{return v->isEnabled();});auto* edit=w.findChild<QToolButton*>("editToggle");auto* view=w.findChild<QToolButton*>("viewToggle");auto* rewrite=w.findChild<QToolButton*>("rewriteToggle");auto* insert=w.findChild<QToolButton*>("insertToggle");auto* gap=w.findChild<QComboBox*>("rightClickMode");require(edit&&view&&rewrite&&insert&&gap&&!w.findChild<QComboBox*>("editingMode"),"Exactly two segmented mode switches; old dropdown removed");require(edit->isChecked()&&rewrite->isChecked()&&rewrite->text()=="Rewrite"&&insert->text()=="Insert","Edit/Rewrite default and visible labels");
     auto* first=w.findChild<QWidget*>("editViewSwitch");auto* second=w.findChild<QWidget*>("rewriteInsertSwitch");require(second->mapToGlobal(QPoint(0,0)).x()>=first->mapToGlobal(QPoint(first->width(),0)).x()+12&&gap->mapToGlobal(QPoint(0,0)).x()>=second->mapToGlobal(QPoint(second->width(),0)).x()+12,"Spacing between control groups");
     insert->click();require(insert->isChecked()&&!rewrite->isChecked()&&v->mode()==AlignmentView::Mode::Insert,"Insert segment changes mode");insert->click();require(insert->isChecked(),"Active mode stays selected");view->click();require(!second->isEnabled()&&!gap->isEnabled()&&gap->count()==1&&insert->isChecked(),"View disables editing controls and remembers Insert");edit->click();require(second->isEnabled()&&v->mode()==AlignmentView::Mode::Insert,"Edit restores Insert");rewrite->click();
-    auto* size=w.findChild<QLabel*>("alignmentSize");require(size&&size->isVisible()&&size->text()=="4 sequences · 8 columns","Persistent toolbar dimensions");v->select_ids({1,2});v->select_fragment({{1,2},2,3});require(size->text()=="4 sequences · 8 columns"&&size->isVisible(),"Selection does not replace dimensions");for(int width:{1280,900,720}){w.resize(width,800);QApplication::processEvents();require((!size->parentWidget()->isVisible())||(size->isVisible()&&size->visibleRegion().boundingRect().width()>=size->width()-1&&size->mapTo(&w,QPoint(size->width(),0)).x()<=w.width()&&w.width()-size->mapTo(&w,QPoint(size->width(),0)).x()<20),"Counter is right-aligned when space allows; controls have priority");}w.resize(1280,800);QApplication::processEvents();
+    toolbar_dimensions(w,*v);auto* size=w.findChild<QLabel*>("alignmentSize");
     QApplication::clipboard()->setText(">added\nACGTACGTACGTACGT\n");action(w,"pasteSequences")->trigger();wait([&]{return w.current_document().rows().size()==5;});require(size->text()=="5 sequences · 16 columns","Dimensions update after adding rows/columns");action(w,"&Undo")->trigger();require(size->text()=="4 sequences · 8 columns","Dimensions update on undo");
     key(*v,Qt::Key_Escape);v->select_ids({1,2});modal(w,"highlightScope",[&](QDialog* dialog){dialog->findChild<QComboBox*>("highlightRows")->setCurrentIndex(1);dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();});auto before=v->viewport()->grab().toImage();action(w,"highlightVariable")->trigger();wait([&]{return bool(v->site_highlights());});auto after=v->viewport()->grab().toImage();require((*v->site_highlights())[4],"Selected population determines variable column");for(int row=0;row<4;++row)require((before.copy(row_rect(*v,row,4))!=after.copy(row_rect(*v,row,4)))==(row<2),"Only analysis-snapshot rows receive shading");v->select_ids({3});require(v->site_highlights()&&(*v->site_highlights())[4],"Changing name selection preserves explicit analysis snapshot");
     v->select_fragment({{1},2,1});context(*v,cell(*v,0,2),[&](QMenu* menu){for(const auto& pair:std::vector<std::pair<QString,QKeySequence>>{{"Copy",QKeySequence::Copy},{"Cut",QKeySequence::Cut},{"Paste",QKeySequence::Paste}}){auto* a=menu_action(menu,pair.first);require(a&&a->property("shortcutHint").toString()==pair.second.toString(QKeySequence::NativeText),"Fragment clipboard shortcut labels");}});

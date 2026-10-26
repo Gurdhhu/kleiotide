@@ -63,3 +63,10 @@ Checkpoint B follows with a typed settings service, explicit new-session default
 precedence, recovery and bounded overview. Trace mapping stays separate until
 its scientific coordinate tests are ready; a successful checkpoint-A test run
 does not validate that future feature.
+
+## Windows test follow-up
+
+The first native 0.26.12 run passed 32/33; the toolbar workflow's fixed-width
+visibility assertion blocked packaging. The corrected test covers font-dependent
+fitting/narrow layouts without changing production code. See
+docs/WINDOWS_TOOLBAR_TEST_FIX.md. Native rerun and real MAFFT remain pending.
