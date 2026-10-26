@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use Kleiotide in research, please cite the software version you used. An archived DOI may be added after the first public release."
+title: "Kleiotide: sequence alignment and chromatogram editor"
+type: software
+authors:
+  - family-names: Shchepin
+    given-names: Oleg
+version: "0.26.11"
+license: GPL-3.0-only
+abstract: >-
+  Kleiotide is a C++20 and Qt Widgets editor for nucleotide and protein
+  sequence alignments, chromatograms, and related sequence analysis workflows.

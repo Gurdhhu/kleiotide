@@ -1,0 +1,2 @@
+#pragma once
+namespace kleiotide {inline constexpr char version[]="@PROJECT_VERSION@";}

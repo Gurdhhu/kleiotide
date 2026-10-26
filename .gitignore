@@ -1,68 +1,70 @@
-# Prerequisites
-*.d
+# Kleiotide: build trees, local IDE state, release artifacts.
+# Keep source, fixtures, documentation, and installer BUILD SCRIPTS tracked.
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
+# CMake / Ninja / Make generated outputs
 build/
-Build/
 build-*/
-
-# CMake generated files
+cmake-build-*/
+_build/
+out/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
-install_manifest.txt
+CTestTestfile.cmake
+DartConfiguration.tcl
 compile_commands.json
+install_manifest.txt
+Testing/
+.ninja_deps
+.ninja_log
+build.ninja
+Makefile
+CMakeUserPresets.json
 
-# Temporary files
+# Qt Creator / Visual Studio local settings
+*.user
+*.user.*
+*.autosave
+*.pro.user*
+.vs/
+.vscode/
+.idea/
+
+# Generated binaries and debug files
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.obj
+*.o
+*.a
+*.lib
+*.exp
+*.so
+*.so.*
+*.dylib
+*.app/
+*.dSYM/
+
+# Installer output and generated source archives
+*.msi
+*.7z
+*.zip
+*.nupkg
+*.sha256
+/test-installers/
+/dist/
+/release/
+/releases/
+
+# Temporary files and logs
 *.tmp
-*.log
 *.bak
 *.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+*.swo
+*~
+*.log
+*.pyc
+__pycache__/
+.DS_Store
+Thumbs.db

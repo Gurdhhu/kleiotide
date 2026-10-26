@@ -1,0 +1,59 @@
+#include "gui/main_window.hpp"
+#include "gui/alignment_view.hpp"
+#include "core/distances.hpp"
+#include "core/version.hpp"
+#include "core/session.hpp"
+#include <QAction>
+#include <QApplication>
+#include <QClipboard>
+#include <QComboBox>
+#include <QDialog>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QFileDialog>
+#include <QLabel>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QTableView>
+#include <QTemporaryDir>
+#include <QThread>
+#include <QTimer>
+#include <fstream>
+#include <cmath>
+#include <iostream>
+#include <stdexcept>
+using namespace kleiotide;
+namespace {
+void need(bool b,const char* text){if(!b)throw std::runtime_error(text);}
+QAction* action(MainWindow& w,const char* id){if(auto* a=w.findChild<QAction*>(id))return a;for(auto* a:w.findChildren<QAction*>())if(a->text()==QString::fromUtf8(id))return a;throw std::runtime_error(id);}
+template<class F>void until(QApplication& app,F ready){QElapsedTimer t;t.start();while(!ready()&&t.elapsed()<10000){app.processEvents();QThread::msleep(1);}need(ready(),"GUI timeout");}
+template<class F>void dialog(MainWindow& w,const char* command,F step,bool sort=false){bool finished=false;QElapsedTimer elapsed;elapsed.start();QTimer timer;timer.setInterval(2);QObject::connect(&timer,&QTimer::timeout,&w,[&]{need(elapsed.elapsed()<15000,"Dialog workflow timed out");if(auto* d=w.findChild<QDialog*>(sort?"similarityDialog":"distanceDialog")){if(step(*d)){finished=true;timer.stop();}}});timer.start();action(w,command)->trigger();need(finished,"Workflow completed");}
+QPushButton* button(QDialog& d,const char* id){auto* b=d.findChild<QPushButton*>(id);need(b,id);return b;}
+QComboBox* combo(QDialog& d,const char* id){auto* b=d.findChild<QComboBox*>(id);need(b,id);return b;}
+const QAbstractItemModel* model(QDialog& d){return d.findChild<QTableView*>("distanceTable")->model();}
+QString cell(QDialog& d,int r,int c){auto* m=model(d);return m->data(m->index(r,c),Qt::DisplayRole).toString();}
+}
+int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+    QTemporaryDir temp;Document source;source.load({{"a","AAAA"},{"b","AAAT"},{"c","AATA"},{"d","AATT"},{"missing","NNNN"},{"mask","1234",RowKind::Mask},{"p1","ACDE",RowKind::Protein},{"p2","ACDF",RowKind::Protein}});source.apply_groups({{1,"North",0x123456},{2,"South",0x654321}},{{1,1},{2,1},{3,2},{4,2}});const auto path=temp.filePath("distances.kleio");{std::ofstream out(path.toStdString(),std::ios::binary);write_session(out,source);}
+    MainWindow w;w.resize(1450,900);w.show();w.open_path(path);auto* view=dynamic_cast<AlignmentView*>(w.centralWidget());until(app,[&]{return view->isEnabled()&&w.current_document().rows().size()==8;});const auto initial=w.current_document().state_id();int stage=0;QString copied;const auto tsvPath=temp.filePath("export.tsv");
+    QTimer filePicker;filePicker.setInterval(5);QObject::connect(&filePicker,&QTimer::timeout,&w,[&]{if(auto* chooser=w.findChild<QFileDialog*>()){filePicker.stop();chooser->selectFile(tsvPath);QMetaObject::invokeMethod(chooser,"accept",Qt::DirectConnection);}});filePicker.start();
+    dialog(w,"pairwiseDistances",[&](QDialog& d){
+        if(stage==0){need(combo(d,"distanceMethod")->count()==4,"Four nucleotide models");need(combo(d,"distanceMethod")->currentData().toInt()==static_cast<int>(DistanceMethod::PDistance),"Default p-distance");stage=1;button(d,"distanceCalculate")->click();}
+        else if(stage==1&&button(d,"distanceCopy")->isEnabled()){need(model(d)->rowCount()==5&&model(d)->columnCount()==5,"Only nucleotide rows in matrix");need(cell(d,0,1)=="0.25"&&cell(d,0,4)=="N/A","Matrix values and missing overlap");combo(d,"distanceDisplay")->setCurrentIndex(1);need(cell(d,0,1)=="4","Comparable counts view");stage=2;QApplication::clipboard()->clear();button(d,"distanceCopy")->click();}
+        else if(stage==2&&QApplication::clipboard()->text().contains("# Distance matrix")){copied=QApplication::clipboard()->text();need(copied.contains("# Comparable-site matrix")&&copied.contains("No comparable sites")&&copied.contains(QString("# Kleiotide version: ")+QString::fromLatin1(version)),"Copy has metadata, counts and reasons");stage=3;button(d,"distanceExport")->click();}
+        else if(stage==3&&d.findChild<QLabel*>("distanceStatus")->text().startsWith("Exported TSV:")){QFile file(tsvPath);need(file.open(QIODevice::ReadOnly)&&QString::fromUtf8(file.readAll())==copied,"Export matches copied full TSV");combo(d,"distanceDisplay")->setCurrentIndex(0);d.findChild<QSpinBox*>("distanceMinimum")->setValue(5);need(!button(d,"distanceCopy")->isEnabled()&&model(d)->rowCount()==0,"Changed settings clear stale result");stage=5;button(d,"distanceCalculate")->click();}
+        else if(stage==5&&button(d,"distanceCopy")->isEnabled()){need(cell(d,0,1)=="N/A","Minimum overlap is enforced");d.grab().save("validation/distance0211-matrix.png");d.reject();return true;}return false;
+    });need(w.current_document().state_id()==initial,"Statistics are read-only");
+    view->select_ids({1,3});view->select_fragment({{1},1,2});stage=0;dialog(w,"pairwiseDistances",[&](QDialog& d){if(stage==0){combo(d,"distanceRows")->setCurrentIndex(1);combo(d,"distanceColumns")->setCurrentIndex(1);stage=1;button(d,"distanceCalculate")->click();}else if(button(d,"distanceCopy")->isEnabled()){need(model(d)->rowCount()==2&&cell(d,0,1)=="0.5","Selected name and column scopes independent");d.reject();return true;}return false;});
+    stage=0;dialog(w,"pairwiseDistances",[&](QDialog& d){if(stage==0){combo(d,"distanceMolecule")->setCurrentIndex(1);need(combo(d,"distanceMethod")->count()==3,"Three protein models");combo(d,"distanceMethod")->setCurrentIndex(combo(d,"distanceMethod")->findData(static_cast<int>(DistanceMethod::Poisson)));stage=1;button(d,"distanceCalculate")->click();}else if(button(d,"distanceCopy")->isEnabled()){need(model(d)->rowCount()==2&&std::abs(cell(d,0,1).toDouble()-.287682072451781)<1e-11,"Protein Poisson result");d.reject();return true;}return false;});
+    for(int report=1;report<4;++report){const char* commands[]={"","overallDistance","withinGroupDistance","betweenGroupDistance"};stage=0;dialog(w,commands[report],[&](QDialog& d){if(stage==0){stage=1;button(d,"distanceCalculate")->click();}else if(button(d,"distanceCopy")->isEnabled()){need(d.findChild<QLabel*>("distanceDispersionExplanation")->text().contains("independent pairs"),"Mean report explains naive SE");if(report==1){need(model(d)->rowCount()==1&&std::abs(cell(d,0,2).toDouble()-1./3)<1e-11&&cell(d,0,5)=="6"&&cell(d,0,6)=="4"&&std::abs(cell(d,0,3).toDouble()-.129099444873581)<1e-11&&std::abs(cell(d,0,4).toDouble()-.052704627669473)<1e-11,"Overall unique pairs and exclusions");}if(report==2){need(model(d)->rowCount()==3&&cell(d,0,2)=="0.25"&&cell(d,2,2)=="N/A"&&cell(d,0,3)=="N/A"&&cell(d,0,4)=="N/A","Within groups and singleton ungrouped");d.grab().save("validation/distance0211-groups.png");}if(report==3)need(model(d)->rowCount()==3&&cell(d,0,2)=="0.375"&&cell(d,0,5)=="4"&&std::abs(cell(d,0,3).toDouble()-.144337567297406)<1e-11&&std::abs(cell(d,0,4).toDouble()-.072168783648703)<1e-11,"Between-group cross pairs and dispersion");d.reject();return true;}return false;});}
+    bool compositionDone=false;int compositionStage=0;QTimer compositionTimer;compositionTimer.setInterval(2);QObject::connect(&compositionTimer,&QTimer::timeout,&w,[&]{if(auto* d=w.findChild<QDialog*>("compositionDialog")){if(!compositionStage){compositionStage=1;button(*d,"compositionCalculate")->click();}else if(button(*d,"compositionCopy")->isEnabled()){button(*d,"compositionCopy")->click();need(QApplication::clipboard()->text().contains(QString("# Kleiotide version: ")+QString::fromLatin1(version)),"Composition Copy carries version");compositionTimer.stop();compositionDone=true;d->reject();}}});compositionTimer.start();action(w,"nucleotideComposition")->trigger();need(compositionDone,"Composition version workflow");
+    for(bool apply:{false,true}){stage=0;dialog(w,"sortSimilarity",[&](QDialog& d){if(stage==0){stage=1;button(d,"distanceCalculate")->click();}else if(button(d,"similarityApply")->isEnabled()){need(model(d)->rowCount()==8&&cell(d,2,1)=="d"&&cell(d,3,1)=="c"&&cell(d,5,1)=="mask","Chain preview and fixed masks");d.grab().save("validation/distance0211-similarity.png");if(apply)button(d,"similarityApply")->click();else d.reject();return true;}return false;},true);need(w.current_document().rows()[2].name==(apply?"d":"c"),"Preview cancellation / apply");}
+    action(w,"&Undo")->trigger();need(w.current_document().rows()[2].name=="c","One sort Undo");action(w,"&Redo")->trigger();need(w.current_document().rows()[2].name=="d","Sort Redo");action(w,"&Undo")->trigger();need(w.current_document().sequence(1).groupId==1,"Groups retained");
+    Document large;std::vector<Record> rows;for(int i=0;i<400;++i)rows.push_back({"row"+std::to_string(i),std::string(40000,'A')});large.load(std::move(rows));const auto largePath=temp.filePath("large.kleio");{std::ofstream out(largePath.toStdString(),std::ios::binary);write_session(out,large);}MainWindow cancelWindow;cancelWindow.show();cancelWindow.open_path(largePath);auto* cancelView=dynamic_cast<AlignmentView*>(cancelWindow.centralWidget());until(app,[&]{return cancelView->isEnabled()&&cancelWindow.current_document().rows().size()==400;});stage=0;const auto before=cancelWindow.current_document().state_id();dialog(cancelWindow,"overallDistance",[&](QDialog& d){if(stage==0){stage=1;button(d,"distanceCalculate")->click();button(d,"distanceCancel")->click();}else if(button(d,"distanceCalculate")->isEnabled()){need(!button(d,"distanceCopy")->isEnabled()&&d.findChild<QLabel*>("distanceStatus")->text().contains("cancel",Qt::CaseInsensitive),"Cancellation clears partial result");d.reject();return true;}return false;});need(cancelWindow.current_document().state_id()==before,"Cancellation preserves document");
+    dialog(cancelWindow,"overallDistance",[&](QDialog& d){button(d,"distanceCalculate")->click();d.reject();return true;});need(cancelWindow.current_document().state_id()==before,"Close during running job cancels before destruction");
+    const auto protectedPath=temp.filePath("protected.tsv");{QFile existing(protectedPath);need(existing.open(QIODevice::WriteOnly),"Prepare existing export destination");existing.write("original contents");}
+    QTimer exportPicker;exportPicker.setInterval(2);QObject::connect(&exportPicker,&QTimer::timeout,&cancelWindow,[&]{if(auto* chooser=cancelWindow.findChild<QFileDialog*>()){exportPicker.stop();chooser->setOption(QFileDialog::DontConfirmOverwrite);chooser->selectFile(protectedPath);QMetaObject::invokeMethod(chooser,"accept",Qt::DirectConnection);}});exportPicker.start();cancelView->select_fragment({{1},0,1});stage=0;
+    dialog(cancelWindow,"pairwiseDistances",[&](QDialog& d){if(stage==0){combo(d,"distanceColumns")->setCurrentIndex(1);stage=1;button(d,"distanceCalculate")->click();}else if(stage==1&&button(d,"distanceCopy")->isEnabled()){stage=2;button(d,"distanceExport")->click();button(d,"distanceCancel")->click();}else if(stage==2&&button(d,"distanceCalculate")->isEnabled()){QFile existing(protectedPath);need(existing.open(QIODevice::ReadOnly)&&existing.readAll()=="original contents","Cancelled export preserves existing destination atomically");d.reject();return true;}return false;});
+    std::cout<<"PASS distance/SD/SE/version GUI: all reports, both molecules, scope, matrix/counts, TSV copy/export, invalidation, sort preview/cancel/apply/Undo/Redo, cancellation/close, atomic export cancellation and screenshots\n";
+}catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}return 0;}

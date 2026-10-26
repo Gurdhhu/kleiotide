@@ -1,0 +1,16 @@
+>zeta gapped nucleotide
+ACGT~~ARYBNDHV---
+>Alpha short nucleotide
+AA~~CGT
+>alpha same letters lower case
+acgt~~arybndhv---
+>beta true-length example
+ACGTACGTACGT
+>mask confidence digits
+9876543210~~98765
+>mask annotation punctuation
+**##__++==~~**##
+>mask mixed letters unexpected E
+ACGTEACGT~EACGT
+>unknown nucleotide calls
+NNNNNNNNNNNNNNNN

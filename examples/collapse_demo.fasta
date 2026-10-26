@@ -1,0 +1,16 @@
+>first
+A--C~GN?
+>second
+aC-GN?
+>third
+ACGN?~~
+>shorter_substring
+CGN?
+>different_ambiguity
+ACGR?
+>different_literal_base
+ACGA?
+>rna_U
+ACGU
+>dna_T
+ACGT

@@ -1,0 +1,28 @@
+# Predictable text line endings across Windows and other build hosts.
+* text=auto
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
+*.c text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.in text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.cff text eol=lf
+*.fasta text eol=lf
+*.faa text eol=lf
+*.tsv text eol=lf
+*.prt text eol=lf
+*.kleio binary
+*.ps1 text eol=lf
+*.nsi text eol=lf
+# Future artwork and raw chromatogram fixtures must not undergo text conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.ab1 binary
+*.abif binary

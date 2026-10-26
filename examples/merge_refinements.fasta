@@ -1,0 +1,14 @@
+>left
+acgtACGTTAGC
+>substitution
+ACGCTAGCttaa
+>insertion
+ACGATTAGCttaa
+>isolated
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+>exact_right
+ACGTTAGCttaa
+>other_left
+TTTTCCCCCTTTTCCC
+>other_right
+CCCTTTTCCCCAAA

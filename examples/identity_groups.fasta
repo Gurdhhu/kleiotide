@@ -1,0 +1,12 @@
+>short_first
+ACGTACGT
+>long_representative
+ACGTACGTAA
+>variant_90
+ACGTACGTAC
+>shifted
+~~~~ACGTACGTAA
+>different
+GGGGGGGGGG
+>missing_only
+NN?--~~~NN
