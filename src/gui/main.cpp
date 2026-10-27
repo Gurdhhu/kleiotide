@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QPointer>
+#include <QTimer>
 int main(int argc,char** argv){
     QApplication app(argc,argv);QCoreApplication::setApplicationName("Kleiotide");QCoreApplication::setApplicationVersion(QString::fromLatin1(kleiotide::version));
     QStringList files;for(const auto& argument:app.arguments().mid(1))files.push_back(QFileInfo(argument).absoluteFilePath());
@@ -23,5 +24,6 @@ int main(int argc,char** argv){
     requests.activate=[&]{auto* window=first.data();if(!window)for(auto* widget:QApplication::topLevelWidgets())if(auto* candidate=dynamic_cast<kleiotide::MainWindow*>(widget)){window=candidate;break;}
         if(window){window->show();window->raise();window->activateWindow();}};
     if(!files.isEmpty())requests.queue(files);
+    else QTimer::singleShot(0,initial,[initial]{initial->offer_recovery(true);});
     return app.exec();
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.26.12 LANGUAGES CXX)
+project(Kleiotide VERSION 0.27.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -16,6 +16,9 @@ endif()
 include(CTest)
 target_sources(kleiotide_core PRIVATE src/core/merge.cpp src/core/identity_groups.cpp)
 if(BUILD_TESTING)
+  add_executable(kleiotide_overview_bounds_tests tests/overview_bounds_tests.cpp)
+  target_link_libraries(kleiotide_overview_bounds_tests PRIVATE kleiotide_core)
+  add_test(NAME overview_bounds COMMAND kleiotide_overview_bounds_tests)
   add_executable(kleiotide_row_index_tests tests/row_index_tests.cpp)
   target_link_libraries(kleiotide_row_index_tests PRIVATE kleiotide_core)
   add_test(NAME row_index COMMAND kleiotide_row_index_tests)
@@ -103,6 +106,9 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/open_requests.cpp
     src/gui/alignment_view.cpp
     src/gui/residue_clipboard.cpp
+    src/gui/recovery.cpp
+    src/gui/app_settings.cpp
+    src/gui/settings_dialog.cpp
     src/gui/main_window.cpp
     src/gui/alignment_overview.cpp
     src/gui/file_output.cpp
@@ -160,6 +166,7 @@ if(KLEIOTIDE_BUILD_GUI)
     RELEASE_CHECKLIST.md
     ROADMAP_1.0.md
     SESSION_FORMAT.md
+    SETTINGS_AND_RECOVERY.md
     SITE_ANALYSIS.md
     TRANSLATION.md
     VALIDATION.md
@@ -170,13 +177,13 @@ if(KLEIOTIDE_BUILD_GUI)
     TESTER_FEEDBACK.md
     DESTINATION .)
   if(BUILD_TESTING)
-    foreach(test motif_search rename file_output)
+    foreach(test motif_search rename file_output preferences recovery)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)
       target_link_libraries(kleiotide_${test}_tests PRIVATE kleiotide_gui)
       add_test(NAME ${test} COMMAND kleiotide_${test}_tests)
       kleiotide_qt_test_runtime(${test})
     endforeach()
-    set_property(TEST file_output APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_property(TEST file_output preferences recovery APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_executable(kleiotide_residue_style_tests tests/residue_style_tests.cpp)
     target_link_libraries(kleiotide_residue_style_tests PRIVATE kleiotide_gui)
     add_test(NAME residue_styles COMMAND kleiotide_residue_style_tests)
@@ -236,7 +243,7 @@ if(KLEIOTIDE_BUILD_GUI)
     endif()
     kleiotide_workflow(mafft_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")
@@ -252,6 +259,9 @@ if(KLEIOTIDE_BUILD_GUI)
         add_dependencies(kleiotide_save_safety_check kleiotide_mafft_fixture)
         add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}"
             $<TARGET_FILE:kleiotide_mafft_fixture>)
+      elseif(workflow STREQUAL "settings_check")
+        add_dependencies(kleiotide_settings_check kleiotide_mafft_fixture)
+        add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}" $<TARGET_FILE:kleiotide_mafft_fixture>)
       elseif(workflow STREQUAL "mafft_check")
         add_dependencies(kleiotide_mafft_check kleiotide_mafft_fixture)
         add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} $<TARGET_FILE:kleiotide_mafft_fixture>)

@@ -11,7 +11,7 @@ def main():
     source = Path(__file__).resolve().parents[1]
     version = re.search(r"project\(Kleiotide VERSION ([\d.]+)",
                         (source / "CMakeLists.txt").read_text()).group(1)
-    release = version.removesuffix(".0")
+    release = version
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="Destination ZIP file")
     args = parser.parse_args()

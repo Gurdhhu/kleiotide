@@ -8,8 +8,8 @@ one used. Keep different Qt kits in separate build directories.
 There are two complementary checks:
 
 - **Automatic tests:** the program's test executables check expected results
-  through CTest. The current complete suite has **33 tests**: 18 core suites,
-  four Qt unit suites and eleven GUI workflows. Each entry contains many checks.
+  through CTest. The current complete suite has **37 tests**: 19 core suites,
+  six Qt unit suites and twelve GUI workflows. Each entry contains many checks.
 - **Manual checks:** you run Kleiotide normally and use real Windows dialogs,
   mouse/clipboard, display scaling and research files. Automated GUI checks run
   offscreen and cannot establish every native Windows interaction.
@@ -21,7 +21,7 @@ process fixture. Testing the real MAFFT installation is a separate manual step.
 ## 1. Open a fresh source release
 
 1. Extract the source ZIP into a new folder, such as
-   `C:\Kleiotide-testing\Kleiotide_0.26.12`. Avoid mixing source releases.
+   `C:\Kleiotide-testing\Kleiotide_0.27.0`. Avoid mixing source releases.
 2. In Qt Creator, open that folder's `CMakeLists.txt` as you usually do.
 3. Select your existing **MSVC x64 Qt kit**, choose **Release**, and configure.
    Use a fresh build directory for this release.
@@ -60,7 +60,7 @@ the CMake variable configuration, not the application's command-line arguments.
 5. Success ends with:
 
    ```text
-   100% tests passed, 0 tests failed out of 33
+   100% tests passed, 0 tests failed out of 37
    ```
 
 The target builds the app and all required test programs before running CTest.
@@ -105,7 +105,7 @@ an error when no tests are registered.
 2. Select **`kleiotide`** as the run configuration in Qt Creator. Enabling tests
    adds other executables to that list, so confirm the application is selected.
 3. Build and press the green **Run** button, as you normally do.
-4. In **Help > About Kleiotide**, verify version **0.26.12**, Oleg Shchepin's
+4. In **Help > About Kleiotide**, verify version **0.27.0**, Oleg Shchepin's
    copyright, GPLv3-only notice and Elizaveta Shchepina's designer credit.
 
 Use a separate output folder and test copies of your research files. Record
@@ -137,11 +137,11 @@ filename and file type.
 
 - Windows version; Qt Creator version; exact Qt kit/version; MSVC version;
   Release/Debug; Windows scaling percentage.
-- Automatic result (33/33 or failed names), the text log and JUnit XML.
+- Automatic result (37/37 or failed names), the text log and JUnit XML.
 - Manual checklist results and descriptions of failures or skipped checks.
 
-The automatic suite previously passed on Linux. A successful run on your PC is
-the first evidence for this exact Windows/Qt/MSVC combination. Passing it plus
+The new suite is validated locally on Linux. Your native run establishes the
+result for this changed version with the selected Windows/Qt/MSVC combination. Passing it plus
 manual acceptance supports release preparation; it does not claim every possible
 file or Windows installation has been tested.
 
@@ -223,11 +223,21 @@ undo history and subsequent small edits remain usable. The limit prevents
 attempting enormous padding/history buffers; it does not restrict opening the
 same input for inspection, searching or small edits.
 
-## 0.26.12 toolbar assertion follow-up
+## Historical 0.26.12 toolbar-test correction
 
-The supplied Windows run passes 32/33; gui.mode_controls reports “Persistent
+The first Windows run passed 32/33; gui.mode_controls reported “Persistent
 toolbar dimensions”. The corrected source removes its fixed-window-width
 assumption and tests actual space, normal/enlarged fonts, narrow hiding and
 restored visibility. No application behavior or suite count changes. Rebuild
 from the updated source and its matching Source_For_Installer ZIP, following
-docs/WINDOWS_TOOLBAR_TEST_FIX.md. Keep the new logs; do not disable the test.
+docs/WINDOWS_TOOLBAR_TEST_FIX.md. The subsequent native 0.26.12 test-1 build
+passed all 33 tests and focused manual checks, as recorded in WINDOWS_ACCEPTANCE.md.
+
+## 0.27.0 preferences and recovery acceptance
+
+After release-check reports 37/37, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
+Cancel/reset and restart, new-session defaults versus saved sessions, current
+window isolation, MAFFT defaults versus per-job overrides, resource refusals,
+checkpoint cancellation, and recovery after terminating a disposable test process.
+The guide explains how to avoid risking your only copy of unsaved work. Native
+Windows and the real ARM environment remain separate from offscreen test results.

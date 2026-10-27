@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/mafft_run.hpp"
@@ -39,7 +40,7 @@ Outcome run(QApplication& app,std::shared_ptr<Document> source,const QString& pa
 }
 int main(int argc,char** argv){
     QApplication app(argc,argv);QCoreApplication::setApplicationName("Kleiotide-MAFFT-check");
-    try{
+    try{kleiotide::TestPreferences testPreferences;
         require(argc>=2,"Pass the process fixture executable");const auto fixture=QString::fromLocal8Bit(argv[1]);QTemporaryDir directory;require(directory.isValid(),"Temporary fixture folder");
         auto source=std::make_shared<Document>();source->load({{"same Я","AaCG~~TT"},{"same Я","AA~CG~TT"},{"mask","01234567"},{"empty",""}});const auto before=fasta(*source);
         auto result=run(app,source,fixture);require(result.result&&result.error.isEmpty()&&!result.cancelled,"Whole process result");require(fasta(*source)==before&&result.result->rows()[0].symbols.text()=="AaCGTT~"&&result.result->rows()[2].symbols.text()=="01234567","Source and masks unchanged, returned case preserved");require(result.report.contains("--preservecase")&&result.report.contains("7.525")&&result.report.contains("Masks excluded: 1"),"Job report records options/version/masks");

@@ -1,4 +1,5 @@
 #include "gui/main_window.hpp"
+#include "gui/app_settings.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/chromatogram_view.hpp"
 #include "core/session.hpp"
@@ -86,7 +87,7 @@ void MainWindow::paste(bool newDocument,bool atCaret){
         std::shared_ptr<Document> incoming;std::vector<Record> records;
         if(mime->hasFormat(sequencesMime)){const auto bytes=mime->data(sequencesMime);if(bytes.size()>clipboardLimit)throw std::runtime_error("Sequence clipboard exceeds 256 MiB.");std::istringstream input(std::string(bytes.constData(),static_cast<std::size_t>(bytes.size())),std::ios::binary);incoming=std::make_shared<Document>(read_session(input).document);}
         else{std::istringstream input(mime->text().toUtf8().toStdString());records=read_fasta(input,{},fastaImport_);}
-        if(newDocument){if(!incoming){incoming=std::make_shared<Document>();incoming->load(std::move(records));}install_document(std::move(incoming),{},false);return;}
+        if(newDocument){if(!incoming){incoming=std::make_shared<Document>();incoming->load(std::move(records),AppSettings::instance().values().translation());}install_document(std::move(incoming),{},false);return;}
         auto position=document_->rows().size();const auto selected=view_->selected_ids();if(atCaret&&!selected.empty()){position=0;for(std::size_t i=0;i<document_->rows().size();++i)if(std::find(selected.begin(),selected.end(),document_->rows()[i].id)!=selected.end())position=i+1;}
         const auto count=incoming?incoming->rows().size():records.size();if(incoming)document_->insert_document(*incoming,position);else document_->insert_records(std::move(records),position);
         view_->refresh();if(atCaret){std::vector<SequenceId> ids;for(std::size_t i=0;i<count;++i)ids.push_back(document_->rows()[position+i].id);view_->select_ids(ids);}update_state();

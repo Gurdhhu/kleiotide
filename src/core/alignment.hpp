@@ -80,7 +80,7 @@ public:
     std::size_t columns() const noexcept;
     std::uint64_t state_id() const noexcept { return stateId_; }
     std::uint64_t content_id() const noexcept { return contentId_; }
-    void load(std::vector<Record> records); // New baseline; clears history.
+    void load(std::vector<Record> records,TranslationSettings translation={}); // New baseline; clears history.
     Document derive(std::vector<Record> records) const; // New result baseline; same row IDs.
     void append(std::vector<Record> records);
     const TranslationSettings& translation_settings()const{return translation_;}

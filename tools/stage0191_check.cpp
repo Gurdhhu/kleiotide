@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "core/session.hpp"
@@ -101,7 +102,7 @@ void editing(AlignmentView::Mode mode){
     v.set_mode(AlignmentView::Mode::View);v.select_fragment({{1,2},0,1});const auto readonly=d.state_id();key(v,Qt::Key_Right,Qt::ControlModifier);key(v,Qt::Key_Left,Qt::ShiftModifier);require(d.state_id()==readonly,"View never slides");v.close();
 }
 }
-int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     editing(AlignmentView::Mode::Rewrite);editing(AlignmentView::Mode::Insert);
     QTemporaryDir dir;QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,dir.path());Document d;d.load({{"one","~~ACG~~T"},{"two","~~ACT~~T"},{"outside","~~AGT~~T"},{"mask","11111111",RowKind::Mask}});const auto path=dir.filePath("source.kleio");{std::ofstream out(path.toStdString(),std::ios::binary);write_session(out,d);}
     MainWindow w;w.resize(1280,800);w.show();w.open_path(path);auto* v=dynamic_cast<AlignmentView*>(w.centralWidget());wait([&]{return v->isEnabled();});auto* edit=w.findChild<QToolButton*>("editToggle");auto* view=w.findChild<QToolButton*>("viewToggle");auto* rewrite=w.findChild<QToolButton*>("rewriteToggle");auto* insert=w.findChild<QToolButton*>("insertToggle");auto* gap=w.findChild<QComboBox*>("rightClickMode");require(edit&&view&&rewrite&&insert&&gap&&!w.findChild<QComboBox*>("editingMode"),"Exactly two segmented mode switches; old dropdown removed");require(edit->isChecked()&&rewrite->isChecked()&&rewrite->text()=="Rewrite"&&insert->text()=="Insert","Edit/Rewrite default and visible labels");

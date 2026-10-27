@@ -12,6 +12,7 @@ public:
     AlignmentOverview(AlignmentView* view,QWidget* parent=nullptr);
     void set_document(const Document* document);
     void refresh();
+    void set_limits(std::size_t workspace,int delayMs);
     bool ready() const;
     const std::vector<OverviewBin>& displayed_bins() const {return bins_;}
 protected:
@@ -34,5 +35,6 @@ private:
     std::uint64_t requested_=0;
     qreal dpr_=0;
     QString error_;
+    std::size_t workspace_=16*1024*1024;
 };
 }

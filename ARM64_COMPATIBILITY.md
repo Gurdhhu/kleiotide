@@ -42,3 +42,12 @@ Cygwin DLLs to work around an unexplained failure.
   https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ne-processthreadsapi-machine_attributes
 - Microsoft x64 Redistributable, including ARM64 components:
   https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
+
+## Checkpoint B (0.27.0)
+
+Oleg confirms native x64 0.26.12 test-1 acceptance, including Automatic (safe)
+MAFFT 7.526, and requests moving ahead while ARM feedback is pending. The ARM
+colleague may test a later build. 0.27.0 retains the same x64/ARM capability
+guard and adds Settings/recovery/bounded overview; use SETTINGS_AND_RECOVERY.md
+for the new checks when available. No native ARM binary or real ARM MAFFT pass
+is claimed. The historical 0.26.12 fixes above remain included.

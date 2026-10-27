@@ -16,18 +16,25 @@ std::uint32_t checksum(std::uint32_t crc,const char* bytes,std::size_t count){
 }
 class Writer {
 public:
-    explicit Writer(std::ostream& output):out(output){}
-    void bytes(const char* data,std::size_t n){if(n>maxBytes-total)throw std::runtime_error("Session exceeds the 8 GiB limit.");if(!n)return;crc=checksum(crc,data,n);total+=n;
-        if(n>buffer.size()){flush();out.write(data,static_cast<std::streamsize>(n));}
-        else{if(n>buffer.size()-used)flush();std::copy_n(data,n,buffer.data()+used);used+=n;}
-        if(!out)throw std::runtime_error("Could not write session.");}
+    Writer(std::ostream& output,const std::function<bool()>& cancelled):out(output),cancelled_(cancelled){}
+    void bytes(const char* data,std::size_t n){
+        if(n>maxBytes-total)throw std::runtime_error("Session exceeds the 8 GiB limit.");
+        while(n){
+            if(cancelled_&&cancelled_())throw std::runtime_error("Session write cancelled.");
+            const auto take=std::min(n,buffer.size());
+            crc=checksum(crc,data,take);total+=take;
+            if(take>buffer.size()-used)flush();
+            std::copy_n(data,take,buffer.data()+used);used+=take;data+=take;n-=take;
+            if(!out)throw std::runtime_error("Could not write session.");
+        }
+    }
     void number(std::uint64_t value,unsigned width=8){char b[8];for(unsigned i=0;i<width;++i)b[i]=static_cast<char>(value>>(i*8));bytes(b,width);}
     void text(std::string_view s,std::uint64_t limit){if(s.size()>limit)throw std::runtime_error("Session text exceeds its field limit.");number(s.size());bytes(s.data(),s.size());}
     void finish(){flush();const auto c=crc^0xffffffffU;char b[4];for(unsigned i=0;i<4;++i)b[i]=static_cast<char>(c>>(i*8));out.write(b,4);if(!out)throw std::runtime_error("Could not finish session.");}
 private:
     void flush(){if(used){out.write(buffer.data(),static_cast<std::streamsize>(used));used=0;}}
     std::array<char,65536> buffer{};std::size_t used=0;
-    std::ostream& out;std::uint32_t crc=0xffffffffU;std::uint64_t total=0;
+    std::ostream& out;const std::function<bool()>& cancelled_;std::uint32_t crc=0xffffffffU;std::uint64_t total=0;
 };
 class Reader {
 public:
@@ -51,14 +58,15 @@ void write_protein(Writer& w,const std::shared_ptr<const ProteinLayout>& p){w.nu
 std::shared_ptr<const ProteinLayout> read_protein(Reader& r){auto present=r.number(1);if(present>1)throw std::runtime_error("Invalid protein metadata flag.");if(!present)return {};auto p=std::make_shared<ProteinLayout>();auto three=r.number(1);if(three>1)throw std::runtime_error("Invalid amino-acid label style.");p->sourceId=r.number();p->sourceFingerprint=r.number();p->sourceState=r.number();p->sourceName=r.text(small);p->settings=read_settings(r);auto n=r.count(maxCalls);for(std::size_t i=0;i<n;++i){ProteinSpan s;s.cells=static_cast<unsigned>(r.number(1));for(auto& c:s.columns)c=r.count(1073741824);p->spans.push_back(s);}return p;}
 
 }
-void write_session(std::ostream& output,const Document& d,std::string_view view,std::string_view report){
+void write_session(std::ostream& output,const Document& d,std::string_view view,std::string_view report,const std::function<bool()>& cancelled){
+    if(cancelled&&cancelled())throw std::runtime_error("Session write cancelled.");
     std::map<const Chromatogram*,std::size_t> indices;std::vector<std::shared_ptr<const Chromatogram>> traces;
     for(const auto& row:d.rows()){
         if(row.kind!=RowKind::Nucleotide&&row.kind!=RowKind::Mask&&row.kind!=RowKind::Protein)throw std::runtime_error("Invalid session row type.");
         validate_protein_layout(row);
         validate_trace(row);if(row.trace&&!indices.contains(row.trace->original.get())){indices[row.trace->original.get()]=traces.size();traces.push_back(row.trace->original);}}
     if(d.rows().size()>1000000||traces.size()>1000000)throw std::runtime_error("Too many session rows or traces.");
-    Writer w(output);w.bytes(session_magic.data(),session_magic.size());w.number(session_version,4);w.number(d.next_sequence_id());w.text(view,small);w.text(report,16*small);w.number(d.groups().size());w.number(d.next_group_id());
+    Writer w(output,cancelled);w.bytes(session_magic.data(),session_magic.size());w.number(session_version,4);w.number(d.next_sequence_id());w.text(view,small);w.text(report,16*small);w.number(d.groups().size());w.number(d.next_group_id());
     for(const auto& g:d.groups()){w.number(g.id);w.text(g.name,small);w.number(g.color,4);}write_settings(w,d.translation_settings());w.number(traces.size());
     for(const auto& ptr:traces){const auto& t=*ptr;w.text(t.sourcePath,small);w.text(t.sampleName,small);w.number(t.callSet,4);w.text(t.calls,maxCalls);
         w.number(t.peaks.size());for(auto p:t.peaks)w.number(p,4);w.number(t.quality.size());w.bytes(reinterpret_cast<const char*>(t.quality.data()),t.quality.size());

@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "core/session.hpp"
@@ -43,7 +44,7 @@ void check_context(AlignmentView& v,bool expected){
 }
 QColor background(AlignmentView& v,std::size_t row,std::size_t col){auto image=v.viewport()->grab().toImage();const auto dpr=image.devicePixelRatio();const auto x=v.name_area_width()+static_cast<int>(col)*v.cell_width()+1;const auto y=v.ruler_height()+static_cast<int>(row)*v.row_height()+1;return image.pixelColor(qRound(x*dpr),qRound(y*dpr));}
 }
-int main(int argc,char** argv){QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir dir;Document source;const std::string residues="ACDEFGHIKLMNPQRSTVWY";const std::string codons="GCTTGTGATGAATTTGGTCATATTAAACTTATGAATCCTCAACGTTCTACTGTTTGGTAT";
     std::vector<Record> rows{{"nucleotide",codons},{"protein",residues,RowKind::Protein}};
     for(int i=0;i<60;++i)rows.push_back({"gap_nt_"+std::to_string(i),std::string(codons.size(),'~')});

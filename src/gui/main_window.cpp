@@ -3,6 +3,11 @@
 #include "core/version.hpp"
 #include "gui/site_highlighter.hpp"
 #include "gui/main_window.hpp"
+#include "gui/app_settings.hpp"
+#include "gui/settings_dialog.hpp"
+#include "gui/recovery.hpp"
+#include <QListWidget>
+#include <QProgressDialog>
 #include "gui/translation_ui.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/alignment_overview.hpp"
@@ -122,6 +127,7 @@ struct ReadResult {
 
 }
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::make_shared<Document>()) {
+    document_->load({},AppSettings::instance().values().translation());savedState_=document_->state_id();
     setWindowTitle("Kleiotide — alignment editor");
     resize(1180, 720);
     view_ = new AlignmentView(this);
@@ -170,7 +176,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         return a;
     };
     action(file, "&New", QKeySequence::New, [this] {
-        install_document(std::make_shared<Document>(), {}, true);
+        auto document=std::make_shared<Document>();document->load({},AppSettings::instance().values().translation());
+        install_document(std::move(document), {}, true);
     });
     auto* newWindow=file->addAction("New window");connect(newWindow,&QAction::triggered,this,[]{auto* window=new MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->show();});
     action(file, "&Open…", QKeySequence::Open, [this] {
@@ -187,11 +194,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(file, "New alignment from clipboard", {}, [this] { paste(true); });
     action(file, "Add &new sequence…", {}, [this] { add_new_sequence(); });
     auto* importType=file->addMenu("FASTA import type");importType->setToolTipsVisible(true);
+    fastaImport_=static_cast<FastaImport>(AppSettings::instance().values().fastaImport);
     auto* importGroup=new QActionGroup(this);importGroup->setExclusive(true);
     const char* importLabels[]={"Nucleotides + masks (default)","Proteins + masks","Masks only"};
     const char* importIds[]={"fastaImportNucleotide","fastaImportProtein","fastaImportMask"};
     for(int i=0;i<3;++i){const auto type=static_cast<FastaImport>(i);auto* a=action(importType,importLabels[i],{},[this,type]{fastaImport_=type;});
-        a->setObjectName(importIds[i]);a->setCheckable(true);a->setChecked(i==0);importGroup->addAction(a);
+        a->setObjectName(importIds[i]);a->setCheckable(true);a->setChecked(i==static_cast<int>(fastaImport_));importGroup->addAction(a);
         a->setToolTip("Applies to FASTA Open, Add and clipboard imports in this window. Alphabets overlap: ACGT can be either nucleotide or protein. Incompatible printable rows become masks. Saved sessions and AB1 files retain their declared types.");}
     file->addSeparator();
     action(file, "&Save", QKeySequence::Save, [this] { save(); });
@@ -199,6 +207,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(file,"Export FASTA…",{},[this]{save(true,{},true);});
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
     auto* exportBatch=action(file,"Batch export edited traces (AB1)…",{},[this]{export_traces();});exportBatch->setObjectName("exportAbifBatch");exportBatch->setToolTip("Export all traces or traces linked to selected sequence names into separate AB1 files.");
+    file->addSeparator();
+    auto* settingsAction=action(file,"Settings…",{},[this]{show_settings(this,current_appearance(),document_->translation_settings());});settingsAction->setObjectName("appSettingsAction");
+    action(file,"Recover session…",{},[this]{offer_recovery();})->setObjectName("recoverSession");
+    action(file,"Write recovery checkpoint now",{},[this]{write_recovery(true);})->setObjectName("checkpointNow");
+    auto* recoveryStatus=file->addAction("Recovery status…");connect(recoveryStatus,&QAction::triggered,this,[this]{QMessageBox::information(this,"Recovery status",recoveryStatus_+"\n\n"+QDir::toNativeSeparators(RecoveryStore::default_directory()));});
     file->addSeparator();
     auto* exit = file->addAction("E&xit"); connect(exit, &QAction::triggered, this, &QWidget::close);
     auto* edit = menuBar()->addMenu("&Edit");
@@ -432,7 +445,99 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     view->removeAction(fontAction);view->addSeparator();view->addAction(fontAction);
     sequence->removeAction(sequenceSelection->menuAction());sequence->removeAction(sort->menuAction());
     sequence->addSeparator();sequence->addMenu(sequenceSelection);sequence->addMenu(sort);
-    view_->set_mode(AlignmentView::Mode::Rewrite);set_residue_palette(ResiduePalette::Classic);update_state();
+    apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
+    connect(&AppSettings::instance(),&AppSettings::changed,this,[this]{apply_operational_preferences();});
+    checkpointElapsed_.start();recoveryIdle_.start();recoveryAttempt_.start();
+    recoveryTimer_=new QTimer(this);recoveryTimer_->setInterval(1000);
+    connect(recoveryTimer_,&QTimer::timeout,this,[this]{
+        const auto& p=AppSettings::instance().values();
+        if(p.recoveryEnabled&&!busy_&&document_->state_id()!=savedState_&&checkpointElapsed_.elapsed()>=qint64(p.recoverySeconds)*1000&&
+           (recoveryIdle_.elapsed()>=1500||checkpointElapsed_.elapsed()>=qint64(p.recoverySeconds)*2000))write_recovery();
+    });recoveryTimer_->start();
+}
+MainWindow::~MainWindow()=default;
+void MainWindow::retire_recovery(){
+    if(recovery_){const auto error=recovery_->discard();if(!error.isEmpty())statusBar()->showMessage(error,20000);recovery_.reset();}
+    checkpointElapsed_.start();recoveryAttempt_.start();recoveryStatus_="No recovery checkpoint has been written for this document.";
+}
+void MainWindow::clear_recovered_claim(){
+    if(recoveryClaim_&&consumeRecovery_){const auto error=recoveryClaim_->discard();if(!error.isEmpty())statusBar()->showMessage(error,20000);}
+    recoveryClaim_.reset();consumeRecovery_=false;
+}
+void MainWindow::write_recovery(bool forced){
+    // A modal editor can still own a staged Apply callback outside the main
+    // action list. Checkpoint only after that nested event loop has finished.
+    if(QApplication::activeModalWidget()||(!forced&&QApplication::activePopupWidget()))return;
+    const auto retryAfter=std::max<qint64>(15000,qint64(AppSettings::instance().values().recoverySeconds)*1000);
+    if(busy_||(!forced&&recoveryAttempt_.isValid()&&recoveryAttempt_.elapsed()<retryAfter))return;
+    if(document_->state_id()==savedState_){if(forced)statusBar()->showMessage("There are no unsaved document changes to checkpoint.",5000);return;}
+    recoveryAttempt_.start();
+    try{if(!recovery_)recovery_=std::make_shared<RecoveryStore>();}
+    catch(const std::exception& e){recoveryStatus_="Recovery unavailable: "+QString::fromUtf8(e.what());statusBar()->showMessage(recoveryStatus_,20000);return;}
+    const auto source=document_;const auto store=recovery_;const auto view=session_view();const auto report=mafftReport_.toUtf8().toStdString();
+    const auto title=windowTitle();const auto path=path_;const auto quota=AppSettings::bytes(AppSettings::instance().values().recoveryQuotaMiB);
+    const auto cancelled=std::make_shared<std::atomic_bool>(false);
+    auto* progress=new QProgressDialog("Writing a recovery checkpoint. Editing in this window is temporarily paused.","Cancel",0,0,this);
+    progress->setObjectName("recoveryProgress");progress->setWindowModality(Qt::WindowModal);progress->setMinimumDuration(500);
+    progress->setAutoClose(false);progress->setAutoReset(false);QTimer::singleShot(500,progress,[progress]{progress->show();});
+    connect(progress,&QProgressDialog::canceled,this,[cancelled]{*cancelled=true;});
+    connect(this,&QObject::destroyed,[cancelled]{*cancelled=true;});
+    set_busy(true,"Writing recovery checkpoint…");auto* watcher=new QFutureWatcher<QString>(this);
+    connect(watcher,&QFutureWatcher<QString>::finished,this,[this,watcher,progress]{
+        const auto error=watcher->result();watcher->deleteLater();progress->close();progress->deleteLater();
+        if(error.isEmpty()){
+            checkpointElapsed_.start();recoveryStatus_="Recovery checkpoint saved at "+QDateTime::currentDateTime().toString(Qt::ISODate)+". The document is still unsaved.";
+            clear_recovered_claim();
+        }else recoveryStatus_="Recovery checkpoint not completed: "+error;
+        set_busy(false);statusBar()->showMessage(recoveryStatus_,20000);
+    });
+    watcher->setFuture(QtConcurrent::run([store,source,view,report,title,path,quota,cancelled]{
+        try{return store->write(*source,view,report,title,path,quota,[cancelled]{return cancelled->load();});}
+        catch(const std::exception& e){return QString::fromUtf8(e.what());}
+    }));
+}
+void MainWindow::offer_recovery(bool startup){
+    if(busy_)return;
+    const auto entries=RecoveryStore::available();
+    if(entries.empty()){if(!startup)QMessageBox::information(this,"Recover session","No available recovery checkpoints. Active windows keep their checkpoints locked.");return;}
+    QDialog dialog(this);dialog.setObjectName("recoveryChooser");dialog.setWindowTitle("Recover session");dialog.resize(760,440);
+    QVBoxLayout layout(&dialog);QLabel help("These checkpoints belong to windows that are no longer active. Recover opens unsaved work in a new window and retains the checkpoint until it is safely replaced or saved. Open copy leaves the old checkpoint available.");help.setWordWrap(true);layout.addWidget(&help);
+    QListWidget list;list.setObjectName("recoveryEntries");for(const auto& entry:entries)list.addItem(entry.modified.toLocalTime().toString(Qt::ISODate)+" — "+entry.title);list.setCurrentRow(0);layout.addWidget(&list,1);
+    QCheckBox previous("Use previous completed generation (if the newest cannot be opened)");previous.setObjectName("previousRecoveryGeneration");previous.setEnabled(!entries[0].previousPath.isEmpty());layout.addWidget(&previous);
+    connect(&list,&QListWidget::currentRowChanged,&dialog,[&](int row){previous.setChecked(false);previous.setEnabled(row>=0&&!entries[std::size_t(row)].previousPath.isEmpty());});
+    QLabel error;error.setWordWrap(true);error.setStyleSheet("color:#A03020");layout.addWidget(&error);
+    QDialogButtonBox buttons;auto* recover=buttons.addButton("Recover",QDialogButtonBox::AcceptRole);recover->setObjectName("recoverSelected");auto* copy=buttons.addButton("Open copy",QDialogButtonBox::ActionRole);copy->setObjectName("openRecoveryCopy");auto* discard=buttons.addButton("Discard selected…",QDialogButtonBox::DestructiveRole);discard->setObjectName("discardRecovery");buttons.addButton(QDialogButtonBox::Cancel);layout.addWidget(&buttons);
+    auto open=[&](bool consume){
+        if(list.currentRow()<0)return;
+        auto claim=std::make_unique<RecoveryClaim>(entries[std::size_t(list.currentRow())]);
+        if(!claim->valid()){error.setText("That recovery is now in use by another window or process.");return;}
+        const auto path=previous.isChecked()?claim->entry().previousPath:claim->entry().path;auto* window=new MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->recoveryClaim_=std::move(claim);window->openingRecovery_=true;window->consumeRecovery_=consume;window->show();window->open_path(path);dialog.accept();
+    };
+    connect(recover,&QPushButton::clicked,&dialog,[&]{open(true);});connect(copy,&QPushButton::clicked,&dialog,[&]{open(false);});
+    connect(discard,&QPushButton::clicked,&dialog,[&]{
+        if(list.currentRow()<0)return;
+        const auto index=list.currentRow();
+        if(QMessageBox::question(&dialog,"Discard recovery?","Delete both checkpoint generations for the selected session? Original files are not changed.",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
+        RecoveryClaim claim(entries[std::size_t(index)]);const auto failure=claim.discard();
+        if(!failure.isEmpty())error.setText(failure);else{list.item(index)->setHidden(true);list.setCurrentRow(-1);error.setText("Selected recovery discarded.");}
+    });
+    connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.exec();
+}
+AppPreferences MainWindow::current_appearance()const {
+    auto p=AppSettings::instance().values();p.font=view_->font();p.palette=view_->residue_palette();p.display=view_->residue_display();p.identityDots=view_->identity_dots();p.viewOnly=view_->mode()==AlignmentView::Mode::View;p.insert=editMode_==1;p.rightClick=gapMode_;
+    p.overviewVisible=!overview_->parentWidget()->isHidden();p.traceVisible=traces_->has_traces()?!traceDock_->isHidden():p.traceVisible;return p;
+}
+void MainWindow::apply_appearance(const AppPreferences& p){
+    view_->setFont(p.font);set_residue_palette(p.palette);set_residue_display(p.display);findChild<QAction*>("identityDots")->setChecked(p.identityDots);
+    editMode_=p.insert?1:2;gapMode_=p.rightClick;
+    view_->set_mode(p.viewOnly?AlignmentView::Mode::View:p.insert?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
+    overview_->parentWidget()->setVisible(p.overviewVisible);traceDock_->setVisible(p.traceVisible&&traces_->has_traces());
+}
+void MainWindow::apply_operational_preferences(){
+    if(busy_)return;
+    const auto& p=AppSettings::instance().values();
+    document_->set_bulk_edit_memory_limit(AppSettings::bytes(p.bulkMiB));document_->set_history_budget(AppSettings::bytes(p.undoMiB));
+    overview_->set_limits(AppSettings::bytes(p.overviewMiB),p.scanDelayMs);
 }
 void MainWindow::set_residue_palette(ResiduePalette palette){
     view_->set_residue_palette(palette);traces_->set_residue_palette(palette);
@@ -443,6 +548,7 @@ void MainWindow::set_residue_palette(ResiduePalette palette){
 }
 void MainWindow::set_residue_display(ResidueDisplay display){view_->set_residue_display(display);findChild<QAction*>("residueDisplay."+display_id(display))->setChecked(true);}
 void MainWindow::update_state() {
+    if(displayedDocument_!=document_.get()||displayedState_!=document_->state_id())recoveryIdle_.start();
     if(translation_)translation_->refresh();
     displayedMode_=static_cast<int>(view_->mode());
     displayedDocument_=document_.get();displayedState_=document_->state_id();
@@ -548,7 +654,7 @@ void MainWindow::set_busy(bool busy, const QString& text) {
     if(translation_)translation_->set_available(!busy);
     for (auto* a : mutatingActions_) a->setEnabled(!busy);
     for(const auto* id:{"editViewSwitch","rewriteInsertSwitch","rightClickMode"})if(auto* control=findChild<QWidget*>(id))control->setEnabled(!busy);
-    if (busy) statusBar()->showMessage(text); else update_state();
+    if (busy) statusBar()->showMessage(text); else {apply_operational_preferences();update_state();}
 }
 bool MainWindow::maybe_save(std::function<void()> continuation) {
     if (busy_) return false;
@@ -569,20 +675,23 @@ void MainWindow::open_paths(const QStringList& paths) {
 }
 void MainWindow::install_document(std::shared_ptr<Document> document, const QString& path, bool saved) {
     if (busy_ || !maybe_save([this, document, path, saved] { install_document(document, path, saved); })) return;
+    retire_recovery();clear_recovered_claim();
     document_ = std::move(document); path_ = path;nativePath_=false;resultLabel_.clear();mafftReport_.clear();
     savedState_ = saved ? document_->state_id() : 0;
-    view_->set_document(document_.get()); update_state();
-    if(traces_->has_traces()){traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}
+    view_->set_document(document_.get());apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
+    if(traces_->has_traces()&&AppSettings::instance().values().traceVisible){traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}
 }
 void MainWindow::load_files(const QStringList& paths, bool append) {
     if (busy_ || paths.isEmpty()) return;
     set_busy(true, append ? "Reading sequences to add…" : "Opening alignment…");
+    const auto cleanDefaults=AppSettings::instance().values();
     auto* watcher = new QFutureWatcher<std::shared_ptr<ReadResult>>(this);
     connect(watcher, &QFutureWatcher<std::shared_ptr<ReadResult>>::finished, this,
-        [this, watcher, paths, append] {
+        [this, watcher, paths, append,cleanDefaults] {
         const auto result = watcher->result();
         watcher->deleteLater();
         if (!result->error.isEmpty()) {
+            openingRecovery_=false;recoveryClaim_.reset();
             set_busy(false);
             QMessageBox::warning(this, "Could not read sequences", result->error);
             return;
@@ -591,25 +700,32 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             if (append) {
                 document_->append(std::move(result->records)); view_->refresh();
             } else {
+                retire_recovery();if(!openingRecovery_)clear_recovered_claim();
                 document_ = std::move(result->document);
                 nativePath_=result->isSession;
                 path_ = paths.size() == 1 && (result->isSession||!result->hasTrace) ? paths.front() : QString{};
                 resultLabel_=paths.size()>1?QString("%1 imported files").arg(paths.size()):result->hasTrace?QFileInfo(paths.front()).fileName():QString{};mafftReport_=QString::fromUtf8(result->report.c_str());
                 savedState_ = document_->state_id(); view_->set_document(document_.get());
+                if(!result->isSession)apply_appearance(cleanDefaults);
             }
         } catch (const std::exception& e) {
             QMessageBox::warning(this, "Could not add sequences", QString::fromUtf8(e.what()));
         }
         set_busy(false);
-        if(result->hasTrace&&traces_->has_traces()){
+        if(result->hasTrace&&traces_->has_traces()&&(result->isSession||append||cleanDefaults.traceVisible)){
             if(append){for(auto it=document_->rows().rbegin();it!=document_->rows().rend();++it)if(it->trace){traces_->choose_sequence(it->id);view_->navigate_to_cell(it->id,0);break;}}
             traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);
         }
         if(result->isSession)restore_view(result->viewState);
+        if(openingRecovery_){
+            path_.clear();nativePath_=false;savedState_=0;resultLabel_="Recovered session";openingRecovery_=false;
+            if(!consumeRecovery_)recoveryClaim_.reset();
+            update_state();
+        }
         if(!result->importNotes.isEmpty())QMessageBox::information(this,"AB1 import notes",result->importNotes.join("\n\n"));
     });
     const auto importType=fastaImport_;
-    watcher->setFuture(QtConcurrent::run([paths, append,importType] {
+    watcher->setFuture(QtConcurrent::run([paths, append,importType,cleanDefaults] {
         auto result = std::make_shared<ReadResult>();
         try {
             for (const auto& path : paths) {
@@ -631,7 +747,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             }
             if (!append&&!result->isSession) {
                 result->document = std::make_shared<Document>();
-                result->document->load(std::move(result->records));
+                result->document->load(std::move(result->records),cleanDefaults.translation());
             }
         } catch (const std::exception& e) { result->error = QString::fromUtf8(e.what()); }
         return result;
@@ -976,6 +1092,7 @@ void MainWindow::save(bool saveAs, std::function<void()> onSuccess, bool exportF
             path_ = destination;
             nativePath_ = native;
             savedState_ = state;
+            retire_recovery();clear_recovered_claim();
         }
         set_busy(false);
         if (!error.isEmpty()) QMessageBox::warning(this, "Could not save file", error);
@@ -1003,12 +1120,13 @@ std::string MainWindow::session_view()const {
     return QJsonDocument(state).toJson(QJsonDocument::Compact).toStdString();
 }
 void MainWindow::restore_view(const std::string& bytes){
+    apply_appearance(AppPreferences::defaults());
     const auto state=QJsonDocument::fromJson(QByteArray::fromStdString(bytes)).object();if(state["version"].toInt()!=1){set_residue_palette(ResiduePalette::Classic);set_residue_display(ResidueDisplay::Letters);return;}
     if(highlighter_)highlighter_->restore(state["highlight"].toObject());
     findChild<QAction*>("identityDots")->setChecked(state["identityDots"].toBool(false));
     set_residue_palette(palette_from_id(state["residuePalette"].toString()));set_residue_display(display_from_id(state["residueDisplay"].toString()));
     auto ids=[&](const QJsonArray& values){std::vector<SequenceId> result;for(const auto& v:values){const auto id=v.toString().toULongLong();for(const auto& row:document_->rows())if(row.id==id){if(std::find(result.begin(),result.end(),id)==result.end())result.push_back(id);break;}}return result;};
-    QFont font;if(font.fromString(state["font"].toString())&&font.pointSize()>=6&&font.pointSize()<=48)view_->setFont(font);
+    QFont font;if(!state["font"].toString().isEmpty()&&font.fromString(state["font"].toString())&&font.pointSize()>=6&&font.pointSize()<=48)view_->setFont(font);
     view_->set_name_area_width(state["names"].toInt(230));gapMode_=std::clamp(state["rightClick"].toInt(0),0,4);editMode_=state["editMode"].toInt(2)==1?1:2;const int storedMode=state["mode"].toInt(2);view_->set_mode(storedMode==0?AlignmentView::Mode::View:storedMode==1?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
     if(translation_)translation_->restore(state["translation"].toObject());
     view_->select_ids(ids(state["selected"].toArray()));const auto f=state["fragment"].toObject();const auto start=f["start"].toString().toULongLong(),width=f["width"].toString().toULongLong();auto rows=ids(f["ids"].toArray());
@@ -1022,7 +1140,7 @@ void MainWindow::restore_view(const std::string& bytes){
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (busy_) { statusBar()->showMessage("Wait for the current operation to finish."); event->ignore(); return; }
-    if (maybe_save([this] { close(); })) event->accept(); else event->ignore();
+    if (maybe_save([this] { close(); })) {retire_recovery();clear_recovered_claim();event->accept();} else event->ignore();
 }
 }
 

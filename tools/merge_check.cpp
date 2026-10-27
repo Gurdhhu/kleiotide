@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/merge_dialog.hpp"
@@ -40,7 +41,7 @@ template<class F>void workflow(MainWindow& window,const char* action,F step){
 }
 Record traced(std::string name,std::string bases,std::vector<std::uint8_t> q){std::istringstream in(test::synthetic_abif(bases));auto r=read_abif(in,name,"missing.ab1");auto original=std::make_shared<Chromatogram>(*r.trace->original);original->quality=std::move(q);auto link=std::make_shared<TraceLink>(*r.trace);link->original=original;r.trace=link;return r;}
 }
-int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir directory;Document source;source.load({{"first","AGATACACA-------"},{"second","----ACACAGATATAG"},{"left","AGATACACA-------"},{"middle","----ACACAGAT----"},{"right","-------CAGATATAG"},{"protein","MDEF",RowKind::Protein},{"mask","0123",RowKind::Mask},traced("trace1","ACGT",{40,30,30,0}),traced("trace2","GTAC",{20,30,25,0})});
     source.apply_groups({{1,"Originals",0x0072b2}},{{1,1},{2,1},{8,1},{9,1}});
     const auto path=directory.filePath("merge.kleio");{std::ofstream out(path.toStdString(),std::ios::binary);write_session(out,source);}

@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/file_output.hpp"
@@ -65,7 +66,7 @@ void check_busy(MainWindow& w){
     need(w.current_document().state_id()==state&&w.current_document().translation_settings()==before,"Busy handlers cannot mutate document, including programmatic signals");
 }
 }
-int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir dir;need(dir.isValid(),"Temporary folder");QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,dir.path());const auto fasta=dir.filePath("source Я.fasta");put(fasta,">row\nATGAAATAG\n");
     // Every kind of translation metadata must survive ordinary Save/reopen.
     for(int kind=0;kind<4;++kind){MainWindow w;open(app,w,fasta);action(w,"Translation")->setChecked(true);

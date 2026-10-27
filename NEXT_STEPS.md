@@ -1,20 +1,19 @@
 # Next steps
 
-0.26.12 completes implementation checkpoint A and brings forward the requested
-shortcut swap and Edit → Mode controls. Read IMPLEMENTATION_STATUS.md for the
-full boundary and VALIDATION.md for results. The application is not RC1.
+0.27.0 implements checkpoint B: File → Settings, session/default precedence,
+resource preferences, recovery foundation and bounded overview. The existing
+mode/shortcut changes remain from the accepted 0.26.12 checkpoint.
 
-Build in a fresh Qt 6.5.3 / MSVC2022 x64 Release directory and run release-check
-(33 tests). Check the changed controls and exports using WINDOWS_TESTING.md.
-Use WINDOWS_INSTALLER.md to produce 0.26.12 test 1; keep the exact corresponding
-source and Qt source available alongside the setup. Retest real MAFFT 7.526 and
-toolbar recovery on native x64 and the colleague's ARM laptop.
+Build the same Qt 6.5.3 / MSVC2022 x64 Release kit in a fresh directory and run
+release-check (37 tests). Use SETTINGS_AND_RECOVERY.md for the focused native
+checks. WINDOWS_INSTALLER.md explains packaging 0.27.0 test 1 with the exact
+matching source ZIP; the one-time Qt/runtime/NSIS inputs can be reused.
 
-Continue checkpoint B with typed global settings, new-session precedence,
-recovery and bounded overview. Implement trace linking as checkpoint C with
-coordinate-ground-truth tests before enabling its UI. Keep the broader storage
-rewrites deferred as specified in docs/IMPLEMENTATION_PLAN_2026-10-26.md.
+Trace assignment, forward/reverse peak mapping, Link/Delete trace menus and
+scientific confidence calibration are checkpoint C. Broad incremental scan/cache
+work and remaining import/export policy decisions stay measured follow-ups;
+chunked storage, virtual Flush and a native ARM build remain deferred.
 
-The license remains GPL-3.0-only; branding/artwork permissions remain in
-BRANDING.md. Existing native 0.26.11 acceptance and partial ARM test-2 acceptance
-are retained in WINDOWS_ACCEPTANCE.md; changed code needs new native acceptance.
+ARM feedback can be collected on a later version as Oleg requested. The accepted
+native x64 0.26.12/MAFFT baseline is recorded in WINDOWS_ACCEPTANCE.md. This is a
+development checkpoint, not RC1. License/branding terms remain unchanged.

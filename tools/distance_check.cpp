@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "core/distances.hpp"
@@ -34,7 +35,7 @@ QComboBox* combo(QDialog& d,const char* id){auto* b=d.findChild<QComboBox*>(id);
 const QAbstractItemModel* model(QDialog& d){return d.findChild<QTableView*>("distanceTable")->model();}
 QString cell(QDialog& d,int r,int c){auto* m=model(d);return m->data(m->index(r,c),Qt::DisplayRole).toString();}
 }
-int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir temp;Document source;source.load({{"a","AAAA"},{"b","AAAT"},{"c","AATA"},{"d","AATT"},{"missing","NNNN"},{"mask","1234",RowKind::Mask},{"p1","ACDE",RowKind::Protein},{"p2","ACDF",RowKind::Protein}});source.apply_groups({{1,"North",0x123456},{2,"South",0x654321}},{{1,1},{2,1},{3,2},{4,2}});const auto path=temp.filePath("distances.kleio");{std::ofstream out(path.toStdString(),std::ios::binary);write_session(out,source);}
     MainWindow w;w.resize(1450,900);w.show();w.open_path(path);auto* view=dynamic_cast<AlignmentView*>(w.centralWidget());until(app,[&]{return view->isEnabled()&&w.current_document().rows().size()==8;});const auto initial=w.current_document().state_id();int stage=0;QString copied;const auto tsvPath=temp.filePath("export.tsv");
     QTimer filePicker;filePicker.setInterval(5);QObject::connect(&filePicker,&QTimer::timeout,&w,[&]{if(auto* chooser=w.findChild<QFileDialog*>()){filePicker.stop();chooser->selectFile(tsvPath);QMetaObject::invokeMethod(chooser,"accept",Qt::DirectConnection);}});filePicker.start();

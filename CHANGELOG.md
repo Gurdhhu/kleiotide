@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.27.0 — preferences, recovery and bounded overview (checkpoint B)
+
+- Add File → Settings with validated new-session font/color/mode/visibility,
+  default genetic code (including full custom definitions), FASTA import type,
+  memory/Undo/overview limits, default MAFFT launcher/threads and recovery policy.
+  Apply/Cancel/Restore defaults are distinct; current sessions keep their choices.
+- Migrate legacy MAFFT preferences. Per-job choices no longer change global
+  defaults; Settings Test performs a real tiny alignment with cancellation/logs.
+- Initialize fresh imports/blank documents with the default genetic code as a
+  clean baseline. Saved and legacy sessions retain their own metadata/defaults.
+- Add periodic, separately stored atomic .kleio recovery checkpoints, per-window
+  locks, up to two generations, disk quota, cancellation/status, Recover/Open copy
+  and confirmed discard. Recovery leaves originals and ordinary dirty state intact.
+- Make session output cancellable in bounded chunks without changing format 4.
+- Replace full-column overview evidence with bounded tiles and up to 8192 GUI
+  summaries. Compute conservation before aggregation; preserve IUPAC/coverage
+  semantics and reject stale content.
+- Isolate GUI workflow preferences in temporary INI profiles, explicitly select
+  the configured QSettings backend, and keep the normal native user namespace.
+- Expand the release suite to 37 entries with preference, bounded-overview,
+  recovery/abrupt-process-exit and end-to-end Settings/recovery coverage.
+- Fix source packaging for full x.y.0 version prefixes, matching installer checks.
+- Record Oleg’s native 0.26.12 test-1 acceptance and real MAFFT --thread 8 success.
+  Native acceptance of 0.27.0 and real ARM MAFFT remain pending. Trace linking and
+  broad scan/storage refactoring remain later checkpoints.
+
 ## 0.26.12 — implementation checkpoint A
 
 - Windows test correction: replace the fixed-1280 counter-visibility assumption

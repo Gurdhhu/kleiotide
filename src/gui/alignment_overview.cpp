@@ -31,6 +31,10 @@ void AlignmentOverview::set_document(const Document* document){
     if(document_!=document){work_.stop();debounce_.stop();document_=document;requested_=std::numeric_limits<std::uint64_t>::max();scan_.reset();bins_.clear();plot_=QPixmap{};}
     refresh();
 }
+void AlignmentOverview::set_limits(std::size_t workspace,int delayMs){
+    debounce_.setInterval(delayMs);if(workspace==workspace_)return;
+    workspace_=workspace;requested_=std::numeric_limits<std::uint64_t>::max();refresh();
+}
 void AlignmentOverview::refresh(){
     if(!document_)return;
     if(requested_!=document_->content_id()){
@@ -41,7 +45,7 @@ void AlignmentOverview::refresh(){
 bool AlignmentOverview::ready()const{return document_&&scan_&&scan_->complete()&&scan_->revision()==document_->content_id();}
 void AlignmentOverview::begin_scan(){
     if(!document_)return;
-    try{scan_=std::make_unique<OverviewScan>(*document_);work_.start();advance_scan();}
+    try{scan_=std::make_unique<OverviewScan>(*document_,workspace_);work_.start();advance_scan();}
     catch(const std::exception&e){error_=QString::fromUtf8(e.what());work_.stop();update();}
 }
 void AlignmentOverview::advance_scan(){

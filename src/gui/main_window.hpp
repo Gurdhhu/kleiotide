@@ -3,6 +3,7 @@
 #include "core/fasta.hpp"
 #include "gui/residue_style.hpp"
 #include <QMainWindow>
+#include <QElapsedTimer>
 #include <QStringList>
 #include <functional>
 #include <memory>
@@ -11,6 +12,7 @@ class QAction;
 class QCloseEvent;
 class QDockWidget;
 class QMenu;
+class QTimer;
 namespace kleiotide {
 class AlignmentView;
 class AlignmentOverview;
@@ -18,11 +20,16 @@ class ChromatogramPanel;
 class MotifNavigator;
 class SiteHighlighter;
 class TranslationUI;
+class RecoveryStore;
+class RecoveryClaim;
+struct AppPreferences;
 enum class RenameOperation;
 struct MafftConfiguration;
 class MainWindow final : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    ~MainWindow() override;
+    void offer_recovery(bool startup=false);
     void open_path(const QString& path);
     void open_paths(const QStringList& paths);
     const Document& current_document() const {return *document_;}
@@ -70,6 +77,9 @@ private:
     void select_one_per_group();
     void quality_edit(bool trim);
     void choose_font();
+    void apply_appearance(const AppPreferences&);
+    void apply_operational_preferences();
+    AppPreferences current_appearance()const;
     void select_regex(bool sequences);
     enum class SelectionTool { TitlePrefix,TitleContains,TitleExact,DuplicateNames,DuplicateSequences,Motif,Random };
     void select_by_rule(SelectionTool);
@@ -103,6 +113,15 @@ private:
     FastaImport fastaImport_=FastaImport::NucleotideAndMasks;
     std::string session_view() const;
     void restore_view(const std::string& state);
+    void write_recovery(bool forced=false);
+    void retire_recovery();
+    void clear_recovered_claim();
+    std::shared_ptr<RecoveryStore> recovery_;
+    std::unique_ptr<RecoveryClaim> recoveryClaim_;
+    QTimer* recoveryTimer_=nullptr;
+    QElapsedTimer checkpointElapsed_,recoveryIdle_,recoveryAttempt_;
+    QString recoveryStatus_="No recovery checkpoint has been written for this document.";
+    bool openingRecovery_=false,consumeRecovery_=false;
     bool busy_ = false;
     int editMode_=2, gapMode_=0;
 };

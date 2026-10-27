@@ -1,105 +1,87 @@
-# Validation of Kleiotide 0.26.12 — checkpoint A
+# Validation of Kleiotide 0.27.0 — checkpoint B
 
-Executed 26 October 2026. Source baseline: supplied GitHub-ready 0.26.11.
-See IMPLEMENTATION_STATUS.md for implemented and pending plan items. The old
-0.26.11 validation record is retained in docs/history/VALIDATION_0.26.11.md.
+Executed 26 October 2026 from a fixed source snapshot. This checkpoint follows
+the user's accepted native x64 0.26.12 test-1 build. See
+IMPLEMENTATION_STATUS.md for scope and SETTINGS_AND_RECOVERY.md for behavior.
+Historical validation records remain under docs/history/.
 
-## Results
+## Final results
 
-- Release application, unit tests and release workflows compiled with GCC
-  13.3 / C++20. Final C++ build completed without compiler warnings.
-- Complete registered suite: **33/33 passed**, no skipped entries: 18 core,
-  four Qt unit and eleven GUI workflow suites. JUnit report retained.
-- GUI suites with QT_SCALE_FACTOR=1.5: **11/11 passed**. The mode/toolbar
-  capture was visually inspected: controls, alignment and status hints fit.
-  Offscreen rendering does not establish native Windows DPI/touch behavior.
-- Targeted AddressSanitizer + UndefinedBehaviorSanitizer run of the changed
-  alignment implementation and row-index regression: passed, no diagnostics.
-  Other linked core objects were not instrumented in this targeted run; this
-  is not a new whole-core or GUI sanitizer claim. Leak detection was disabled.
+- Clean Release build: the application, fixture and all registered checks built.
+  All 39 executable images were checked as nonempty ELF binaries before execution.
+- Complete registered CTest suite: **37/37 passed**, no disabled or skipped entries:
+  19 core, six Qt unit and twelve GUI workflows. Every entry captured actual output.
+- GUI workflows at 150% scaling: **12/12 passed**.
+- Settings/recovery workflow with Qt Windows style at 200%: **passed**. Dialog
+  captures were inspected; tabs/pages scroll and the fixed action row is reachable.
+  This is Linux offscreen rendering, not native Windows DPI acceptance.
+- Targeted AddressSanitizer + UndefinedBehaviorSanitizer runs passed for the
+  changed overview implementation/independent bounds tests and session reader/
+  writer with all ten session regressions. Other linked core objects were not
+  instrumented in these targeted runs. No GUI sanitizer or leak-check claim;
+  leak detection was disabled.
+- Deterministic format-4 session output matches baseline bytes across multiple
+  64 KiB chunks, with nucleotide/protein/mask rows and genetic code 2. Both files
+  have SHA256 d77efa9e2d559ec9075984dce12f9d4218844a308785e1b8a3a3bda732ef43d1.
+  The baseline serializer is unchanged between 0.26.11 and accepted 0.26.12.
+- A before/after comparison confirms the normal native Kleiotide preference file
+  was unchanged by the isolated final test runs.
 
-## New regressions
+## New correctness coverage
 
-Row-index failure injection tries each allocation failure position before a
-successful operation: append 11, multi-span erase 13, reorder 19, load 4,
-restore session 110, composite collapse 20, splice Undo 5 and splice Redo 5.
-Every refusal retains rows, IDs, content/saved-state identity, next sequence ID
-and Undo/Redo availability. Two hundred structural cycles check lookup identity;
-const lookup is checked while allocations are forbidden.
+Preferences: legacy path/-1 thread migration, persistence/restart, validation and
+invalid/tampered values, unavailable-font fallback, full custom genetic codes,
+clean initial translation settings, Apply/Cancel/reset, current-appearance/code
+drafts, existing-window isolation and saved/legacy-session precedence. Per-job
+MAFFT choices do not replace defaults; Settings Test performs a tiny alignment
+using the controlled fixture rather than just accepting a version string.
 
-Export checks cover protected ABIF/session data under misleading extensions,
-streamed table commit, serialization failures and preservation of old output.
-Distance export cancellation now explicitly accepts replacement of its test
-output before testing cancellation; production replacement remains user-driven.
+Test isolation uses temporary INI user and system scopes. AppSettings explicitly
+selects defaultFormat: Qt's named-application constructor otherwise keeps native
+storage even after setDefaultFormat(IniFormat). The normal application still
+uses its existing native organization/application namespace. All twelve release
+GUI workflows use isolated defaults; QC job settings honor that backend too.
+The migration regression also passed three consecutive isolated runs.
 
-The MAFFT workflow covers a positive safe default, one targeted retry, both
-nonzero and zero-with-empty-output core-count failures, refusal of repeated
-retries, no retry for an explicit numeric choice, process errors/cancellation,
-separate result windows and source preservation. It uses a controlled fixture,
-not the colleague's MAFFT/Cygwin package. Toolbar hide/restore and default-layout
-recovery keep the document intact.
+Overview: sixty independent randomized column-model comparisons with forced
+summary compression, IUPAC/coverage semantics, revision invalidation and metadata
+rename behavior. A two-row million-column fixture stays within its **256 KiB
+workspace budget** and remains fully conserved when A/C alternate between
+columns. This measures owned scan buffers, not whole-process peak RAM. The GUI
+uses up to 8192 summaries and defaults to a 16 MiB workspace budget. No Windows
+throughput or chromosome-length latency guarantee follows from this fixture.
 
-The promoted gui.mode_controls suite covers toolbar/menu synchronization,
-View restrictions, remembered rewrite/right-click preferences, session round
-trip, the swapped sliding shortcuts, caret navigation and existing gap behavior.
-Existing translation-preview/session regressions pass with shared actions.
+Recovery: atomic generations, active-window locks, quota/cancellation refusals
+preserving previous bytes, latest/previous generation round trips, strict
+rejection of a corrupt latest generation, explicit discard and unchanged live
+state/history. A child process commits a checkpoint, remains unavailable while
+alive, is killed by its owning test, and then leaves readable data with a
+reclaimable stale lock. Cancellation also interrupts an actually partially
+streamed large row. The GUI workflow checks mutation gating, modal-editor
+deferral, unclean window destruction, unsaved recovery copies, retained old
+checkpoints during Recover and safe retirement after a new valid checkpoint.
 
-## Row-scaling experiment
+## Environment and interpretation
 
-Same Linux host and GCC 13.3 -O3, using the same benchmark against baseline and
-changed core libraries. Each row contains 200 A residues. Times below are one
-run in milliseconds, not a statistical performance guarantee. Results include
-fingerprint checks after Undo. No Windows, process-RAM or chromosome-length
-performance claim is made.
+Local execution uses Linux, GCC 13.3/C++20, CMake/CTest 3.28.3 and Qt **6.4.2**.
+A separate frozen validation copy lowers only the Qt package minimum; delivered
+CMake retains **Qt >=6.5** and CMake >=3.21. Application/test/tool bytes match the
+validated snapshot. Local executable permissions were normalized before running
+CTest. No product assertion was disabled or weakened for the environment.
 
-| Rows | Build | Delete one column | Undo | Insert gap in every row | Delete first half of rows |
-| --- | --- | ---: | ---: | ---: | ---: |
-| 20,000 | 0.26.11 | 543.51 | 359.07 | 723.93 | 20.67 |
-| 20,000 | 0.26.12 | 8.87 | 1.12 | 7.61 | 1.66 |
-| 40,000 | 0.26.11 | 6,986.18 | 4,560.18 | 9,270.91 | 95.73 |
-| 40,000 | 0.26.12 | 13.25 | 2.00 | 14.93 | 3.31 |
-| 80,000 | 0.26.12 | 27.86 | 3.69 | 29.44 | 7.16 |
+The 37 entries are the same commands registered for release-check. The final
+JUnit/text reports and executable-image manifest accompany this source package.
+The source archive and its full 0.27.0 prefix are verified against the working
+tree, including complete production sources and unchanged license/branding.
 
-The baseline 80,000-row case was not run. Reproduce with the optional
-row_index_benchmark developer target; its source is tools/row_index_benchmark.cpp.
-This supports removing repeated row scans in these operations. It does not
-remove full-row copying costs for edits to very long sequences.
+Native Windows 0.27.0 and real ARM results remain pending. The user's native
+0.26.12 33/33/manual acceptance and MAFFT 7.526 success (--thread 8, seven rows,
+width 557, 6.80 s) are recorded in WINDOWS_ACCEPTANCE.md; they are not transferred
+to changed code. No Windows installer binary was produced locally. Use the same
+Qt 6.5.3 / MSVC2022 x64 kit and packaging inputs for the new test-1 build.
 
-## Environment and remaining acceptance
-
-Local Qt is **6.4.2**, Linux offscreen platform, CMake/CTest 3.28.3. Only the
-Qt package minimum is lowered in a separate validation copy. Delivered source
-retains **Qt >=6.5**, CMake >=3.21 and the production code used in these tests.
-A CMake configure warning about unavailable XKB development files did not
-prevent offscreen compilation/execution.
-
-The user's 0.26.11 native Windows 30/30/manual acceptance remains the baseline;
-it is not transferred to changed 0.26.12 code. This version still needs the
-Qt 6.5.3 / MSVC2022 x64 release-check run, native dialogs/shortcuts/toolbar checks,
-and real MAFFT 7.526 on x64 and ARM. The colleague's test-2 ARM basic workflows
-passed, but MAFFT failed and the toolbar disappeared, motivating these fixes.
-
-The installer retains the existing ARM64 Windows-11 capability guard; the new
-application version starts packaging revision 1. No real Windows installer or
-MSVC binary was produced here. Reuse the accepted packaging inputs and build
-with WINDOWS_INSTALLER.md. Settings/recovery/trace linking are pending.
-
-## Windows release-check follow-up: toolbar test
-
-Oleg reports 32/33 for 0.26.12 on Qt 6.5.3 / MSVC2022 x64, with only
-“Persistent toolbar dimensions” failing in gui.mode_controls. Installer assembly
-was blocked by this prerequisite. An 18-pt toolbar font reproduces the original
-assertion locally: the counter is legitimately hidden at fixed width 1280.
-
-The test now checks exact text independently of visibility, sizes a fitting
-window from actual metrics, requires full visibility/right alignment there,
-checks deliberate narrow-window hiding and recovery, and repeats with an
-increased font. Application code and installer scripts are unchanged. The
-corrected workflow passed six local combinations: Fusion 100%/150%; Qt Windows
-style 100%/125%/150%/200%, all offscreen on Linux. Native Windows confirmation
-is still required. See docs/WINDOWS_TOOLBAR_TEST_FIX.md for rebuilding steps.
-
-After this correction, the actual release-check target was rerun locally:
-**33/33 passed**, no skipped entries (13.28 seconds). The targeted six-style/
-scaling runs all passed as well. The delivered source still requires Qt >=6.5;
-only the local validation copy uses Qt 6.4.2, as described above.
+Settings do not cap total RAM; broad analysis/translation workspace limits and
+incremental cache changes remain follow-ups. Recovery temporarily gates mutations
+and can refuse unavailable/quota-limited/oversized storage; it preserves previous
+completed generations and never marks work saved. No fatal-path autosave was
+added. Session format remains 4; trace linking remains checkpoint C.

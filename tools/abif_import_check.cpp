@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "core/abif.hpp"
 #include "../tests/abif_fixture.hpp"
@@ -29,7 +30,7 @@ void check(QApplication& app,const QString& path){
     std::cout<<"PASS GUI import: "<<a.calls.size()<<" calls, "<<a.channels[0].size()<<" samples/channel; "<<expectedNote<<'\n';
 }
 }
-int main(int argc,char** argv){QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir temporary;need(temporary.isValid(),"Temporary directory");const auto path=temporary.filePath("unknown.ab1");
     {QFile out(path);need(out.open(QIODevice::WriteOnly),"Open synthetic fixture");const auto bytes=test::synthetic_abif("ACXxTG");need(out.write(bytes.data(),static_cast<qint64>(bytes.size()))==static_cast<qint64>(bytes.size())&&out.flush(),"Write synthetic fixture");}
     check(app,path);

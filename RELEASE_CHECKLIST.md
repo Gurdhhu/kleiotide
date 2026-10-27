@@ -1,8 +1,9 @@
 # Release checklist
 
-0.26.12 is implementation checkpoint A, not RC1. Settings, recovery and trace
-linking remain planned; see IMPLEMENTATION_STATUS.md. The following checked
-native items record **0.26.11 baseline acceptance**, not a new 0.26.12 result.
+0.27.0 is implementation checkpoint B, not RC1. Settings, recovery and bounded
+overview are implemented; trace linking remains checkpoint C. See
+IMPLEMENTATION_STATUS.md. The following checked
+native items record **0.26.11 baseline acceptance**, not a new 0.27.0 result.
 Repeat the changed workflows and retain new logs before distributing this build.
 WINDOWS_ACCEPTANCE.md also records the colleague's limited test-2 ARM results.
 
@@ -16,7 +17,7 @@ From the x64 Native Tools for VS 2022 environment, run PowerShell with your Qt M
 
 This configures Release with the release regression suite, builds, runs CTest, and retains logs plus JUnit and environment/result records. It does not change machine execution policy. You may run the CMake/CTest commands inside the script directly instead.
 
-The `release-check` CMake target builds all registered unit tests and eleven GUI workflow programs, then runs CTest (33 entries). It retains text and JUnit reports as `release-tests-Release.log` and `release-tests-Release.xml` in the Release build directory and fails when no tests are found. GUI checks cover AB1 import notices, save safety, identity/group management/import, translation, merge, AB1 export, collapse, distances, MAFFT and synchronized mode controls. Historical workflow executables remain available separately.
+The `release-check` CMake target builds all registered unit tests and twelve GUI workflow programs, then runs CTest (37 entries). It retains text and JUnit reports as `release-tests-Release.log` and `release-tests-Release.xml` in the Release build directory and fails when no tests are found. GUI checks cover AB1 import notices, save safety, identity/group management/import, translation, merge, AB1 export, collapse, distances, MAFFT and synchronized mode controls. Historical workflow executables remain available separately.
 
 ## Native Windows acceptance — user-reported baseline passes
 
@@ -39,7 +40,7 @@ Do not infer those narrower checks from a general Pass.
 ## Distribution acceptance — results/decisions still required
 
 For the new installer workflow, use **WINDOWS_INSTALLER.md** and the
-`test-installer` target. The new 0.26.12 installer requires a Windows build and acceptance. Basic
+`test-installer` target. The new 0.27.0 installer requires a Windows build and acceptance. Basic
 0.26.11 test-2 ARM installation/launch was reported; broader checks remain.
 
 For the older folder/ZIP packaging workflow after validation:
@@ -57,19 +58,19 @@ The script installs into a new versioned folder, runs that kit's `windeployqt`, 
 - [ ] Decide installer/file associations, signing and public distribution channel. The portable package does not register associations.
 - [ ] Record acceptance results and any remaining known limitations before tagging RC1.
 
-## New-version gates
+## Checkpoint-B gates
 
-- [x] Transactional row index and focused allocation-failure regressions.
-- [x] Shared protected atomic output for audited dialog exports.
-- [x] Controlled MAFFT failures/retry/cancellation and toolbar recovery tests.
-- [x] Shared mode actions and swapped shortcut regressions.
-- [x] Local 33/33 suite and 150%-scale 11/11 GUI workflows.
-- [ ] Qt 6.5.3 / MSVC2022 x64 Release: 33/33, changed native UI/export checks.
-- [ ] Real MAFFT 7.526 success/cancellation on native x64 and ARM Windows.
-- [ ] Native toolbar/mode controls at relevant DPI, narrow windows and touch.
-- [ ] Complete checkpoint B/C feature acceptance before RC freeze.
-- [ ] Build and accept the matching 0.26.12 test installer, including uninstall.
+- [x] Native 0.26.12 test-1 acceptance reported: 33/33 and focused manual checks.
+- [x] Real native x64 MAFFT 7.526 Automatic (safe), resolved --thread 8, passed.
+- [ ] 0.27.0 Qt 6.5.3 / MSVC2022 x64 Release: 37/37 plus new manual checks.
+- [ ] Settings Apply/Cancel/reset, restart and multiple windows with session precedence.
+- [ ] Recovery of disposable data after process termination, cancellation, quota
+  refusal, older generation and Save As; source files must remain unchanged.
+- [ ] Large-file overview memory behavior on representative research inputs.
+- [ ] Native dialogs at relevant DPI and narrow window sizes.
+- [ ] Real ARM MAFFT/Settings/recovery when the colleague is available.
+- [ ] Checkpoint-C trace mapping ground truth and application acceptance before RC.
+- [ ] Build and accept the matching 0.27.0 installer, including clean-machine uninstall.
 
-Large controller/storage rewrites remain deferred. No global exception handler
-attempts to continue after an unknown Qt event failure. The source snapshot has
-no Git remote; importing/committing it remains an operation in Oleg's checkout.
+The local test record is VALIDATION.md. Large storage/controller rewrites remain
+deferred; no global catch-and-continue handler or fatal-path autosave was added.

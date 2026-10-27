@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/abif_export_dialog.hpp"
@@ -50,7 +51,7 @@ void batch_checks(QApplication& app,MainWindow& window,const Document& source,co
 }
 
 }
-int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+int main(int argc,char** argv){QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{kleiotide::TestPreferences testPreferences;
     QTemporaryDir directory;const auto originalPath=directory.filePath("original Я.ab1");const auto originalBytes=test::synthetic_abif("ACGTRNACGTAC");{QFile out(originalPath);need(out.open(QIODevice::WriteOnly),"Fixture source");out.write(QByteArray::fromStdString(originalBytes));}std::istringstream input1(originalBytes),input2(originalBytes);Document d;d.load({read_abif(input1,"forward edited",originalPath.toUtf8().toStdString()),read_abif(input2,"reverse edited",directory.filePath("missing.ab1").toUtf8().toStdString()),{"plain","ACGT"},{"mask","123",RowKind::Mask}});d.replace(1,2,1,"n");d.replace(1,3,0,"cR-~");d.replace(1,0,1,"");d.transform({2},Document::Transform::ReverseComplement);d.replace(2,2,0,"N");const auto expected1=prepare_abif_export(d.sequence(1)),expected2=prepare_abif_export(d.sequence(2));const auto sessionPath=directory.filePath("editing.kleio");{std::ofstream out(sessionPath.toStdString(),std::ios::binary);write_session(out,d);}
     MainWindow window;window.show();window.open_path(sessionPath);auto* view=dynamic_cast<AlignmentView*>(window.centralWidget());until(app,[&]{return view->isEnabled()&&window.current_document().rows().size()==4;});need(window.findChild<QAction*>("exportAbif")->isEnabled(),"Export enabled for embedded traces");view->select_ids({2});const auto before=saved(window.current_document());const auto title=window.windowTitle();
     QString chosenPath;bool pickerPending=false;QTimer picker;picker.setInterval(2);QObject::connect(&picker,&QTimer::timeout,[&]{if(pickerPending)if(auto* dialog=window.findChild<QFileDialog*>();dialog&&dialog->isVisible()){pickerPending=false;dialog->setOption(QFileDialog::DontConfirmOverwrite);dialog->selectFile(chosenPath);QMetaObject::invokeMethod(dialog,"accept",Qt::DirectConnection);}});picker.start();const auto destination=directory.filePath("edited Я with spaces");int stage=0;

@@ -2,7 +2,7 @@
 
 Reports supplied by Oleg Shchepin for 0.26.10 and the subsequent **0.26.11**
 rerun. These are the user's native results, separate from local Linux regression
-runs. The latest report confirms **30/30 automatic tests and all manual tests
+runs. The 0.26.11 rerun confirms **30/30 automatic tests and all manual tests
 pass**, including prevention of oversized bulk operations. A later colleague report confirms limited test-2 ARM acceptance, recorded below.
 Acceptance of the changed 0.26.12 code remains pending.
 
@@ -101,3 +101,18 @@ Uninstall/reinstall, broader analyses and workload limits remain unconfirmed.
 batch diagnostics, plus permanent toolbar/menu recovery commands. Those fixes
 have local fixture coverage; real MAFFT and native UI retests on this machine
 are pending. No blanket ARM/MAFFT compatibility claim follows from installation.
+
+## 0.26.12 test 1 native x64 acceptance — 26 October 2026
+
+Oleg reports all 33 automatic tests passing and all focused manual checks
+passing: shared Edit → Mode controls, Ctrl one-column/Shift maximum sliding
+with Undo/Redo, toolbar hide/restore/default layout including narrow windows
+and scaling, and merge/table export replacement/cancellation/source protection.
+The corrected toolbar test no longer blocks packaging.
+
+Real MAFFT 7.526 via the Windows batch launcher succeeds with Automatic (safe),
+resolved --thread 8. The supplied report sends seven selected nucleotide rows,
+returns width 557, reports no reversed rows, and completes in 6.80 seconds.
+Cancellation is reported passing in the focused check. The report's
+--threadit 0 records deterministic refinement; it is distinct from --thread 8.
+ARM retesting remains pending and may use a later version as requested.

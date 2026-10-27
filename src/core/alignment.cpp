@@ -142,11 +142,12 @@ std::vector<Sequence> Document::make_rows(std::vector<Record> records,const std:
     }
     nextSequenceId_=next;return result;
 }
-void Document::load(std::vector<Record> records) {
+void Document::load(std::vector<Record> records,TranslationSettings translation) {
+    validate_translation_settings(translation);
     IdReservation ids(nextSequenceId_);
     const std::vector<SequenceGroup> empty;auto rows = make_rows(std::move(records),&empty); // Validate before mutation.
     auto index=make_index(rows);
-    groups_.clear();nextGroupId_=1;translation_={};
+    groups_.clear();nextGroupId_=1;translation_=std::move(translation);
     rows_.swap(rows);rowIndex_.swap(index);ids.committed=true;
     undo_.clear();
     redo_.clear();
