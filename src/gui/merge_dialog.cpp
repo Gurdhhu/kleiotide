@@ -3,6 +3,11 @@
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include <QCheckBox>
+#include <QAbstractScrollArea>
+#include <QPainter>
+#include <QScrollBar>
+#include <QScrollArea>
+#include <QScreen>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -27,16 +32,60 @@
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <atomic>
+#include <limits>
 namespace kleiotide {
 namespace {
 QString text(const std::string& value){return QString::fromUtf8(value.data(),static_cast<qsizetype>(value.size()));}
 struct Preview {MergePlan plan;QString error;};
+// Paint visible cells only; long previews do not create a widget per residue.
+class MergeAlignmentPreview final:public QAbstractScrollArea {
+public:
+    MergeAlignmentPreview(QWidget* parent):QAbstractScrollArea(parent){
+        setObjectName("mergeAlignment");setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));setMinimumHeight(140);
+        connect(horizontalScrollBar(),&QScrollBar::valueChanged,viewport(),qOverload<>(&QWidget::update));
+        connect(verticalScrollBar(),&QScrollBar::valueChanged,viewport(),qOverload<>(&QWidget::update));
+    }
+    void show_plan(const MergeContig* plan,const Document* source){plan_=plan;source_=source;resize_ranges();viewport()->update();}
+protected:
+    void resizeEvent(QResizeEvent* e)override{QAbstractScrollArea::resizeEvent(e);resize_ranges();}
+    void paintEvent(QPaintEvent*)override{
+        QPainter p(viewport());p.fillRect(viewport()->rect(),Qt::white);if(!plan_||!source_)return;
+        p.setFont(font());const auto fm=fontMetrics();const int cell=std::max(1,fm.horizontalAdvance('M')),line=fm.height()+6,names=180;
+        const auto first=std::size_t(horizontalScrollBar()->value());const auto end=std::min(plan_->symbols.size(),first+std::size_t(std::max(0,viewport()->width()-names)/cell+1));
+        p.setPen(Qt::darkGray);p.drawText(4,line-fm.descent(),"Result column");
+        for(auto c=first;c<end;++c)if(c==first||(c+1)%10==0)p.drawText(names+int(c-first)*cell,line-fm.descent(),QString::number(c+1));
+        const auto top=std::size_t(verticalScrollBar()->value());const auto bottom=std::min(plan_->alignment.size()+1,top+std::size_t(std::max(0,viewport()->height()/line)));
+        for(auto row=top;row<bottom;++row){
+            const int y=int(row-top+1)*line;const auto label=row?text(source_->sequence(plan_->alignment[row-1].id).name):QString("Merged result");
+            p.fillRect(0,y,names,line,QColor(row?"#edf1f5":"#dcebdc"));p.setPen(Qt::black);p.drawText(QRect(4,y,names-8,line),Qt::AlignVCenter,fm.elidedText(label,Qt::ElideRight,names-8));
+            p.save();p.setClipRect(QRect(names,y,viewport()->width()-names,line));
+            for(auto c=first;c<end;++c){
+                const int x=names+int(c-first)*cell;
+                if(c<plan_->differences.size()&&plan_->differences[c])p.fillRect(x,y,cell,line,QColor("#ffe0a0"));
+                char symbol=plan_->symbols[c];
+                if(row){const auto& read=plan_->alignment[row-1];symbol=c>=read.begin&&c<read.end?read.symbols[c]:' ';}
+                p.setPen(Qt::black);p.drawText(x,y+line-fm.descent()-3,QString(QChar::fromLatin1(symbol)));
+            }p.restore();
+        }
+    }
+private:
+    void resize_ranges(){
+        const auto fm=fontMetrics();const int cell=std::max(1,fm.horizontalAdvance('M')),line=fm.height()+6;
+        const int columns=plan_?int(std::min<std::size_t>(plan_->symbols.size(),std::numeric_limits<int>::max())):0;
+        const int rows=plan_?int(std::min<std::size_t>(plan_->alignment.size()+1,std::numeric_limits<int>::max())):0;
+        const int page=std::max(1,(viewport()->width()-180)/cell),height=std::max(1,viewport()->height()/line-1);
+        horizontalScrollBar()->setRange(0,std::max(0,columns-page));horizontalScrollBar()->setPageStep(page);
+        verticalScrollBar()->setRange(0,std::max(0,rows-height));verticalScrollBar()->setPageStep(height);
+    }
+    const MergeContig* plan_=nullptr;const Document* source_=nullptr;
+};
 class MergeDialog final:public QDialog {
 public:
     MergeDialog(std::shared_ptr<Document> source,std::vector<SequenceId> selected,MergeMode mode,QWidget* parent)
         :QDialog(parent),source_(std::move(source)),selected_(std::move(selected)),mode_(mode){
         setObjectName("mergeDialog");setWindowTitle(mode==MergeMode::Aligned?"Merge selected sequences":"Find overlap and merge");resize(940,800);
-        auto* layout=new QVBoxLayout(this);auto* form=new QFormLayout;layout->addLayout(form);
+        auto* outer=new QVBoxLayout(this);auto* scroll=new QScrollArea(this);scroll->setWidgetResizable(true);auto* body=new QWidget(scroll);scroll->setWidget(body);outer->addWidget(scroll,1);
+        auto* layout=new QVBoxLayout(body);auto* form=new QFormLayout;form->setRowWrapPolicy(QFormLayout::WrapLongRows);form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);layout->addLayout(form);
         std::string defaultName;allTraces_=selected_.size()>1;
         for(const auto& row:source_->rows())if(std::find(selected_.begin(),selected_.end(),row.id)!=selected_.end()){
             if(defaultName.empty())defaultName=row.name+"_merged";
@@ -50,61 +99,71 @@ public:
         margin_=new QSpinBox(this);margin_->setObjectName("mergeQualityMargin");margin_->setRange(0,255);margin_->setValue(10);margin_->setSuffix(" Q");margin_->setVisible(mode==MergeMode::Aligned);
         if(mode==MergeMode::Aligned){form->addRow(quality_);form->addRow("Required quality advantage",margin_);}
         contigs_=new QComboBox(this);contigs_->setObjectName("mergeContigChoice");form->addRow("Result contig",contigs_);
-        notice_=new QFrame(this);notice_->setObjectName("mergeNotice");auto* noticeLayout=new QVBoxLayout(notice_);heading_=new QLabel(this);heading_->setObjectName("mergeHeading");auto font=heading_->font();font.setBold(true);font.setPointSize(font.pointSize()+2);heading_->setFont(font);heading_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(heading_);
+        notice_=new QFrame(this);notice_->setObjectName("mergeNotice");auto* noticeLayout=new QVBoxLayout(notice_);heading_=new QLabel(this);heading_->setObjectName("mergeHeading");heading_->setWordWrap(true);auto font=heading_->font();font.setBold(true);font.setPointSize(font.pointSize()+2);heading_->setFont(font);heading_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(heading_);
         status_=new QLabel(this);status_->setObjectName("mergeStatus");status_->setWordWrap(true);status_->setTextFormat(Qt::PlainText);status_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);notice_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(status_);layout->addWidget(notice_);
-        partial_=new QCheckBox("Use this partial contig; leave the excluded sequences unchanged",this);partial_->setObjectName("mergeAllowPartial");partial_->setVisible(false);layout->addWidget(partial_);
         auto* detailsToggle=new QToolButton(this);detailsToggle->setObjectName("mergeRulesToggle");detailsToggle->setText("Merging rules and quality policy");detailsToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);detailsToggle->setArrowType(Qt::RightArrow);detailsToggle->setCheckable(true);layout->addWidget(detailsToggle,0,Qt::AlignLeft);
         auto* details=new QLabel(mode==MergeMode::Aligned?
             "Uses the current alignment columns. Terminal regions containing only N, ? and gaps supply no evidence. Conflicting residues give an IUPAC union; internal gap conflicts retain the residue. Q resolution requires linked traces on every selected row, a concrete highest-Q original call and the chosen advantage over different calls. Missing Q, ties, edited/inserted calls or indels retain the ordinary consensus.":
-            "Uses the current orientation after removing alignment gaps. N/? keep their positions but supply no matching evidence. Zero differences means exact overlap; otherwise each substitution or internal inserted/deleted base costs one. Terminal overhangs are free. The minimum counts informative matching positions. Ambiguity codes other than N/? are compared literally: R versus A costs one search difference but produces no consensus conflict. Counts describe different things: search events are summed across read additions; conflict positions are unique final columns with incompatible evidence. Each added read must meet these limits against the current contig consensus. Among overlaps meeting the minimum, fewer differences win; matching support breaks ties. Equally strong repeat placements are deferred. Components are searched separately; choose one and explicitly enable a partial result when reads are excluded.",this);
+            "Uses the current orientation after removing alignment gaps. N/? keep their positions but supply no matching evidence. Zero differences means exact overlap; otherwise each substitution or internal inserted/deleted base costs one. Terminal overhangs are free. The minimum counts informative matching positions. Ambiguity codes other than N/? are compared literally: R versus A costs one search difference but produces no consensus conflict. Counts describe different things: search events are summed across read additions; conflict positions are unique final columns with incompatible evidence. Each added read must meet these limits against the current contig consensus. Among overlaps meeting the minimum, fewer differences win; matching support breaks ties. Equally strong repeat placements are deferred. Components are searched separately; choose one result. Excluded reads remain unchanged.",this);
         details->setWordWrap(true);details->setVisible(false);layout->addWidget(details);connect(detailsToggle,&QToolButton::toggled,this,[details,detailsToggle](bool on){details->setVisible(on);detailsToggle->setArrowType(on?Qt::DownArrow:Qt::RightArrow);});
         auto* policy=new QLabel("Original rows and traces are retained. Apply appends one ungrouped consensus in one Undo step. Lowercase is preserved where one informative read supplies a position.",this);policy->setWordWrap(true);layout->addWidget(policy);
-        auto* legendRow=new QHBoxLayout;auto* legend=new QLabel("Conflict sites: red background · Q-resolved sites: green background",this);legend->setWordWrap(true);legendRow->addWidget(legend,1);
+        auto* legendRow=new QHBoxLayout;auto* legend=new QLabel("Consensus conflicts: red · Q-resolved: green. Read alignment below: all differing columns amber; blank flanks are outside the read.",this);legend->setWordWrap(true);legendRow->addWidget(legend,1);
         layout->addLayout(legendRow);
         sequence_=new QPlainTextEdit(this);sequence_->setObjectName("mergeSequence");sequence_->setReadOnly(true);sequence_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));sequence_->setMinimumHeight(100);sequence_->setMaximumHeight(160);layout->addWidget(sequence_);
+        alignment_=new MergeAlignmentPreview(this);layout->addWidget(alignment_,1);
         placements_=new QTableWidget(this);placements_->setObjectName("mergePlacements");placements_->setColumnCount(4);placements_->setHorizontalHeaderLabels({"Source sequence","Result / exclusion reason","Start","End"});placements_->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Interactive);placements_->setColumnWidth(0,240);placements_->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);placements_->setColumnWidth(2,70);placements_->setColumnWidth(3,70);placements_->setEditTriggers(QAbstractItemView::NoEditTriggers);placements_->setAlternatingRowColors(true);layout->addWidget(placements_,1);
-        auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel,this);layout->addWidget(buttons);
+        auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel,this);outer->addWidget(buttons);
         apply_=buttons->button(QDialogButtonBox::Apply);apply_->setObjectName("mergeApply");apply_->setToolTip("Append the reviewed merged sequence to the alignment.");preview_=buttons->addButton("Preview",QDialogButtonBox::ActionRole);preview_->setObjectName("mergePreview");save_=buttons->addButton("Save FASTA…",QDialogButtonBox::ActionRole);save_->setObjectName("mergeSaveFasta");cancel_=buttons->button(QDialogButtonBox::Cancel);
         connect(buttons,&QDialogButtonBox::rejected,this,&MergeDialog::reject);connect(preview_,&QPushButton::clicked,this,[this]{preview();});connect(apply_,&QPushButton::clicked,this,[this]{apply();});connect(save_,&QPushButton::clicked,this,[this]{save_fasta();});
         connect(quality_,&QCheckBox::toggled,this,[this]{invalidate();});connect(minimum_,&QSpinBox::valueChanged,this,[this]{invalidate();});connect(margin_,&QSpinBox::valueChanged,this,[this]{invalidate();});connect(edits_,&QSpinBox::valueChanged,this,[this]{invalidate();});
-        connect(name_,&QLineEdit::textChanged,this,[this]{controls();});connect(name_,&QLineEdit::textEdited,this,[this]{nameEdited_=true;});connect(partial_,&QCheckBox::toggled,this,[this]{controls();});
-        connect(contigs_,&QComboBox::currentIndexChanged,this,[this](int index){if(index<0||!plan_||plan_->contigs.empty())return;choose_merge_contig(*plan_,static_cast<std::size_t>(index));partial_->setChecked(false);render();});
+        connect(name_,&QLineEdit::textChanged,this,[this]{controls();});connect(name_,&QLineEdit::textEdited,this,[this]{nameEdited_=true;});
+        connect(contigs_,&QComboBox::currentIndexChanged,this,[this](int index){if(index<0||!plan_||plan_->contigs.empty())return;choose_merge_contig(*plan_,static_cast<std::size_t>(index));render();});
         invalidate();QTimer::singleShot(0,this,[this]{preview();});
+        if(auto* screen=this->screen()){const auto size=screen->availableGeometry().size();resize(std::min(940,std::max(360,size.width()-40)),std::min(850,std::max(360,size.height()-60)));}
     }
     std::optional<SequenceId> appended;
 protected:
+    void resizeEvent(QResizeEvent* event)override{QDialog::resizeEvent(event);QTimer::singleShot(0,this,[this]{fit_notice();});}
     void reject()override{if(running_){closing_=true;cancelled_->store(true);cancel_->setEnabled(false);notice("working","Cancelling…","The source alignment has not been changed.");return;}QDialog::reject();}
 private:
+    void fit_notice(){
+        const auto margins=notice_->layout()->contentsMargins();
+        const int width=std::max(100,notice_->width()-margins.left()-margins.right()-8);
+        const int statusHeight=std::max(status_->fontMetrics().height(),status_->heightForWidth(width));
+        const int headingHeight=std::max(heading_->fontMetrics().height(),heading_->heightForWidth(width));
+        status_->setMinimumHeight(statusHeight);heading_->setMinimumHeight(headingHeight);
+        const int height=margins.top()+margins.bottom()+notice_->layout()->spacing()+statusHeight+headingHeight+8;
+        if(notice_->minimumHeight()!=height){notice_->setMinimumHeight(height);QTimer::singleShot(0,this,[this]{fit_notice();});}
+    }
     void notice(const char* state,const QString& heading,const QString& message){
         heading_->setText(heading);status_->setText(message);
-        status_->setMinimumHeight(status_->fontMetrics().lineSpacing()*static_cast<int>(message.count('\n')+1));
         const QString color=QString(state)=="error"?"#fde7e9":QString(state)=="partial"?"#fff1ce":QString(state)=="ready"?"#e1f3eb":"#e7effa";
         const QString border=QString(state)=="error"?"#b42332":QString(state)=="partial"?"#976100":QString(state)=="ready"?"#237a53":"#32669c";
         notice_->setStyleSheet(QString("QFrame#mergeNotice { background: %1; border: 2px solid %2; border-radius: 5px; } QFrame#mergeNotice QLabel { color: #17212b; background: transparent; border: none; }").arg(color,border));
         notice_->setProperty("mergeState",state);
         notice_->layout()->invalidate();notice_->layout()->activate();
-        notice_->setMinimumHeight(notice_->layout()->minimumSize().height()+4);
+        fit_notice();QTimer::singleShot(0,this,[this]{fit_notice();});
         if(layout()){layout()->invalidate();layout()->activate();}
     }
-    bool usable()const{return plan_&&plan_->ids.size()>1&&!plan_->symbols.empty()&&(plan_->omitted.empty()||partial_->isChecked())&&!name_->text().trimmed().isEmpty();}
+    bool usable()const{return plan_&&plan_->ids.size()>1&&!plan_->symbols.empty()&&!name_->text().trimmed().isEmpty();}
     void controls(){
-        name_->setEnabled(!running_);minimum_->setEnabled(!running_);edits_->setEnabled(!running_);contigs_->setEnabled(!running_&&plan_&&plan_->contigs.size()>1);partial_->setEnabled(!running_);
+        name_->setEnabled(!running_);minimum_->setEnabled(!running_);edits_->setEnabled(!running_);contigs_->setEnabled(!running_&&plan_&&plan_->contigs.size()>1);
         quality_->setEnabled(!running_&&mode_==MergeMode::Aligned&&allTraces_);margin_->setEnabled(!running_&&quality_->isChecked());preview_->setEnabled(!running_&&selected_.size()>1);
         apply_->setEnabled(!running_&&usable());save_->setEnabled(!running_&&usable());
     }
-    void invalidate(){plan_.reset();sequence_->clear();sequence_->setExtraSelections({});placements_->setRowCount(0);{QSignalBlocker guard(contigs_);contigs_->clear();}partial_->setChecked(false);partial_->setVisible(false);notice("working","Preview required","Choose settings, then Preview.");controls();}
+    void invalidate(){alignment_->show_plan(nullptr,nullptr);plan_.reset();sequence_->clear();sequence_->setExtraSelections({});placements_->setRowCount(0);{QSignalBlocker guard(contigs_);contigs_->clear();}notice("working","Preview required","Choose settings, then Preview.");controls();}
     void render(){
         if(!plan_)return;
-        const auto& p=*plan_;
+        const auto& p=*plan_;alignment_->show_plan(&p,source_.get());
         if(!nameEdited_&&!p.ids.empty())name_->setText(text(source_->sequence(p.ids.front()).name+"_merged"));
         auto summary=QString("%1 of %2 selected sequences → %3 columns · %4 overlapping informative positions\n%5 conflicting positions (%6 residue, %7 indel) · %8 resolved by Q")
             .arg(p.ids.size()).arg(p.selectedIds.size()).arg(p.symbols.size()).arg(p.overlappingPositions).arg(p.conflictingPositions).arg(p.residueConflicts).arg(p.gapConflicts).arg(p.qualityResolved);
         if(mode_==MergeMode::ExactOverlap)summary+=QString("\n%1 edit events used: %2 substitutions, %3 inserted/deleted bases; %4 substitutions are compatible IUPAC symbol differences")
             .arg(p.editsUsed).arg(p.substitutionsUsed).arg(p.indelBasesUsed).arg(p.compatibleDifferencesUsed);
         if(p.ids.empty())notice("error","No contig found","No two selected reads have an unambiguous overlap within these limits. Review the per-sequence results below; lower the minimum or increase the difference allowance and Preview again.");
-        else if(!p.omitted.empty())notice("partial","Partial contig — review excluded reads",summary+"\n"+QString("%1 reads excluded. Enable the partial-contig option to Apply or Save this result.").arg(p.omitted.size()));
+        else if(!p.omitted.empty())notice("partial","Partial contig — review excluded reads",summary+"\n"+QString("%1 reads excluded. Apply or Save uses this contig; excluded reads remain unchanged.").arg(p.omitted.size()));
         else notice("ready","Ready to merge",summary);
-        partial_->setVisible(!p.ids.empty()&&!p.omitted.empty());sequence_->setPlainText(text(p.symbols));
+        sequence_->setPlainText(text(p.symbols));
         QList<QTextEdit::ExtraSelection> highlights;
         for(const auto& conflict:p.conflicts){if(conflict.column>=p.symbols.size())continue;QTextEdit::ExtraSelection mark;mark.cursor=sequence_->textCursor();mark.cursor.setPosition(static_cast<int>(conflict.column));mark.cursor.movePosition(QTextCursor::Right,QTextCursor::KeepAnchor);mark.format.setBackground(QColor(conflict.resolvedByQuality?"#1b7650":"#ae2435"));mark.format.setForeground(Qt::white);mark.format.setFontWeight(QFont::Bold);highlights.push_back(mark);}
         sequence_->setExtraSelections(highlights);
@@ -138,8 +197,8 @@ private:
     void apply(){if(running_||!usable())return;try{appended=apply_sequence_merge(*source_,*plan_,name_->text().trimmed().toUtf8().toStdString());accept();}catch(const std::exception& e){invalidate();notice("error","Merge preview failed",QString::fromUtf8(e.what()));}}
     std::shared_ptr<Document> source_;std::vector<SequenceId> selected_;MergeMode mode_;std::optional<MergePlan> plan_;
     bool allTraces_=false,running_=false,closing_=false,nameEdited_=false;std::shared_ptr<std::atomic_bool> cancelled_;
-    QLineEdit* name_;QSpinBox *minimum_,*margin_,*edits_;QCheckBox *quality_,*partial_;QComboBox* contigs_;QFrame* notice_;QLabel *heading_,*status_;
-    QPlainTextEdit* sequence_;QTableWidget* placements_;QPushButton *apply_,*preview_,*cancel_,*save_;
+    QLineEdit* name_;QSpinBox *minimum_,*margin_,*edits_;QCheckBox *quality_;QComboBox* contigs_;QFrame* notice_;QLabel *heading_,*status_;
+    MergeAlignmentPreview* alignment_;QPlainTextEdit* sequence_;QTableWidget* placements_;QPushButton *apply_,*preview_,*cancel_,*save_;
 };
 }
 std::optional<SequenceId> merge_sequences_dialog(std::shared_ptr<Document> source,const std::vector<SequenceId>& selected,MergeMode mode,QWidget* parent){MergeDialog dialog(std::move(source),selected,mode,parent);dialog.exec();return dialog.appended;}

@@ -1,4 +1,4 @@
-# Settings, recovery and bounded overview — 0.27.0
+# Settings, recovery and bounded overview — 0.27.1
 
 ## File → Settings
 
@@ -9,7 +9,7 @@ Kleiotide QSettings namespace, with validated, versioned values.
 
 Appearance and editing: alignment font family, point size, bold/italic, residue
 palette, colored letters/monochrome/backgrounds, identity dots, initial View/Edit
-and Rewrite/Insert, editing right-click choice and overview/trace visibility.
+and Overwrite/Insert, editing right-click choice and overview/trace visibility.
 The preview shows the chosen font/colors. Ruler sizing follows the alignment
 font using the existing readability rules. Use current appearance as defaults
 copies the current session's display choices into the dialog draft.
@@ -105,7 +105,7 @@ strict input validation remain enabled.
 - Discard selected asks for confirmation and deletes only that recovery group's
   generations; original input/output files are untouched.
 
-File → Write recovery checkpoint now provides an explicit checkpoint for unsaved
+File → Write recovery checkpoint now (testing only) provides an explicit checkpoint for unsaved
 work, including when periodic recovery is disabled. Successful ordinary Save or
 confirmed document close/replacement retires that document's recovery files.
 FASTA export alone does not retire recovery or falsely mark metadata as saved.
@@ -138,3 +138,21 @@ preferences so they can be restored after this test.
    the refusal/status. Confirm disabling/resetting preferences leaves checkpoints.
 7. Try Settings and recovery dialogs at 100/125/150/200% scaling, narrow windows
    and the ARM laptop. Local offscreen tests do not establish native rendering.
+
+## 0.27.1 clarifications
+
+“Apply to current session” on the appearance page applies the draft appearance
+and editing choices explicitly to this window, without saving global defaults
+or changing its genetic code. Cancel does not undo that explicit application.
+
+“Disabling/resetting preferences leaves checkpoints” means completed checkpoint
+files remain on disk after turning recovery off or restoring preference defaults.
+It does not mean either operation should create a checkpoint. Recovery is driven
+by unsaved document changes and its timer, or the testing-only manual command.
+The manual command is to be removed before the public release.
+
+Overview summaries now update only affected bins for column-preserving edits.
+This may scan several neighboring columns in the same summary, rather than
+retaining exact evidence for every column. It keeps memory bounded independently
+of assembly length. Structural/length changes and expired invalidation history
+fall back to a full scan; the initial scan still reads the nucleotide symbols.

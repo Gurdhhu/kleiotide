@@ -33,19 +33,21 @@ void AlignmentOverview::set_document(const Document* document){
 }
 void AlignmentOverview::set_limits(std::size_t workspace,int delayMs){
     debounce_.setInterval(delayMs);if(workspace==workspace_)return;
-    workspace_=workspace;requested_=std::numeric_limits<std::uint64_t>::max();refresh();
+    workspace_=workspace;scan_.reset();requested_=std::numeric_limits<std::uint64_t>::max();refresh();
 }
 void AlignmentOverview::refresh(){
     if(!document_)return;
     if(requested_!=document_->content_id()){
-        requested_=document_->content_id();work_.stop();scan_.reset();bins_.clear();plot_=QPixmap{};error_.clear();debounce_.start();
+        requested_=document_->content_id();work_.stop();
+        if(!scan_||!scan_->update(*document_))scan_.reset();
+        bins_.clear();plot_=QPixmap{};error_.clear();debounce_.start();
     }
     update();
 }
 bool AlignmentOverview::ready()const{return document_&&scan_&&scan_->complete()&&scan_->revision()==document_->content_id();}
 void AlignmentOverview::begin_scan(){
     if(!document_)return;
-    try{scan_=std::make_unique<OverviewScan>(*document_,workspace_);work_.start();advance_scan();}
+    try{if(!scan_)scan_=std::make_unique<OverviewScan>(*document_,workspace_);work_.start();advance_scan();}
     catch(const std::exception&e){error_=QString::fromUtf8(e.what());work_.stop();update();}
 }
 void AlignmentOverview::advance_scan(){
@@ -86,7 +88,20 @@ void AlignmentOverview::paintEvent(QPaintEvent*){
     if(document_&&document_->columns()){
         const auto [begin,end]=view_->visible_column_range();const double scale=static_cast<double>(area.width())/document_->columns();
         const int x=area.left()+static_cast<int>(begin*scale),finish=area.left()+static_cast<int>(std::ceil(end*scale));
-        p.setPen(QPen(QColor(25,44,66),2));p.drawRect(QRect(x,area.top(),std::max(4,finish-x),area.height()).adjusted(1,1,-1,-1));
+        const QRect viewport(x,area.top(),std::max(6,finish-x),area.height());
+        p.fillRect(viewport,QColor(0,220,255,38));p.setPen(QPen(Qt::white,5));p.drawRect(viewport.adjusted(2,2,-2,-2));
+        p.setPen(QPen(QColor(0,90,180),3));p.drawRect(viewport.adjusted(2,2,-2,-2));
+        std::optional<std::pair<std::size_t,std::size_t>> selected;
+        if(const auto& f=view_->fragment())selected=std::pair{f->start,f->start+f->width};
+        else if(const auto caret=view_->caret())selected=std::pair{caret->second,caret->second+1};
+        if(selected){
+            const int left=area.left()+int(std::min(selected->first,document_->columns())*scale);
+            const int right=area.left()+int(std::ceil(std::min(selected->second,document_->columns())*scale));
+            const QRect mark(left,area.top(),std::max(3,right-left),area.height());
+            p.fillRect(mark,QColor(255,0,110,65));p.setPen(QPen(Qt::white,5));p.drawRect(mark.adjusted(0,1,0,-1));
+            p.setPen(QPen(QColor(220,0,95),2));p.drawRect(mark.adjusted(0,1,0,-1));
+            p.setBrush(QColor(220,0,95));p.drawPolygon(QPolygon{QPoint(left-5,area.top()-7),QPoint(left+5,area.top()-7),QPoint(left,area.top())});
+        }
         p.setPen(QColor(55,64,73));p.drawText(QRect(10,92,width()-20,18),Qt::AlignLeft|Qt::AlignVCenter,QString("1  ·  Click or drag to navigate  ·  Viewing %1–%2").arg(static_cast<qulonglong>(begin+1)).arg(static_cast<qulonglong>(end)));
         p.drawText(QRect(10,92,width()-20,18),Qt::AlignRight|Qt::AlignVCenter,QString::number(static_cast<qulonglong>(document_->columns())));
     }

@@ -31,6 +31,8 @@ int main(int argc,char** argv){QApplication app(argc,argv);try{
     d.set_translation_settings({});need(!requires_session(d),"Resetting metadata restores plain FASTA eligibility");
     need(output_path("one.txt",OutputFormat::Session)=="one.txt.kleio"&&output_path("one.KLEIO",OutputFormat::Session)=="one.KLEIO","Session suffix normalization");
     need(output_path("one.txt",OutputFormat::Abif)=="one.txt.ab1"&&output_path("one.ABI",OutputFormat::Abif)=="one.ABI","AB1 suffix normalization");
+    need(output_path("no suffix",OutputFormat::Fasta)=="no suffix.fasta"&&output_path("custom.txt",OutputFormat::Fasta)=="custom.txt.fasta","FASTA suffix added to missing/unrecognized extension");
+    for(const auto& suffix:{"fasta","FAS","fa","fna","ffn","faa","frn","fsa","mpfa","fsa_nt","fsa_aa"}){const auto name="out."+QString::fromLatin1(suffix);need(output_path(name,OutputFormat::Fasta)==name,"Recognized FASTA extensions are preserved");}
     QTemporaryDir directory;need(directory.isValid(),"Temporary folder");const auto path=directory.filePath("export Я.fasta");put(path,"original");
     for(const auto& name:{"????","bad?.fasta","bad*.fa","bad:name.fa","NUL.fasta","COM1.fa","trail. ","bad|name"})need(!output_filename_error(name,OutputNameRules::Windows).isEmpty(),"Invalid Windows output name is diagnosed");
     need(output_filename_error("correct Я.fasta",OutputNameRules::Windows).isEmpty(),"Unicode/space filename stays valid");

@@ -66,6 +66,58 @@ Function .onInit
   fresh_install:
 FunctionEnd
 
+; Advertise Open With only; never write extension defaults or UserChoice.
+!define OPENWITH_APP "Software\Classes\Applications\kleiotide.exe"
+!define OPENWITH_PROG "Software\Classes\Kleiotide.Test.${APP_VERSION}.${TEST_REVISION}"
+!macro RegisterOpenWith ROOT
+  ReadRegStr $0 ${ROOT} "Software\Classes\Kleiotide.File\shell\open\command" ""
+  ${If} $0 != ""
+    WriteRegStr ${ROOT} "Software\Classes\Kleiotide.File\shell\open\command" "" '$\"$INSTDIR\kleiotide.exe$\" $\"%1$\"'
+  ${EndIf}
+  WriteRegStr ${ROOT} "${OPENWITH_APP}" "FriendlyAppName" "Kleiotide"
+  WriteRegStr ${ROOT} "${OPENWITH_APP}\shell\open\command" "" '$\"$INSTDIR\kleiotide.exe$\" $\"%1$\"'
+  WriteRegStr ${ROOT} "${OPENWITH_APP}\shell\open" "MultiSelectModel" "Player"
+  WriteRegStr ${ROOT} "${OPENWITH_PROG}" "" "Kleiotide alignment, trace or session"
+  WriteRegStr ${ROOT} "${OPENWITH_PROG}\shell\open\command" "" '$\"$INSTDIR\kleiotide.exe$\" $\"%1$\"'
+  !insertmacro OpenWithExtension ${ROOT} ".ab1"
+  !insertmacro OpenWithExtension ${ROOT} ".abi"
+  !insertmacro OpenWithExtension ${ROOT} ".kleio"
+  !insertmacro OpenWithExtension ${ROOT} ".fasta"
+  !insertmacro OpenWithExtension ${ROOT} ".fas"
+  !insertmacro OpenWithExtension ${ROOT} ".fa"
+  !insertmacro OpenWithExtension ${ROOT} ".fna"
+  !insertmacro OpenWithExtension ${ROOT} ".ffn"
+  !insertmacro OpenWithExtension ${ROOT} ".faa"
+  !insertmacro OpenWithExtension ${ROOT} ".frn"
+  !insertmacro OpenWithExtension ${ROOT} ".fsa"
+!macroend
+!macro OpenWithExtension ROOT EXT
+  WriteRegStr ${ROOT} "${OPENWITH_APP}\SupportedTypes" "${EXT}" ""
+  WriteRegStr ${ROOT} "Software\Classes\${EXT}\OpenWithProgids" "Kleiotide.Test.${APP_VERSION}.${TEST_REVISION}" ""
+!macroend
+!macro UnregisterOpenWith ROOT
+  ; Do not remove another side-by-side version's shared application entry.
+  ReadRegStr $0 ${ROOT} "${OPENWITH_APP}\shell\open\command" ""
+  ${If} $0 == '$\"$INSTDIR\kleiotide.exe$\" $\"%1$\"'
+    DeleteRegKey ${ROOT} "${OPENWITH_APP}"
+  ${EndIf}
+  DeleteRegKey ${ROOT} "${OPENWITH_PROG}"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".ab1"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".abi"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".kleio"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".fasta"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".fas"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".fa"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".fna"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".ffn"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".faa"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".frn"
+  !insertmacro RemoveOpenWithExtension ${ROOT} ".fsa"
+!macroend
+!macro RemoveOpenWithExtension ROOT EXT
+  DeleteRegValue ${ROOT} "Software\Classes\${EXT}\OpenWithProgids" "Kleiotide.Test.${APP_VERSION}.${TEST_REVISION}"
+!macroend
+
 Section "Kleiotide" SEC_MAIN
   ; The original Microsoft installer performs runtime version detection.
   InitPluginsDir
@@ -92,6 +144,10 @@ Section "Kleiotide" SEC_MAIN
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD_DIR}\*"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
+  !insertmacro RegisterOpenWith HKLM
+  ; Refresh a stale per-user Applications entry left by a previous test build.
+  !insertmacro RegisterOpenWith HKCU
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   CreateDirectory "$SMPROGRAMS\${MENU_DIR}"
   CreateShortcut "$SMPROGRAMS\${MENU_DIR}\Kleiotide.lnk" "$INSTDIR\kleiotide.exe"
   CreateShortcut "$SMPROGRAMS\${MENU_DIR}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
@@ -130,6 +186,9 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${MENU_DIR}\Kleiotide.lnk"
   Delete "$SMPROGRAMS\${MENU_DIR}\Uninstall.lnk"
   RMDir "$SMPROGRAMS\${MENU_DIR}"
+  !insertmacro UnregisterOpenWith HKLM
+  !insertmacro UnregisterOpenWith HKCU
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   DeleteRegKey HKLM "${APP_KEY}"
   ; The shared Microsoft runtime, user data and application settings are retained.
 SectionEnd

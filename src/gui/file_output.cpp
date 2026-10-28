@@ -88,6 +88,10 @@ QString output_path(QString path, OutputFormat format) {
     const auto suffix = QFileInfo(path).suffix().toLower();
     if (format == OutputFormat::Session && suffix != "kleio") path += ".kleio";
     if (format == OutputFormat::Abif && suffix != "ab1" && suffix != "abi") path += ".ab1";
+    if (format == OutputFormat::Fasta) {
+        const QStringList fastaSuffixes={"fasta","fas","fa","fna","ffn","faa","frn","fsa","mpfa","fnt","fsa_nt","fsa_aa"};
+        if(!fastaSuffixes.contains(suffix))path+=".fasta";
+    }
     return path;
 }
 QString output_path_error(const QString& path, OutputFormat format, const Document* source) {
@@ -120,6 +124,11 @@ QString output_path_error(const QString& path, OutputFormat format, const Docume
 QString approve_output_path(QWidget* parent, QString path, OutputFormat format,
                             const Document* source, bool confirmReplacement) {
     if (path.isEmpty()) return {};
+    const auto typedSuffix=QFileInfo(path).suffix().toLower();
+    if((format!=OutputFormat::Session&&typedSuffix=="kleio")||
+       (format!=OutputFormat::Abif&&(typedSuffix=="ab1"||typedSuffix=="abi"))){
+        QMessageBox::warning(parent,"Choose another filename","Choose a different filename. This output cannot replace a saved session or chromatogram.");return {};
+    }
     path = output_path(std::move(path), format);
     if (const auto error = output_path_error(path, format, source); !error.isEmpty()) {
         QMessageBox::warning(parent, "Choose another filename", error);

@@ -28,13 +28,44 @@ OverviewScan::OverviewScan(const Document& d,std::size_t workspace,std::size_t m
     std::sort(rowsByLength_.begin(),rowsByLength_.end(),[&](auto a,auto b){return d.rows()[a].symbols.size()>d.rows()[b].symbols.size();});
     complete_=!columns_||!eligible||!total_;
     if(!complete_)tile_.resize(tileCount);
-    tileEnd_=tileCount;
+    tileEnd_=tileCount;scanEnd_=columns_;
 }
 std::size_t OverviewScan::workspace_bytes()const noexcept {
     return tile_.capacity()*sizeof(NucleotideEvidence)+summaries_.capacity()*sizeof(Summary)+rowsByLength_.capacity()*sizeof(std::size_t);
 }
+bool OverviewScan::update(const Document& d){
+    if(&d!=source_||d.rows().size()!=rows_||d.columns()!=columns_||summaries_.empty())return false;
+    const auto changed=d.changed_columns_since(revision_);if(!changed)return false;
+    auto begin=changed->begin,end=std::min(columns_,changed->end);
+    if(!complete_){begin=std::min(begin,scanBegin_);end=std::max(end,scanEnd_);}
+    revision_=d.content_id();
+    if(begin>=end){complete_=true;return true;}
+    auto first=std::upper_bound(summaries_.begin(),summaries_.end(),begin,[](auto c,const auto& s){return c<s.end;});
+    if(first==summaries_.end())return false;
+    bin_=static_cast<std::size_t>(first-summaries_.begin());
+    scanBegin_=first->begin;
+    for(auto i=first;i!=summaries_.end()&&i->begin<end;++i){i->residues=i->conservation=0;i->informative=0;scanEnd_=i->end;}
+    std::fill(tile_.begin(),tile_.end(),NucleotideEvidence{});
+    tileBegin_=scanBegin_;tileEnd_=tileBegin_+std::min(tile_.size(),scanEnd_-tileBegin_);
+    row_=offset_=fold_=0;folding_=false;processed_=total_=0;
+    for(const auto row:rowsByLength_){const auto length=d.rows()[row].symbols.size();if(length>scanBegin_)total_+=std::min(length,scanEnd_)-scanBegin_;}
+    complete_=!total_;
+    return true;
+}
 bool OverviewScan::step(const Document& d,std::size_t budget){
     if(&d!=source_||d.content_id()!=revision_||d.rows().size()!=rows_)throw std::logic_error("Overview input changed.");
+    if(rowsByLength_.size()==1&&!complete_){
+        struct Call {double conservation;bool residue,information;};
+        static const auto calls=[]{std::array<Call,256> values{};for(unsigned c=0;c<256;++c){const auto state=nucleotide_state(static_cast<char>(c));const bool information=!is_gap(static_cast<char>(c))&&state!=15&&state!=0;values[c]={information?1.0/std::popcount(state):0.0,!is_gap(static_cast<char>(c)),information};}return values;}();
+        const auto& text=d.rows()[rowsByLength_.front()].symbols.text();const auto end=std::min(scanEnd_,text.size());
+        const auto stop=tileBegin_+std::min(budget,end-tileBegin_);
+        while(tileBegin_<stop){
+            auto& s=summaries_[bin_];const auto finish=std::min(stop,s.end);
+            for(;tileBegin_<finish;++tileBegin_){const auto& call=calls[static_cast<unsigned char>(text[tileBegin_])];s.residues+=call.residue;s.conservation+=call.conservation;s.informative+=call.information;++processed_;}
+            if(tileBegin_==s.end&&bin_+1<summaries_.size())++bin_;
+        }
+        complete_=tileBegin_==end;return complete_;
+    }
     while(!complete_&&budget){
         if(folding_){
             const auto columnIndex=tileBegin_+fold_;
@@ -45,8 +76,8 @@ bool OverviewScan::step(const Document& d,std::size_t budget){
             if(votes){++summary.informative;summary.conservation+=static_cast<double>(*std::max_element(column.bases.begin(),column.bases.end()))/votes;}
             column={};++fold_;--budget;
             if(tileBegin_+fold_==tileEnd_){
-                tileBegin_=tileEnd_;complete_=tileBegin_==columns_;
-                tileEnd_=tileBegin_+std::min(tile_.size(),columns_-tileBegin_);
+                tileBegin_=tileEnd_;complete_=tileBegin_==scanEnd_;
+                tileEnd_=tileBegin_+std::min(tile_.size(),scanEnd_-tileBegin_);
                 row_=offset_=fold_=0;folding_=false;
             }
             continue;

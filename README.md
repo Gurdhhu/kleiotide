@@ -1,6 +1,6 @@
-# Kleiotide 0.27.0
+# Kleiotide 0.27.1
 
-Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This is implementation checkpoint B, adding global preferences, recovery and a bounded overview. It is not yet a publicly released RC.
+Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing update adds targeted overview recalculation, read-alignment merge previews, interface corrections and Windows Open With registration. It is not yet a publicly released RC.
 
 Open FASTA, AB1 chromatograms, or native `.kleio` sessions. Save uses a native session when groups, traces, proteins, explicit row types, or translation metadata need preserving. Export FASTA writes sequence text only and does not mark unsaved session changes as saved.
 
@@ -53,14 +53,16 @@ Copyright (C) 2026 Oleg Shchepin. Kleiotide is free software under the **GNU GPL
 Native Windows acceptance and the user's scale observations are recorded in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md). Bulk edits have a 2 GiB estimated additional working-memory limit; operations above it report an error before making sequence changes. This is separate from stored alignment size and the undo-history budget.
 
 Windows test installer preparation is described in [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
-This is checkpoint B of the approved implementation plan. File → Settings defines
+This release follows the accepted 0.27.0 Settings/recovery checkpoint. File → Settings defines
 new-session defaults and operational limits. Recovery creates separate atomic
 native checkpoints and offers Recover/Open copy choices. The overview uses
 bounded tiles instead of a full-length column evidence array. Read
 [SETTINGS_AND_RECOVERY.md](SETTINGS_AND_RECOVERY.md) for behavior and native tests.
 
-The accepted native x64 baseline is 0.26.12 test 1. Native Windows acceptance for
+The accepted native x64 baseline is 0.27.0 test 1. Native Windows acceptance for
 this version is pending; ARM MAFFT remains pending and can use a later build.
-Trace linking is checkpoint C and is not included here. See
+BLAST and trace linking are planned for 0.28.0 and are not included here. See
+[RELEASE_PLAN_0.27.1_0.28.0.md](RELEASE_PLAN_0.27.1_0.28.0.md) and
+[RELEASE_0.27.1_TESTING.md](RELEASE_0.27.1_TESTING.md). See
 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
 [VALIDATION.md](VALIDATION.md) for exact scope/results.

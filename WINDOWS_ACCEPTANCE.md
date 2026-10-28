@@ -116,3 +116,13 @@ returns width 557, reports no reversed rows, and completes in 6.80 seconds.
 Cancellation is reported passing in the focused check. The report's
 --threadit 0 records deterministic refinement; it is distinct from --thread 8.
 ARM retesting remains pending and may use a later version as requested.
+
+## User report — 0.27.0 test 1, received 27 October 2026
+
+All 37 automatic tests and all focused Settings/default/session/custom-code,
+memory/overview, MAFFT Test, recovery generations/cancellation/quota and scaling
+checks pass on the native x64 laptop. Large-assembly overview timing remains a
+reported performance issue addressed by 0.27.1. ARM not tested on 0.27.0.
+The ARM colleague reports MAFFT explicit Threads=1 succeeds on 0.26.11 test 2;
+FASTA missing suffix and Explorer Open With loop were also reported. Neither
+report establishes native acceptance of 0.27.1 or its automatic ARM fallback.

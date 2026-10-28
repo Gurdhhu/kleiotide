@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.27.0 LANGUAGES CXX)
+project(Kleiotide VERSION 0.27.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -144,6 +144,7 @@ if(KLEIOTIDE_BUILD_GUI)
   target_link_libraries(kleiotide PRIVATE kleiotide_gui)
   set_target_properties(kleiotide PROPERTIES WIN32_EXECUTABLE TRUE MACOSX_BUNDLE TRUE)
   install(TARGETS kleiotide RUNTIME DESTINATION . BUNDLE DESTINATION .)
+  install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
   install(FILES
     AB1_EXPORT.md
     AB1_IMPORT_RECOVERY.md
@@ -164,6 +165,8 @@ if(KLEIOTIDE_BUILD_GUI)
     PROTEIN_TRANSLATION_PLAN.md
     README.md
     RELEASE_CHECKLIST.md
+    RELEASE_PLAN_0.27.1_0.28.0.md
+    RELEASE_0.27.1_TESTING.md
     ROADMAP_1.0.md
     SESSION_FORMAT.md
     SETTINGS_AND_RECOVERY.md
@@ -243,7 +246,7 @@ if(KLEIOTIDE_BUILD_GUI)
     endif()
     kleiotide_workflow(mafft_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")

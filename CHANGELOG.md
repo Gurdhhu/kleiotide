@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.27.1 — tester feedback and targeted overview updates
+
+- Update only affected overview summaries after length-preserving edits, with
+  safe coalescing and Undo/Redo; speed the single-nucleotide-row initial scan.
+- Add bright caret/selection and contrasting viewport markers.
+- Normalize missing/unrecognized FASTA suffixes to .fasta before confirmation.
+- Preview original reads aligned to merged consensus, highlight all differences,
+  and allow valid partial contigs by default with the existing amber notice.
+- Keep Translation toggle next to editing controls and its controls on a separate
+  lower row after layout restoration; use Overwrite wording.
+- Group view panels under Toolbars; place Settings just above Exit; add explicit
+  session appearance application and mark manual checkpoints as testing-only.
+- Add local FASTA/AB1 append by drag/drop, GitHub and citation in About.
+- Refresh installer Open With registration and include a per-user repair script;
+  preserve default apps and guard side-by-side uninstall cleanup. Native retest
+  remains required for the reported Explorer loop.
+- Expand the release suite to 38 entries. Record native 0.27.0 acceptance and
+  earlier ARM MAFFT Threads=1 success; defer BLAST and trace linking to 0.28.0.
+
 ## 0.27.0 — preferences, recovery and bounded overview (checkpoint B)
 
 - Add File → Settings with validated new-session font/color/mode/visibility,

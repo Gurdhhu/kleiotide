@@ -8,8 +8,8 @@ one used. Keep different Qt kits in separate build directories.
 There are two complementary checks:
 
 - **Automatic tests:** the program's test executables check expected results
-  through CTest. The current complete suite has **37 tests**: 19 core suites,
-  six Qt unit suites and twelve GUI workflows. Each entry contains many checks.
+  through CTest. The current complete suite has **38 tests**: 19 core suites,
+  six Qt unit suites and thirteen GUI workflows. Each entry contains many checks.
 - **Manual checks:** you run Kleiotide normally and use real Windows dialogs,
   mouse/clipboard, display scaling and research files. Automated GUI checks run
   offscreen and cannot establish every native Windows interaction.
@@ -21,7 +21,7 @@ process fixture. Testing the real MAFFT installation is a separate manual step.
 ## 1. Open a fresh source release
 
 1. Extract the source ZIP into a new folder, such as
-   `C:\Kleiotide-testing\Kleiotide_0.27.0`. Avoid mixing source releases.
+   `C:\Kleiotide-testing\Kleiotide_0.27.1`. Avoid mixing source releases.
 2. In Qt Creator, open that folder's `CMakeLists.txt` as you usually do.
 3. Select your existing **MSVC x64 Qt kit**, choose **Release**, and configure.
    Use a fresh build directory for this release.
@@ -60,7 +60,7 @@ the CMake variable configuration, not the application's command-line arguments.
 5. Success ends with:
 
    ```text
-   100% tests passed, 0 tests failed out of 37
+   100% tests passed, 0 tests failed out of 38
    ```
 
 The target builds the app and all required test programs before running CTest.
@@ -105,7 +105,7 @@ an error when no tests are registered.
 2. Select **`kleiotide`** as the run configuration in Qt Creator. Enabling tests
    adds other executables to that list, so confirm the application is selected.
 3. Build and press the green **Run** button, as you normally do.
-4. In **Help > About Kleiotide**, verify version **0.27.0**, Oleg Shchepin's
+4. In **Help > About Kleiotide**, verify version **0.27.1**, Oleg Shchepin's
    copyright, GPLv3-only notice and Elizaveta Shchepina's designer credit.
 
 Use a separate output folder and test copies of your research files. Record
@@ -115,7 +115,7 @@ programs or checks can be marked Not tested with a short reason.
 | Area | What to do | Expected result |
 | --- | --- | --- |
 | Ordinary editing | Open `examples/nucleotide_demo.fasta`; select, type, insert, delete, slide and lock gaps; Undo/Redo; save and reopen. | Symbols, case and gap states follow edits; Undo restores the previous state; the saved file reopens correctly. |
-| Modes, shortcuts and toolbar | In Edit → Mode change View/Edit, Rewrite/Insert and all right-click options; compare the toolbar. With a residue fragment selected, try Ctrl+Left/Right, Shift+Left/Right and Undo. Hide Editing controls through View → Toolbars, then restore it or choose Restore default layout. Save/reopen the right-click choice. | Menus and toolbar stay synchronized; View permits only Context menu; Ctrl moves one column and Shift moves maximally within existing rules; layout restoration keeps the document and selection. |
+| Modes, shortcuts and toolbar | In Edit → Mode change View/Edit, Overwrite/Insert and all right-click options; compare the toolbar. With a residue fragment selected, try Ctrl+Left/Right, Shift+Left/Right and Undo. Hide Editing controls through View → Toolbars, then restore it or choose Restore default layout. Save/reopen the right-click choice. | Menus and toolbar stay synchronized; View permits only Context menu; Ctrl moves one column and Shift moves maximally within existing rules; layout restoration keeps the document and selection. |
 | Windows interaction | Try mouse-drag selections, independent name/residue selections, copy/paste between two Kleiotide windows and file opening from Explorer if associations are already configured. | Correct rows/fragments are targeted, metadata is retained by native sequence copying, and existing windows/documents are handled as expected. No association setup is required for these source tests. |
 | Groups | Open `examples/groups_demo.fasta`; create/reorder groups, change colors/members, filter names, check/uncheck, delete empty groups and test Clear and delete all groups. | Counts/colors follow staged membership; bulk checks affect visible names; Clear asks for confirmation; Cancel leaves the document unchanged and Apply has one Undo step. |
 | Group tables | Import `examples/groups_demo.tsv`, paste a wider table and map its sequence/group columns; try parenthesized cells and a malformed large table. | Correct names match, previews explain invalid input, the window remains responsive, and Cancel prevents application. |
@@ -137,7 +137,7 @@ filename and file type.
 
 - Windows version; Qt Creator version; exact Qt kit/version; MSVC version;
   Release/Debug; Windows scaling percentage.
-- Automatic result (37/37 or failed names), the text log and JUnit XML.
+- Automatic result (38/38 or failed names), the text log and JUnit XML.
 - Manual checklist results and descriptions of failures or skipped checks.
 
 The new suite is validated locally on Linux. Your native run establishes the
@@ -233,9 +233,9 @@ from the updated source and its matching Source_For_Installer ZIP, following
 docs/WINDOWS_TOOLBAR_TEST_FIX.md. The subsequent native 0.26.12 test-1 build
 passed all 33 tests and focused manual checks, as recorded in WINDOWS_ACCEPTANCE.md.
 
-## 0.27.0 preferences and recovery acceptance
+## 0.27.1 preferences and recovery acceptance
 
-After release-check reports 37/37, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
+After release-check reports 38/38, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
 Cancel/reset and restart, new-session defaults versus saved sessions, current
 window isolation, MAFFT defaults versus per-job overrides, resource refusals,
 checkpoint cancellation, and recovery after terminating a disposable test process.

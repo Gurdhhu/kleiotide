@@ -55,7 +55,7 @@ std::vector<Input> inputs(const Document& d,const std::vector<SequenceId>& ids,b
     }
     return result;
 }
-MergeContig consensus(const std::vector<Input>& rows,const MergeSettings& settings,const MergeCancel& cancel){
+MergeContig consensus(const std::vector<Input>& rows,const MergeSettings& settings,const MergeCancel& cancel,bool retainAlignment=false){
     MergeContig result;std::size_t width=0;for(const auto& in:rows)width=std::max(width,in.text.size());
     result.symbols.reserve(width);
     for(std::size_t c=0;c<width;++c){
@@ -90,7 +90,14 @@ MergeContig consensus(const std::vector<Input>& rows,const MergeSettings& settin
         if(baseConflict||gapConflict)result.conflicts.push_back({c,resolved});
         result.symbols.push_back(symbol);
     }
-    for(const auto& in:rows){result.ids.push_back(in.row->id);result.placements.push_back({in.row->id,in.first,in.last-in.first});}
+    if(retainAlignment)result.differences.resize(width);
+    for(const auto& in:rows){
+        result.ids.push_back(in.row->id);result.placements.push_back({in.row->id,in.first,in.last-in.first});
+        if(retainAlignment){
+            result.alignment.push_back({in.row->id,in.first,in.last,in.text});
+            for(auto c=in.first;c<in.last;++c){if((c&4095)==0)check(cancel);if(canonical(in.text[c])!=canonical(result.symbols[c]))result.differences[c]=1;}
+        }
+    }
     return result;
 }
 struct Reference {std::string text;std::vector<bool> information;};
@@ -238,7 +245,7 @@ void overlap(MergePlan& plan,const std::vector<Input>& rows,const MergeCancel& c
             combine(placed,rows[best->row],*best,cancel);edits+=best->edits;available[best->row]=false;orphan[best->row]=false;
         }
         if(placed.size()>1){
-            auto result=consensus(placed,plan.settings,cancel);result.editsUsed=edits;result.substitutionsUsed=substitutions;result.indelBasesUsed=indels;result.compatibleDifferencesUsed=compatible;
+            auto result=consensus(placed,plan.settings,cancel,true);result.editsUsed=edits;result.substitutionsUsed=substitutions;result.indelBasesUsed=indels;result.compatibleDifferencesUsed=compatible;
             // Restore source order in the membership/placement table.
             std::sort(result.ids.begin(),result.ids.end(),[&](auto a,auto b){return std::find(plan.selectedIds.begin(),plan.selectedIds.end(),a)<std::find(plan.selectedIds.begin(),plan.selectedIds.end(),b);});
             std::sort(result.placements.begin(),result.placements.end(),[&](const auto& a,const auto& b){return std::find(plan.selectedIds.begin(),plan.selectedIds.end(),a.id)<std::find(plan.selectedIds.begin(),plan.selectedIds.end(),b.id);});
@@ -263,12 +270,14 @@ void choose_merge_contig(MergePlan& plan,std::size_t index){
 MergePlan plan_sequence_merge(const Document& d,const std::vector<SequenceId>& ids,MergeSettings settings,MergeCancel cancel){
     if((settings.mode!=MergeMode::Aligned&&settings.mode!=MergeMode::ExactOverlap)||!settings.minimumOverlap||settings.qualityMargin>255||settings.maximumEdits>100)throw std::invalid_argument("Invalid merge settings.");
     if(settings.mode==MergeMode::ExactOverlap&&settings.resolveQuality)throw std::invalid_argument("Quality resolution is available only for current-alignment merging.");
+    std::size_t previewBytes=0;
+    for(const auto id:ids){const auto length=d.sequence(id).symbols.size();if(length>d.bulk_edit_memory_limit()-std::min(previewBytes,d.bulk_edit_memory_limit()))throw std::length_error("Merge preview exceeds the bulk working-memory limit. Select fewer or shorter reads.");previewBytes+=length;}
     const auto rows=inputs(d,ids,settings.mode==MergeMode::ExactOverlap,cancel);
     if(settings.resolveQuality&&std::any_of(rows.begin(),rows.end(),[](const auto& in){return !in.row->trace;}))throw std::invalid_argument("Quality resolution requires linked traces on every selected sequence.");
     MergePlan plan;plan.source=&d;plan.revision=d.state_id();plan.settings=settings;
     for(const auto& in:rows)plan.selectedIds.push_back(in.row->id);
     if(settings.mode==MergeMode::Aligned){
-        static_cast<MergeContig&>(plan)=consensus(rows,settings,cancel);
+        static_cast<MergeContig&>(plan)=consensus(rows,settings,cancel,true);
         if(plan.symbols.empty()||std::none_of(plan.symbols.begin(),plan.symbols.end(),[](char c){return !is_gap(c);}))throw std::invalid_argument("Selected sequences contain no nucleotide calls to merge.");
     }else overlap(plan,rows,cancel);
     return plan;

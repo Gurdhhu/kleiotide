@@ -80,6 +80,10 @@ public:
     std::size_t columns() const noexcept;
     std::uint64_t state_id() const noexcept { return stateId_; }
     std::uint64_t content_id() const noexcept { return contentId_; }
+    // Bounded chronological invalidation log, independent of Undo retention.
+    // No value means a structural/length change or an expired history window.
+    struct ContentRange {std::size_t begin=0,end=0;};
+    std::optional<ContentRange> changed_columns_since(std::uint64_t revision) const noexcept;
     void load(std::vector<Record> records,TranslationSettings translation={}); // New baseline; clears history.
     Document derive(std::vector<Record> records) const; // New result baseline; same row IDs.
     void append(std::vector<Record> records);
@@ -193,6 +197,10 @@ private:
     std::optional<RowIndex> prepare(Command& command, bool forward);
     void apply(Command& command, bool forward, RowIndex* preparedIndex);
     void trim_history();
+    struct ContentChange {std::uint64_t before=0,after=0;ContentRange range;bool full=true;};
+    std::array<ContentChange,64> contentChanges_{};
+    std::size_t contentChangeCount_=0,contentChangeNext_=0;
+    void record_content_change(const Command&,std::uint64_t before,std::uint64_t after) noexcept;
     TranslationSettings translation_;
     std::vector<Sequence> rows_;
     RowIndex rowIndex_;

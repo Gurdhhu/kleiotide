@@ -51,3 +51,14 @@ colleague may test a later build. 0.27.0 retains the same x64/ARM capability
 guard and adds Settings/recovery/bounded overview; use SETTINGS_AND_RECOVERY.md
 for the new checks when available. No native ARM binary or real ARM MAFFT pass
 is claimed. The historical 0.26.12 fixes above remain included.
+
+## Feedback received for 0.27.1 planning
+
+The colleague subsequently confirms real MAFFT 7.526 works with explicit
+Threads=1 on the earlier 0.26.11 test-2 x64 installer under ARM emulation.
+This supports the positive-thread/fallback approach added in 0.26.12, but is
+not an actual Automatic-policy pass on a later build. Oleg's native x64 0.27.0
+test 1 passed 37 automatic tests and focused manual checks. 0.27.1 adds targeted
+overview/UI/import/export fixes and Open With registration refresh; use
+RELEASE_0.27.1_TESTING.md when retesting. Real ARM Automatic/fallback, cancellation
+and the new installer behavior remain pending.

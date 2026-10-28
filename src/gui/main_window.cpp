@@ -33,6 +33,10 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QApplication>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 #include <QClipboard>
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -129,7 +133,7 @@ struct ReadResult {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::make_shared<Document>()) {
     document_->load({},AppSettings::instance().values().translation());savedState_=document_->state_id();
     setWindowTitle("Kleiotide — alignment editor");
-    resize(1180, 720);
+    resize(1180, 720);setAcceptDrops(true);
     view_ = new AlignmentView(this);
     view_->set_document(document_.get());
     highlighter_=new SiteHighlighter(view_,this);highlighter_->set_document(document_.get());
@@ -208,10 +212,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
     auto* exportBatch=action(file,"Batch export edited traces (AB1)…",{},[this]{export_traces();});exportBatch->setObjectName("exportAbifBatch");exportBatch->setToolTip("Export all traces or traces linked to selected sequence names into separate AB1 files.");
     file->addSeparator();
-    auto* settingsAction=action(file,"Settings…",{},[this]{show_settings(this,current_appearance(),document_->translation_settings());});settingsAction->setObjectName("appSettingsAction");
     action(file,"Recover session…",{},[this]{offer_recovery();})->setObjectName("recoverSession");
-    action(file,"Write recovery checkpoint now",{},[this]{write_recovery(true);})->setObjectName("checkpointNow");
+    action(file,"Write recovery checkpoint now (testing only)",{},[this]{write_recovery(true);})->setObjectName("checkpointNow");
     auto* recoveryStatus=file->addAction("Recovery status…");connect(recoveryStatus,&QAction::triggered,this,[this]{QMessageBox::information(this,"Recovery status",recoveryStatus_+"\n\n"+QDir::toNativeSeparators(RecoveryStore::default_directory()));});
+    file->addSeparator();
+    auto* settingsAction=action(file,"Settings…",{},[this]{
+        show_settings(this,current_appearance(),document_->translation_settings(),[this](const AppPreferences& p){
+            if(busy_)return;
+            apply_appearance(p);update_state();
+        });
+    });settingsAction->setObjectName("appSettingsAction");
     file->addSeparator();
     auto* exit = file->addAction("E&xit"); connect(exit, &QAction::triggered, this, &QWidget::close);
     auto* edit = menuBar()->addMenu("&Edit");
@@ -346,13 +356,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     for(int i=0;i<4;++i){auto* command=action(statistics,QString::fromUtf8(distanceLabels[i]),{},[this,i]{show_distances(i);});command->setObjectName(distanceIds[i]);}
     auto* view = menuBar()->addMenu("&View");
     motifDock_->toggleViewAction()->setText("Motif search");
-    view->addAction(motifDock_->toggleViewAction());
     auto* overviewToggle=overviewDock->toggleViewAction();overviewToggle->setObjectName("alignmentOverviewView");
     overviewToggle->setIcon(view_icon(2));overviewToggle->setToolTip("Show or hide the alignment overview: column conservation, non-gap height and navigation.");
-    view->addAction(overviewToggle);
     auto* traceToggle=traceDock_->toggleViewAction();traceToggle->setObjectName("chromatogramView");
     traceToggle->setIcon(view_icon(1));traceToggle->setToolTip("Show or hide the chromatogram for linked sequences. Open or add an AB1 file to enable this view.");
-    view->addAction(traceToggle);
     auto* dots = view->addAction("Identity dots to top sequence");
     dots->setObjectName("identityDots");
     dots->setCheckable(true);
@@ -381,11 +388,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     };
     auto addSpacing=[&](const char* object){auto* space=new QWidget(toolbar);space->setObjectName(object);space->setFixedWidth(12);toolbar->addWidget(space);};
     auto* modeSwitch=makeSwitch("editViewSwitch","Edit or View mode");
-    auto* editToggle=addSegment(modeSwitch,"editToggle","Edit","Edit residues using Rewrite or Insert; drag selected residues/blocks to slide");
+    auto* editToggle=addSegment(modeSwitch,"editToggle","Edit","Edit residues using Overwrite or Insert; drag selected residues/blocks to slide");
     auto* viewToggle=addSegment(modeSwitch,"viewToggle","View","View and select residues without editing them");editToggle->setChecked(true);
     addSpacing("editingModeSpacing");
-    auto* editingSwitch=makeSwitch("rewriteInsertSwitch","Rewrite or Insert mode");
-    auto* rewriteToggle=addSegment(editingSwitch,"rewriteToggle","Rewrite","Replace the selected single-row fragment. Arrows move the caret; Ctrl+Left/Right slides one column, Shift+Left/Right moves across adjacent open gaps.");
+    auto* editingSwitch=makeSwitch("rewriteInsertSwitch","Overwrite or Insert mode");
+    auto* rewriteToggle=addSegment(editingSwitch,"rewriteToggle","Overwrite","Replace the selected single-row fragment. Arrows move the caret; Ctrl+Left/Right slides one column, Shift+Left/Right moves across adjacent open gaps.");
     auto* insertToggle=addSegment(editingSwitch,"insertToggle","Insert","Insert after one selected symbol. Drag selected residues/blocks to slide; Ctrl+Left/Right slides one column, Shift+Left/Right moves across adjacent open gaps.");rewriteToggle->setChecked(true);
     addSpacing("rightClickSpacing");
     auto* gapMode = new QComboBox(toolbar);gapMode->setObjectName("rightClickMode");
@@ -399,8 +406,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* viewModes=new QActionGroup(this);viewModes->setExclusive(true);modes->addSection("View / Edit");
     auto* viewMode=modeAction(modes,viewModes,"View","mode.view",[this]{view_->set_mode(AlignmentView::Mode::View);view_->setFocus();});
     auto* editMode=modeAction(modes,viewModes,"Edit","mode.edit",[this]{view_->set_mode(static_cast<AlignmentView::Mode>(editMode_));view_->setFocus();});
-    auto* editingModes=new QActionGroup(this);editingModes->setExclusive(true);modes->addSection("Rewrite / Insert");
-    auto* rewriteMode=modeAction(modes,editingModes,"Rewrite","mode.rewrite",[this]{view_->set_mode(AlignmentView::Mode::Rewrite);view_->setFocus();});
+    auto* editingModes=new QActionGroup(this);editingModes->setExclusive(true);modes->addSection("Overwrite / Insert");
+    auto* rewriteMode=modeAction(modes,editingModes,"Overwrite","mode.rewrite",[this]{view_->set_mode(AlignmentView::Mode::Rewrite);view_->setFocus();});
     auto* insertMode=modeAction(modes,editingModes,"Insert","mode.insert",[this]{view_->set_mode(AlignmentView::Mode::Insert);view_->setFocus();});
     auto* rightMenu=modes->addMenu("Right-click");auto* rightModes=new QActionGroup(this);rightModes->setExclusive(true);
     const char* rightLabels[]={"Context menu","Insert gap","Delete open gap","Insert gaps in others","Delete open gaps in others"};
@@ -417,14 +424,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     toolbar->addSeparator();
     for(const auto& id:{"monochrome","backgrounds"}){auto* option=findChild<QAction*>("residueDisplay."+QString::fromLatin1(id));toolbar->addAction(option);if(auto* button=qobject_cast<QToolButton*>(toolbar->widgetForAction(option)))button->setAccessibleName(option->text());}
     auto* paletteButton=new QToolButton(toolbar);paletteButton->setObjectName("residuePaletteButton");paletteButton->setAccessibleName("Residue palette");paletteButton->setIconSize(QSize(20,20));paletteButton->setMenu(paletteMenu);paletteButton->setPopupMode(QToolButton::InstantPopup);toolbar->addWidget(paletteButton);
-    auto* stretch=new QWidget(toolbar);stretch->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);toolbar->addWidget(stretch);
+    auto* stretch=new QWidget(toolbar);stretch->setObjectName("editingToolbarStretch");stretch->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);auto* stretchAction=toolbar->addWidget(stretch);stretchAction->setObjectName("editingToolbarStretchAction");
     auto* sizeToolbar=addToolBar("Alignment size");sizeToolbar->setObjectName("alignmentSizeToolbar");sizeToolbar->setMovable(false);sizeToolbar->setFloatable(false);sizeToolbar->toggleViewAction()->setVisible(false);sizeToolbar->setSizePolicy(QSizePolicy::Fixed,QSizePolicy::Fixed);
     auto* sizeLabel=new QLabel(sizeToolbar);sizeLabel->setObjectName("alignmentSize");sizeLabel->setAlignment(Qt::AlignRight|Qt::AlignVCenter);sizeLabel->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);sizeLabel->setContentsMargins(8,0,8,0);sizeLabel->setTextFormat(Qt::PlainText);sizeLabel->setToolTip("Total sequences (including masks and proteins) and alignment columns. Independent of name and residue selections.");sizeToolbar->addWidget(sizeLabel);
-    auto* toolbarMenu=view->addMenu("Toolbars");
+    auto* toolbarMenu=view->addMenu("Toolbars");toolbarMenu->setObjectName("toolbarsMenu");
+    toolbarMenu->addAction(motifDock_->toggleViewAction());toolbarMenu->addAction(overviewToggle);toolbarMenu->addAction(traceToggle);
     auto* editingVisibility=toolbar->toggleViewAction();editingVisibility->setText("Editing controls");editingVisibility->setObjectName("editingToolbarView");toolbarMenu->addAction(editingVisibility);
     action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
+        auto* translationBar=findChild<QToolBar*>("translationToolbar");const bool translationVisible=translationBar&&!translationBar->isHidden();
+        if(translationBar){removeToolBarBreak(translationBar);removeToolBar(translationBar);}
         removeToolBar(toolbar);removeToolBar(sizeToolbar);
         addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
+        if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
         addDockWidget(Qt::BottomDockWidgetArea,overviewDock);addDockWidget(Qt::BottomDockWidgetArea,traceDock_);splitDockWidget(overviewDock,traceDock_,Qt::Vertical);
         overviewDock->show();traceDock_->setVisible(traces_->has_traces());motifDock_->hide();update_toolbar_layout();
     })->setObjectName("restoreDefaultLayout");
@@ -432,14 +443,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* about = help->addAction("About Kleiotide");
     about->setObjectName("aboutKleiotide");
     connect(about, &QAction::triggered, this, [this] {
-        QMessageBox::information(this, "About Kleiotide",
-            QString("Kleiotide %1\nAlignment and chromatogram editor.\n\n"
-                    "Copyright (C) 2026 Oleg Shchepin.\n"
-                    "GNU GPL version 3 only; no warranty. See LICENSE.\n"
-                    "Logo/icon designer: Elizaveta Shchepina (Storminka / Io Tikhaya).\n\n"
-                    "Save .kleio sessions to retain document metadata and original trace evidence. "
-                    "Use FASTA export for sequence text only.")
-                .arg(QString::fromLatin1(version)));
+        QMessageBox box(this);box.setWindowTitle("About Kleiotide");box.setTextFormat(Qt::RichText);
+        box.setText(QString("<b>Kleiotide %1</b><br>Alignment and chromatogram editor.<br><br>"
+            "Copyright © 2026 Oleg Shchepin.<br>GNU GPL version 3 only; no warranty. See LICENSE.<br>"
+            "Logo/icon designer: Elizaveta Shchepina (Storminka / Io Tikhaya).<br><br>"
+            "<a href=\"https://github.com/Gurdhhu/kleiotide\">GitHub: Gurdhhu/kleiotide</a><br><br>"
+            "<b>Suggested citation</b><br>Shchepin, O. (2026). Kleiotide: sequence alignment and chromatogram editor. "
+            "Version %1. https://github.com/Gurdhhu/kleiotide<br>"
+            "Cite the version used; a DOI can be added when an archived release is available.<br><br>"
+            "Save .kleio sessions to retain metadata and original trace evidence. Use FASTA export for sequence text.")
+            .arg(QString::fromLatin1(version)));box.setTextInteractionFlags(Qt::TextBrowserInteraction);for(auto* label:box.findChildren<QLabel*>())label->setOpenExternalLinks(true);box.setStandardButtons(QMessageBox::Ok);box.exec();
     });
     translation_=new TranslationUI(this);
     view->removeAction(fontAction);view->addSeparator();view->addAction(fontAction);
@@ -587,6 +600,7 @@ void MainWindow::update_state() {
     update_selection_state();
 }
 void MainWindow::update_selection_state() {
+    overview_->update();
     if(translation_)translation_->update_selection();
     const bool edit=view_->mode()!=AlignmentView::Mode::View;
     const auto selected=view_->selected_ids();
@@ -641,6 +655,20 @@ void MainWindow::update_toolbar_layout(){
     const bool showCounts=width()>=required;
     if(counts->isHidden()==showCounts)counts->setVisible(showCounts);
 }
+namespace {
+QStringList dropped_sequences(const QMimeData* mime){
+    if(!mime||!mime->hasUrls())return {};
+    QStringList paths;const QStringList suffixes={"fasta","fas","fa","fna","ffn","faa","frn","fsa","mpfa","fnt","fsa_nt","fsa_aa","txt","ab1","abi"};
+    for(const auto& url:mime->urls()){
+        if(!url.isLocalFile())return {};
+        const QFileInfo info(url.toLocalFile());if(!info.isFile()||!suffixes.contains(info.suffix().toLower()))return {};
+        paths.append(info.absoluteFilePath());
+    }
+    return paths;
+}
+}
+void MainWindow::dragEnterEvent(QDragEnterEvent* event){if(!busy_&&!dropped_sequences(event->mimeData()).isEmpty())event->acceptProposedAction();else event->ignore();}
+void MainWindow::dropEvent(QDropEvent* event){const auto paths=dropped_sequences(event->mimeData());if(busy_||paths.isEmpty()){event->ignore();return;}event->acceptProposedAction();load_files(paths,true);}
 void MainWindow::resizeEvent(QResizeEvent* event){QMainWindow::resizeEvent(event);update_toolbar_layout();}
 void MainWindow::changeEvent(QEvent* event){
     QMainWindow::changeEvent(event);

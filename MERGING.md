@@ -1,4 +1,4 @@
-# Sequence merging — 0.25.2
+# Sequence merging — 0.27.1
 
 Select two or more nucleotide sequence names, then use a merge command in
 Sequence. Whole rows are processed independently of any residue-block selection.
@@ -20,6 +20,13 @@ including in extensions and contained-read flanks. Positions with two or more
 informative calls use uppercase consensus. N/? do not force a flank uppercase.
 A lone lowercase n is retained as n; other unknown-only positions become N.
 U/u is normalized to T/t. Source case is never changed by preview or Apply.
+
+The scrollable read alignment shows consensus and original reads in final
+contig coordinates. Amber columns mark any differing symbols, ignoring case
+and normalizing U/T; this includes compatible IUPAC differences. Blank exterior
+flanks are outside a read and do not create false conflicts. Internal gaps are
+shown. The preview paints visible cells only and retains the original call order.
+The body scrolls on smaller/high-DPI screens while footer actions remain reachable.
 
 ## Merge selected sequences
 
@@ -111,8 +118,8 @@ are selectable in Result contig. A component must contain at least two reads.
 No singleton or empty consensus is fabricated. Ambiguous/unmatched rows stay
 excluded. The table identifies reads belonging to a different found component.
 
-Use this partial contig must be checked before Apply or Save FASTA is enabled.
-Switching components resets this choice. Apply appends only that component at
+Valid partial contigs can Apply or Save FASTA immediately. The amber banner
+and per-read exclusions remain visible; no opt-in checkbox is required. Apply appends only that component at
 column 1; existing rows are not realigned. Save FASTA writes the reviewed name,
 case and full sequence directly and leaves the source document/history intact.
 Changing search settings invalidates the preview. Editing the result name needs

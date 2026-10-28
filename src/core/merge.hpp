@@ -12,6 +12,7 @@ struct MergeSettings {
 };
 struct MergePlacement {SequenceId id=0;std::size_t start=0,length=0;};
 struct MergeConflict {std::size_t column=0;bool resolvedByQuality=false;};
+struct MergeAlignedRow {SequenceId id=0;std::size_t begin=0,end=0;std::string symbols;};
 struct MergeContig {
     std::vector<SequenceId> ids;
     std::string symbols;
@@ -19,6 +20,9 @@ struct MergeContig {
     std::size_t residueConflicts=0,gapConflicts=0,qualityResolved=0;
     std::vector<MergePlacement> placements;
     std::vector<MergeConflict> conflicts;
+    // Original reads in final contig coordinates; exterior padding is no evidence.
+    std::vector<MergeAlignedRow> alignment;
+    std::vector<unsigned char> differences;
     std::size_t editsUsed=0;
     // Search events across read additions, distinct from final conflict columns.
     std::size_t substitutionsUsed=0,indelBasesUsed=0,compatibleDifferencesUsed=0;

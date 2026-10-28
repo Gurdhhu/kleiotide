@@ -22,7 +22,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 namespace kleiotide {
-void show_settings(QWidget* parent,const AppPreferences& appearance,const TranslationSettings& currentCode){
+void show_settings(QWidget* parent,const AppPreferences& appearance,const TranslationSettings& currentCode,const std::function<void(const AppPreferences&)>& applyAppearance){
     auto& service=AppSettings::instance();auto seed=service.values();
     QDialog dialog(parent);dialog.setObjectName("appSettings");dialog.setWindowTitle("Settings");dialog.resize(780,670);
     QVBoxLayout layout(&dialog);QLabel scope("Appearance, editing and translation defaults apply to new clean sessions. Existing sessions keep their own values. Resource and recovery settings apply to subsequent work in all windows.");scope.setWordWrap(true);layout.addWidget(&scope);
@@ -38,10 +38,12 @@ void show_settings(QWidget* parent,const AppPreferences& appearance,const Transl
     auto* palette=combo(look,"settingsPalette","Residue palette",{});for(int i=0;i<residue_palette_count;++i)palette->addItem(palette_label(static_cast<ResiduePalette>(i)));
     auto* display=combo(look,"settingsDisplay","Residue display",{"Colored letters","Monochrome","Colored backgrounds"});
     auto* dots=check(look,"settingsDots","Identity dots");QLabel preview;preview.setObjectName("settingsPreview");preview.setMinimumHeight(65);look->addRow("Preview",&preview);
-    auto* mode=combo(look,"settingsViewMode","Initial mode",{"Edit","View"});auto* editing=combo(look,"settingsEditMode","Remembered edit mode",{"Rewrite","Insert"});
+    auto* mode=combo(look,"settingsViewMode","Initial mode",{"Edit","View"});auto* editing=combo(look,"settingsEditMode","Remembered edit mode",{"Overwrite","Insert"});
     auto* right=combo(look,"settingsRightClick","Editing right-click",{"Context menu","Insert gap","Delete open gap","Insert gaps in others","Delete open gaps in others"});
     auto* overview=check(look,"settingsOverview","Show alignment overview");auto* traces=check(look,"settingsTrace","Show traces when available");
-    QPushButton useLook("Use current appearance as defaults");useLook.setObjectName("settingsUseAppearance");look->addRow(&useLook);
+    QPushButton useLook("Use current session appearance as defaults");useLook.setObjectName("settingsUseAppearance");look->addRow(&useLook);
+    QPushButton applyLook("Apply to current session");applyLook.setObjectName("settingsApplyAppearance");applyLook.setEnabled(bool(applyAppearance));look->addRow(&applyLook);
+    note(look,"Apply to current session copies this page's appearance and editing choices to this window immediately. It does not change global defaults or the session's genetic code. Cancel does not undo this explicit application.");
     auto* memory=page("Memory and performance");auto* bulk=spin(memory,"settingsBulkMiB","Additional bulk-edit working limit",1,65536," MiB");auto* undo=spin(memory,"settingsUndoMiB","Undo retention target",1,8192," MiB");
     auto* workspace=spin(memory,"settingsOverviewMiB","Overview workspace limit",1,1024," MiB");auto* delay=spin(memory,"settingsScanDelay","Overview update delay",50,5000," ms");
     note(memory,"These limits do not cap total process RAM. The document, original trace evidence, other analyses, allocator overhead and external MAFFT use additional memory. Raising a limit does not reserve RAM or guarantee success. Lowering the Undo target may prune older commands; the newest command is retained even if it alone exceeds the target. Running jobs retain their captured limits.");
@@ -68,6 +70,7 @@ void show_settings(QWidget* parent,const AppPreferences& appearance,const Transl
     fill(seed);
     QObject::connect(&family,&QFontComboBox::currentFontChanged,&dialog,[&]{render();});for(auto* s:{points})QObject::connect(s,&QSpinBox::valueChanged,&dialog,[&]{render();});for(auto* c:{bold,italic})QObject::connect(c,&QCheckBox::toggled,&dialog,[&]{render();});for(auto* c:{palette,display})QObject::connect(c,&QComboBox::currentIndexChanged,&dialog,[&]{render();});
     QObject::connect(&useLook,&QPushButton::clicked,&dialog,[&]{auto p=read();p.font=appearance.font;p.palette=appearance.palette;p.display=appearance.display;p.identityDots=appearance.identityDots;p.overviewVisible=appearance.overviewVisible;p.traceVisible=appearance.traceVisible;fill(p);});
+    QObject::connect(&applyLook,&QPushButton::clicked,&dialog,[&]{const auto p=read();if(const auto failure=p.error();!failure.isEmpty()){error.setText(failure);return;}if(applyAppearance)applyAppearance(p);});
     QObject::connect(&useCode,&QPushButton::clicked,&dialog,[&]{auto p=read();p.code=currentCode.code;if(currentCode.custom)p.customCode=*currentCode.custom;fill(p);});
     QObject::connect(&browse,&QPushButton::clicked,&dialog,[&]{const auto path=QFileDialog::getOpenFileName(&dialog,"Select MAFFT launcher",launcher.text(),"MAFFT launchers (mafft mafft.bat *.exe *.cmd);;All files (*)");if(!path.isEmpty())launcher.setText(path);});
     QObject::connect(&test,&QPushButton::clicked,&dialog,[&]{auto source=std::make_shared<Document>();source->load({{"test1","ACGTACGTAGCTAGCTACGTTGCA"},{"test2","ACGTACGTAGCTAGCTACGTTGCA"}});MafftConfiguration c;c.launcher=QFileInfo(launcher.text().trimmed()).absoluteFilePath();c.options.threads=threads->value()?threads->value():-1;MafftProgress progress(&dialog);progress.setAttribute(Qt::WA_DeleteOnClose,false);MafftRun run(source,c,{},&progress);run.status=[&](const QString& s){progress.set_status(s);};run.log=[&](const QString& s){progress.append_log(s);};progress.cancel_requested=[&]{run.cancel();};run.finished=[&](std::shared_ptr<Document> result,const QString& report,const QString& failure,bool cancelled){testReport.setPlainText((cancelled?"Cancelled.\n":result?"Small alignment succeeded.\n":"Small alignment failed.\n")+report);progress.completed(cancelled?QString{}:failure);};run.start();progress.exec();});

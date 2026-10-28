@@ -151,7 +151,7 @@ void Document::load(std::vector<Record> records,TranslationSettings translation)
     rows_.swap(rows);rowIndex_.swap(index);ids.committed=true;
     undo_.clear();
     redo_.clear();
-    stateId_ = nextStateId_++; contentId_ = nextContentId_++;
+    stateId_ = nextStateId_++; contentId_ = nextContentId_++;contentChangeCount_=contentChangeNext_=0;
 }
 void Document::restore_session(std::vector<Record> records,const std::vector<SequenceId>& ids,SequenceId next,std::vector<SequenceGroup> groups,GroupId nextGroup,TranslationSettings translation) {
     validate_translation_settings(translation);
@@ -640,8 +640,36 @@ void Document::apply(Command& command, bool forward, RowIndex* preparedIndex) {
             if(it->second==std::numeric_limits<std::size_t>::max())it=preparedIndex->erase(it);else ++it;
         rowIndex_.swap(*preparedIndex);
     }
+    record_content_change(command,contentId_,forward?command.contentAfter:command.contentBefore);
     stateId_ = forward ? command.after : command.before;
     contentId_ = forward ? command.contentAfter : command.contentBefore;
+}
+void Document::record_content_change(const Command& command,std::uint64_t before,std::uint64_t after) noexcept {
+    if(before==after)return;
+    ContentChange change;change.before=before;change.after=after;change.full=false;
+    change.range.begin=std::numeric_limits<std::size_t>::max();
+    for(const auto& edit:command.edits){
+        if(const auto* p=std::get_if<TextPatch>(&edit)){
+            if(p->before.size()!=p->after.size()){change.full=true;break;}
+            change.range.begin=std::min(change.range.begin,p->start);
+            change.range.end=std::max(change.range.end,p->start+p->before.size());
+        }else if(std::holds_alternative<RowSplice>(edit)||std::holds_alternative<RowOrder>(edit)||std::holds_alternative<KindPatch>(edit)){change.full=true;break;}
+    }
+    if(change.range.begin==std::numeric_limits<std::size_t>::max())change.range={};
+    contentChanges_[contentChangeNext_]=change;contentChangeNext_=(contentChangeNext_+1)%contentChanges_.size();
+    contentChangeCount_=std::min(contentChanges_.size(),contentChangeCount_+1);
+}
+std::optional<Document::ContentRange> Document::changed_columns_since(std::uint64_t revision) const noexcept {
+    if(revision==contentId_)return ContentRange{};
+    ContentRange result{std::numeric_limits<std::size_t>::max(),0};auto current=contentId_;
+    for(std::size_t n=0;n<contentChangeCount_;++n){
+        const auto& change=contentChanges_[(contentChangeNext_+contentChanges_.size()-1-n)%contentChanges_.size()];
+        if(change.after!=current||change.full)return {};
+        if(change.range.begin!=change.range.end){result.begin=std::min(result.begin,change.range.begin);result.end=std::max(result.end,change.range.end);}
+        current=change.before;
+        if(current==revision)return result.begin==std::numeric_limits<std::size_t>::max()?ContentRange{}:result;
+    }
+    return {};
 }
 void Document::execute(Command command) {
     command.before = stateId_;

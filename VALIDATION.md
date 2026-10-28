@@ -1,87 +1,75 @@
-# Validation of Kleiotide 0.27.0 — checkpoint B
+# Validation of Kleiotide 0.27.1
 
-Executed 26 October 2026 from a fixed source snapshot. This checkpoint follows
-the user's accepted native x64 0.26.12 test-1 build. See
-IMPLEMENTATION_STATUS.md for scope and SETTINGS_AND_RECOVERY.md for behavior.
-Historical validation records remain under docs/history/.
+27 October 2026. This follows the user's accepted native Windows 0.27.0 test 1.
+The source archive is a testing deliverable, not a Windows installer produced
+here. No Git commit/push or new native Windows/ARM run is claimed.
 
-## Final results
+## Local results
 
-- Clean Release build: the application, fixture and all registered checks built.
-  All 39 executable images were checked as nonempty ELF binaries before execution.
-- Complete registered CTest suite: **37/37 passed**, no disabled or skipped entries:
-  19 core, six Qt unit and twelve GUI workflows. Every entry captured actual output.
-- GUI workflows at 150% scaling: **12/12 passed**.
-- Settings/recovery workflow with Qt Windows style at 200%: **passed**. Dialog
-  captures were inspected; tabs/pages scroll and the fixed action row is reachable.
-  This is Linux offscreen rendering, not native Windows DPI acceptance.
-- Targeted AddressSanitizer + UndefinedBehaviorSanitizer runs passed for the
-  changed overview implementation/independent bounds tests and session reader/
-  writer with all ten session regressions. Other linked core objects were not
-  instrumented in these targeted runs. No GUI sanitizer or leak-check claim;
-  leak detection was disabled.
-- Deterministic format-4 session output matches baseline bytes across multiple
-  64 KiB chunks, with nucleotide/protein/mask rows and genetic code 2. Both files
-  have SHA256 d77efa9e2d559ec9075984dce12f9d4218844a308785e1b8a3a3bda732ef43d1.
-  The baseline serializer is unchanged between 0.26.11 and accepted 0.26.12.
-- A before/after comparison confirms the normal native Kleiotide preference file
-  was unchanged by the isolated final test runs.
+- Release application, fixture and checks built using GCC 13.3 and Qt 6.4.2
+  on Linux. Only the validation copy's Qt minimum was lowered from 6.5 to 6.4;
+  delivered CMake retains Qt >=6.5 for the user's Qt 6.5.3 MSVC2022 x64 kit.
+- All 40 application/fixture/test executables were verified as nonempty ELF
+  binaries before execution; no empty executable was counted as a passing test.
+- Complete registered CTest suite: **38/38 passed**, no skips/disabled entries.
+  19 core suites, six Qt unit suites, thirteen GUI workflows, with captured output.
+- GUI workflows at 150%: **13/13 passed**.
+- Windows-style offscreen tests at 200%: **4/4 passed** (merge, Settings/recovery,
+  mode controls and new release fixes). This does not establish native rendering.
+- Offscreen captures inspected for toolbar row placement, overview selection/
+  viewport markers, Settings scrolling and merge result banner/footer. A wrapped
+  merge-banner height issue found at 200% was corrected and retested; original
+  read alignment is independently captured after scrolling it into view.
+- Targeted AddressSanitizer + UndefinedBehaviorSanitizer: overview bounds suite
+  and all 40 internal merge regressions passed. Changed alignment.cpp,
+  overview.cpp and merge.cpp were instrumented; other linked core objects were
+  not. Leak detection disabled; no GUI sanitizer or whole-program leak claim.
+- Normal native Kleiotide preference file unchanged across isolated test runs.
 
-## New correctness coverage
+## Correctness coverage added
 
-Preferences: legacy path/-1 thread migration, persistence/restart, validation and
-invalid/tampered values, unavailable-font fallback, full custom genetic codes,
-clean initial translation settings, Apply/Cancel/reset, current-appearance/code
-drafts, existing-window isolation and saved/legacy-session precedence. Per-job
-MAFFT choices do not replace defaults; Settings Test performs a tiny alignment
-using the controlled fixture rather than just accepting a version string.
+Incremental overview summaries are compared with independent fresh full scans,
+including randomized overwrites, ambiguity/gaps, rapid edits during a partial
+scan, Undo/Redo, expired invalidation history and structural/length fallbacks.
+The single-row fast path matches the ordinary per-column IUPAC model. A
+million-column two-row alignment still respects a 256 KiB workspace bound.
 
-Test isolation uses temporary INI user and system scopes. AppSettings explicitly
-selects defaultFormat: Qt's named-application constructor otherwise keeps native
-storage even after setDefaultFormat(IniFormat). The normal application still
-uses its existing native organization/application namespace. All twelve release
-GUI workflows use isolated defaults; QC job settings honor that backend too.
-The migration regression also passed three consecutive isolated runs.
+Merge regressions verify original read calls survive final-contig indel placement,
+all differing columns are marked (including compatible ambiguity differences),
+partial contigs can Apply/Save without opt-in, and the read alignment is present.
+Existing conflict/Q/contig/cancellation/stale-source checks remain.
 
-Overview: sixty independent randomized column-model comparisons with forced
-summary compression, IUPAC/coverage semantics, revision invalidation and metadata
-rename behavior. A two-row million-column fixture stays within its **256 KiB
-workspace budget** and remains fully conserved when A/C alternate between
-columns. This measures owned scan buffers, not whole-process peak RAM. The GUI
-uses up to 8192 summaries and defaults to a 16 MiB workspace budget. No Windows
-throughput or chromosome-length latency guarantee follows from this fixture.
+The new GUI workflow checks menu sections, Overwrite, batch FASTA/AB1 append by
+drop with original trace evidence and one Undo, unsupported remote URLs, explicit
+session appearance without writing global defaults, translation row placement
+after repeated restores/resizes, adjacent toggle and About GitHub/citation.
+FASTA suffix tests cover absent/custom/recognized upper/lowercase suffixes;
+existing atomic output and trace/session protections remain covered.
 
-Recovery: atomic generations, active-window locks, quota/cancellation refusals
-preserving previous bytes, latest/previous generation round trips, strict
-rejection of a corrupt latest generation, explicit discard and unchanged live
-state/history. A child process commits a checkpoint, remains unavailable while
-alive, is killed by its owning test, and then leaves readable data with a
-reclaimable stale lock. Cancellation also interrupts an actually partially
-streamed large row. The GUI workflow checks mutation gating, modal-editor
-deferral, unclean window destruction, unsaved recovery copies, retained old
-checkpoints during Recover and safe retirement after a new valid checkpoint.
+## Performance observation
 
-## Environment and interpretation
+Direct core benchmark, one 50,000,000-column nucleotide row containing bases,
+ambiguity, missing calls and gaps, 8,192 summaries: initial scan 0.171598 seconds;
+one overwrite update 0.00006002 seconds, rescanning 6,103 columns. Owned overview
+workspace: 1,638,408 bytes. These are local CPU timings without GUI scheduling,
+not a guarantee or an extrapolation to the user's 729 Mbp Windows assembly.
+The important bound is the touched summary range rather than the full sequence.
+Initial calculation still reads symbols; structural changes may still rescan.
 
-Local execution uses Linux, GCC 13.3/C++20, CMake/CTest 3.28.3 and Qt **6.4.2**.
-A separate frozen validation copy lowers only the Qt package minimum; delivered
-CMake retains **Qt >=6.5** and CMake >=3.21. Application/test/tool bytes match the
-validated snapshot. Local executable permissions were normalized before running
-CTest. No product assertion was disabled or weakened for the environment.
+## Native acceptance still required
 
-The 37 entries are the same commands registered for release-check. The final
-JUnit/text reports and executable-image manifest accompany this source package.
-The source archive and its full 0.27.0 prefix are verified against the working
-tree, including complete production sources and unchanged license/branding.
+Use RELEASE_0.27.1_TESTING.md and WINDOWS_INSTALLER.md in a fresh build directory.
+Expected release-check: 38 tests. Windows Explorer's Open With loop was not
+reproduced here; installer registration is a targeted repair for suspected stale
+commands and needs native validation, including side-by-side uninstall, alternate
+administrator accounts and Unicode paths. NSIS/PowerShell execution was not
+available here; no Windows installer compilation or registry execution is claimed.
 
-Native Windows 0.27.0 and real ARM results remain pending. The user's native
-0.26.12 33/33/manual acceptance and MAFFT 7.526 success (--thread 8, seven rows,
-width 557, 6.80 s) are recorded in WINDOWS_ACCEPTANCE.md; they are not transferred
-to changed code. No Windows installer binary was produced locally. Use the same
-Qt 6.5.3 / MSVC2022 x64 kit and packaging inputs for the new test-1 build.
+The colleague's earlier ARM 0.26.11 test 2 / explicit Threads=1 success is retained
+as a reported baseline. Retest Automatic/fallback and cancellation on ARM when
+available. No live NCBI submission occurred; BLAST and trace linking are 0.28.0
+work described in RELEASE_PLAN_0.27.1_0.28.0.md.
 
-Settings do not cap total RAM; broad analysis/translation workspace limits and
-incremental cache changes remain follow-ups. Recovery temporarily gates mutations
-and can refuse unavailable/quota-limited/oversized storage; it preserves previous
-completed generations and never marks work saved. No fatal-path autosave was
-added. Session format remains 4; trace linking remains checkpoint C.
+The outer release bundle includes final logs/XML, executable checksums, targeted
+sanitizer output, benchmark source/output and the source-difference manifest.
+Historical 0.27.0 validation remains under docs/history/.
