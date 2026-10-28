@@ -313,7 +313,7 @@ ChromatogramPanel::ChromatogramPanel(QWidget* parent):QWidget(parent) {
     canvas_->cell_requested=[this](SequenceId id,std::size_t column){update_position(column);if(cell_requested)cell_requested(id,column);};
     canvas_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(range_requested)range_requested(id,start,width);};
     canvas_->key_requested=[this](QKeyEvent* event){if(key_requested)key_requested(event);};
-    canvas_->setToolTip("Click or drag Current to select/edit using the toolbar mode. Imported calls and Original Q are immutable. Arrows move the caret; Shift+Left/Right slides the selection, Ctrl+Left/Right moves it across adjacent open gaps in Edit.");
+    canvas_->setToolTip("Click or drag Current to select/edit using the toolbar mode. Imported calls and Original Q are immutable. Arrows move the caret; Ctrl+Left/Right slides the selection one column; Shift+Left/Right slides it as far as possible within existing gap/lock rules in Edit.");
     canvas_->evidence_selected=[this](const QString& text){position_->setText(text);};
     set_residue_palette(ResiduePalette::Classic);
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.27.2 — clipboard alignment and session sequence imports
+
+- Copy consensus plus contributing reads in final-contig FASTA alignment.
+- Rename aligned merge command; add a motif-search magnifier/nucleotides icon.
+- Correct trace shortcut tooltip and handle overview hover events consistently.
+- Remove the chromatogram title/close strip, retaining existing visibility controls.
+- Add/drop .kleio sequences, masks and linked traces transactionally in one Undo;
+  discard imported session metadata with a clear notification, retaining current
+  session settings. Whole-session File Open remains available.
+- Record native Windows 0.27.1 acceptance, including installer/Open With and
+  improved overview performance. ARM Automatic/fallback remains pending.
+
 ## 0.27.1 — tester feedback and targeted overview updates
 
 - Update only affected overview summaries after length-preserving edits, with

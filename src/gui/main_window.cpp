@@ -105,6 +105,10 @@ QIcon view_icon(int kind,ResiduePalette palette=ResiduePalette::Classic) {
         } else if(kind==2) {
             p.drawRoundedRect(QRectF(1,2,18,16),2,2);p.setPen(Qt::NoPen);
             const int heights[]={6,10,7,12,9};for(int i=0;i<5;++i){p.setBrush(i==2?QColor(245,135,25):QColor(40,115,200));p.drawRect(QRectF(3+i*3,16-heights[i],2,heights[i]));}
+        } else if(kind==6){
+            auto f=QFontDatabase::systemFont(QFontDatabase::FixedFont);f.setPixelSize(8);f.setBold(true);p.setFont(f);
+            const auto colors=palette_colors(palette);for(int i=0;i<3;++i){p.setPen(colors[i]);p.drawText(QRect(i*5,8,6,11),Qt::AlignCenter,QString(QChar::fromLatin1("ACG"[i])));}
+            p.setPen(QPen(QColor(25,65,105),1.8));p.setBrush(QColor(230,245,255,100));p.drawEllipse(QRectF(3,1,10,10));p.drawLine(QPointF(12,10),QPointF(18,17));
         } else if(kind==3){auto font=QFontDatabase::systemFont(QFontDatabase::FixedFont);font.setPixelSize(14);font.setBold(true);p.setFont(font);p.setPen(Qt::black);p.drawText(QRect(0,0,20,20),Qt::AlignCenter,"Aa");
         } else {const auto colors=palette_colors(palette);for(int i=0;i<4;++i){const QRectF rect(1+(i%2)*9,1+(i/2)*9,8,8);p.fillRect(rect,colors[static_cast<std::size_t>(i)]);
                 if(kind==4){auto font=QFontDatabase::systemFont(QFontDatabase::FixedFont);font.setPixelSize(7);font.setBold(true);p.setFont(font);p.setPen(black_or_white(colors[static_cast<std::size_t>(i)]));p.drawText(rect,Qt::AlignCenter,QString(QChar::fromLatin1("ACGT"[i])));}}}
@@ -121,7 +125,7 @@ std::filesystem::path native_path(const QString& path) {
 #endif
 }
 struct ReadResult {
-    QStringList importNotes;
+    QStringList importNotes,sessionNotes;
     std::vector<Record> records;
     std::shared_ptr<Document> document;
     QString error;
@@ -146,7 +150,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     overview_->set_document(document_.get());
     traces_=new ChromatogramPanel(this);
     traceDock_=new QDockWidget("Chromatogram",this);traceDock_->setObjectName("chromatogramDock");
-    traceDock_->setFeatures(QDockWidget::DockWidgetClosable);traceDock_->setWidget(traces_);
+    traceDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    auto* traceTitle=new QWidget(traceDock_);traceTitle->setFixedHeight(0);traceDock_->setTitleBarWidget(traceTitle);traceDock_->setWidget(traces_);
     addDockWidget(Qt::BottomDockWidgetArea,traceDock_);splitDockWidget(overviewDock,traceDock_,Qt::Vertical);traceDock_->hide();
     traces_->cell_requested=[this](SequenceId id,std::size_t column){if(!busy_)view_->navigate_to_cell(id,column);};
     traces_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(busy_)return;view_->select_trace_fragment(id,start,width);view_->navigate_to(start);};
@@ -190,8 +195,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         if (!paths.isEmpty()) open_paths(paths);
     });
     action(file, "Add sequence from &file…", {}, [this] {
-        const auto paths = QFileDialog::getOpenFileNames(this, "Add FASTA or Sanger chromatograms", {},
-            "Sequences and traces (*.fasta *.fas *.fa *.fna *.faa *.txt *.ab1 *.abi);;Sanger chromatograms (*.ab1 *.abi);;FASTA (*.fasta *.fas *.fa *.fna *.faa *.txt);;All files (*)");
+        const auto paths = QFileDialog::getOpenFileNames(this, "Add sequences, linked traces or session sequences", {},
+            "Sequences, traces and sessions (*.fasta *.fas *.fa *.fna *.faa *.txt *.ab1 *.abi *.kleio);;Kleiotide session sequences (*.kleio);;Sanger chromatograms (*.ab1 *.abi);;FASTA (*.fasta *.fas *.fa *.fna *.faa *.txt);;All files (*)");
         if (!paths.isEmpty()) load_files(paths, true);
     });
     action(file, "Add from &clipboard", {}, [this] { paste(); });
@@ -263,7 +268,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* sequence = menuBar()->addMenu("&Sequence");
     auto* setType=action(sequence,"Set sequence type…",{},[this]{set_sequence_type();});setType->setObjectName("setSequenceType");
     sequence->addSeparator();
-    auto* merge=action(sequence,"Merge selected sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
+    auto* merge=action(sequence,"Merge aligned sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
     auto* overlapMerge=action(sequence,"Find overlap and merge…",{},[this]{merge_sequences(true);});overlapMerge->setObjectName("findOverlapAndMerge");overlapMerge->setToolTip("Find overlaps in the current orientation with an optional edit allowance, review partial contigs and append the chosen result.");
     auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview retained groups/traces and Undo the entire operation once.");
     sequence->addSeparator();
@@ -355,7 +360,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     const char* distanceIds[]={"pairwiseDistances","overallDistance","withinGroupDistance","betweenGroupDistance"};
     for(int i=0;i<4;++i){auto* command=action(statistics,QString::fromUtf8(distanceLabels[i]),{},[this,i]{show_distances(i);});command->setObjectName(distanceIds[i]);}
     auto* view = menuBar()->addMenu("&View");
-    motifDock_->toggleViewAction()->setText("Motif search");
+    motifDock_->toggleViewAction()->setText("Motif search");motifDock_->toggleViewAction()->setIcon(view_icon(6));
     auto* overviewToggle=overviewDock->toggleViewAction();overviewToggle->setObjectName("alignmentOverviewView");
     overviewToggle->setIcon(view_icon(2));overviewToggle->setToolTip("Show or hide the alignment overview: column conservation, non-gap height and navigation.");
     auto* traceToggle=traceDock_->toggleViewAction();traceToggle->setObjectName("chromatogramView");
@@ -658,7 +663,7 @@ void MainWindow::update_toolbar_layout(){
 namespace {
 QStringList dropped_sequences(const QMimeData* mime){
     if(!mime||!mime->hasUrls())return {};
-    QStringList paths;const QStringList suffixes={"fasta","fas","fa","fna","ffn","faa","frn","fsa","mpfa","fnt","fsa_nt","fsa_aa","txt","ab1","abi"};
+    QStringList paths;const QStringList suffixes={"fasta","fas","fa","fna","ffn","faa","frn","fsa","mpfa","fnt","fsa_nt","fsa_aa","txt","ab1","abi","kleio"};
     for(const auto& url:mime->urls()){
         if(!url.isLocalFile())return {};
         const QFileInfo info(url.toLocalFile());if(!info.isFile()||!suffixes.contains(info.suffix().toLower()))return {};
@@ -737,7 +742,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
                 if(!result->isSession)apply_appearance(cleanDefaults);
             }
         } catch (const std::exception& e) {
-            QMessageBox::warning(this, "Could not add sequences", QString::fromUtf8(e.what()));
+            QMessageBox::warning(this, "Could not add sequences", QString::fromUtf8(e.what()));set_busy(false);return;
         }
         set_busy(false);
         if(result->hasTrace&&traces_->has_traces()&&(result->isSession||append||cleanDefaults.traceVisible)){
@@ -750,6 +755,8 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             if(!consumeRecovery_)recoveryClaim_.reset();
             update_state();
         }
+        if(!result->sessionNotes.isEmpty())QMessageBox::information(this,"Session sequence import",
+            "Only sequences, masks and their linked traces were imported from these sessions. Other session metadata (groups, translation settings/annotations, protein snapshot provenance, appearance, selections and reports) was discarded. The current session settings are retained.\n\n"+result->sessionNotes.join("\n"));
         if(!result->importNotes.isEmpty())QMessageBox::information(this,"AB1 import notes",result->importNotes.join("\n\n"));
     });
     const auto importType=fastaImport_;
@@ -761,7 +768,15 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
                 if (!input) throw std::runtime_error("Could not open " + path.toUtf8().toStdString());
                 char magic[8]{};input.read(magic,8);const auto bytes=input.gcount();const bool abif=bytes>=4&&std::string_view(magic,4)=="ABIF";const bool native=bytes==8&&std::string_view(magic,8)==session_magic;input.clear();input.seekg(0);
                 if(native||QFileInfo(path).suffix().compare("kleio",Qt::CaseInsensitive)==0){
-                    if(append||paths.size()!=1)throw std::runtime_error("Open session files individually. Batch opening and Add accept FASTA/AB1 files.");
+                    if(!append&&paths.size()!=1)throw std::runtime_error("Open session files individually, or use Add sequence from file to import their sequences and linked traces.");
+                    if(append){
+                        auto session=read_session(input);
+                        for(const auto& row:session.document.rows()){
+                            result->records.push_back({row.name,row.symbols.text(),row.kind,row.trace});
+                            result->hasTrace=result->hasTrace||bool(row.trace);
+                        }
+                        result->sessionNotes.append(QFileInfo(path).fileName());continue;
+                    }
                     auto session=read_session(input);result->document=std::make_shared<Document>(std::move(session.document));result->viewState=std::move(session.viewState);result->report=std::move(session.alignmentReport);result->isSession=true;
                     result->hasTrace=std::any_of(result->document->rows().begin(),result->document->rows().end(),[](const auto& row){return bool(row.trace);});continue;
                 }

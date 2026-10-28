@@ -16,11 +16,13 @@ public:
     bool ready() const;
     const std::vector<OverviewBin>& displayed_bins() const {return bins_;}
 protected:
+    bool event(QEvent*) override;
     void paintEvent(QPaintEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
 private:
+    void show_tooltip(const QPoint&,const QPoint&);
     void begin_scan();
     void advance_scan();
     void rebuild_plot();

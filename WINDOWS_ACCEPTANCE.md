@@ -126,3 +126,13 @@ reported performance issue addressed by 0.27.1. ARM not tested on 0.27.0.
 The ARM colleague reports MAFFT explicit Threads=1 succeeds on 0.26.11 test 2;
 FASTA missing suffix and Explorer Open With loop were also reported. Neither
 report establishes native acceptance of 0.27.1 or its automatic ARM fallback.
+
+## User report — 0.27.1 test 1, received 28 October 2026
+
+All 38 automatic tests and focused manual checks pass on the native x64 laptop,
+including FASTA suffixes/protection, targeted overview updates/markers, merge
+read previews/partial results, toolbar layout/scaling, Settings, drag/drop,
+Explorer Open With/side-by-side installer checks and recovery preservation.
+The same approximately 729 Mbp single sequence initially calculates its overview
+in about 10 s, and single-base overwrites update almost instantly. ARM MAFFT
+Automatic/fallback will be tested on a later version.

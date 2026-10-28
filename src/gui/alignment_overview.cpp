@@ -1,6 +1,7 @@
 #include "gui/alignment_overview.hpp"
 #include "gui/alignment_view.hpp"
 #include <QElapsedTimer>
+#include <QHelpEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QToolTip>
@@ -114,12 +115,20 @@ void AlignmentOverview::navigate(const QPoint& point){
 void AlignmentOverview::mousePressEvent(QMouseEvent*event){if(event->button()==Qt::LeftButton&&plot_rect().contains(event->position().toPoint())){navigate(event->position().toPoint());event->accept();}else QWidget::mousePressEvent(event);}
 void AlignmentOverview::mouseMoveEvent(QMouseEvent*event){
     if(event->buttons().testFlag(Qt::LeftButton)){navigate(event->position().toPoint());event->accept();return;}
-    const auto point=event->position().toPoint();const auto area=plot_rect();
+    show_tooltip(event->position().toPoint(),event->globalPosition().toPoint());
+}
+bool AlignmentOverview::event(QEvent* event){
+    if(event->type()==QEvent::ToolTip){auto* help=static_cast<QHelpEvent*>(event);show_tooltip(help->pos(),help->globalPos());event->accept();return true;}
+    if(event->type()==QEvent::Leave)QToolTip::hideText();
+    return QWidget::event(event);
+}
+void AlignmentOverview::show_tooltip(const QPoint& point,const QPoint& global){
+    const auto area=plot_rect();
     if(ready()&&area.contains(point)&&!bins_.empty()){
         const auto index=std::min(bins_.size()-1,static_cast<std::size_t>(point.x()-area.left())*bins_.size()/static_cast<std::size_t>(area.width()));const auto&bin=bins_[index];
         const auto conservation=bin.hasInformation?QString("%1%").arg(bin.conservation*100,0,'f',1):QString("No information");
-        QToolTip::showText(event->globalPosition().toPoint(),QString("Columns %1–%2\nNon-gap symbols: %3%\nColumn conservation: %4\nIUPAC calls vote equally for their possible bases.\nN, gaps and unknown ? do not vote; protein and mask rows are excluded.")
-            .arg(static_cast<qulonglong>(bin.begin+1)).arg(static_cast<qulonglong>(bin.end)).arg(bin.residues*100,0,'f',1).arg(conservation),this);
-    }else QToolTip::hideText();
+        QToolTip::showText(global,QString("Columns %1–%2\nNon-gap symbols: %3%\nColumn conservation: %4\nIUPAC calls vote equally for their possible bases.\nN, gaps and unknown ? do not vote; protein and mask rows are excluded.")
+            .arg(static_cast<qulonglong>(bin.begin+1)).arg(static_cast<qulonglong>(bin.end)).arg(bin.residues*100,0,'f',1).arg(conservation),this,area,30000);
+    }else QToolTip::showText(global,toolTip(),this);
 }
 }

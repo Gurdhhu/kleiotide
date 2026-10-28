@@ -3,6 +3,8 @@
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include <QCheckBox>
+#include <QApplication>
+#include <QClipboard>
 #include <QAbstractScrollArea>
 #include <QPainter>
 #include <QScrollBar>
@@ -83,7 +85,7 @@ class MergeDialog final:public QDialog {
 public:
     MergeDialog(std::shared_ptr<Document> source,std::vector<SequenceId> selected,MergeMode mode,QWidget* parent)
         :QDialog(parent),source_(std::move(source)),selected_(std::move(selected)),mode_(mode){
-        setObjectName("mergeDialog");setWindowTitle(mode==MergeMode::Aligned?"Merge selected sequences":"Find overlap and merge");resize(940,800);
+        setObjectName("mergeDialog");setWindowTitle(mode==MergeMode::Aligned?"Merge aligned sequences":"Find overlap and merge");resize(940,800);
         auto* outer=new QVBoxLayout(this);auto* scroll=new QScrollArea(this);scroll->setWidgetResizable(true);auto* body=new QWidget(scroll);scroll->setWidget(body);outer->addWidget(scroll,1);
         auto* layout=new QVBoxLayout(body);auto* form=new QFormLayout;form->setRowWrapPolicy(QFormLayout::WrapLongRows);form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);layout->addLayout(form);
         std::string defaultName;allTraces_=selected_.size()>1;
@@ -111,6 +113,17 @@ public:
         layout->addLayout(legendRow);
         sequence_=new QPlainTextEdit(this);sequence_->setObjectName("mergeSequence");sequence_->setReadOnly(true);sequence_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));sequence_->setMinimumHeight(100);sequence_->setMaximumHeight(160);layout->addWidget(sequence_);
         alignment_=new MergeAlignmentPreview(this);layout->addWidget(alignment_,1);
+        copyAlignment_=new QPushButton("Copy reads-to-contig alignment as FASTA",this);copyAlignment_->setObjectName("mergeCopyAlignment");layout->addWidget(copyAlignment_);
+        connect(copyAlignment_,&QPushButton::clicked,this,[this]{
+            if(running_||!plan_)return;
+            if(plan_->revision!=source_->state_id()){invalidate();notice("error","Merge preview expired","The alignment changed. Preview again before copying.");return;}
+            auto consensus=plan_->symbols;std::replace(consensus.begin(),consensus.end(),'~','-');
+            QString fasta=">"+name_->text().trimmed()+"\n"+text(consensus)+"\n";
+            for(const auto& row:plan_->alignment){auto aligned=row.symbols;aligned.resize(plan_->symbols.size(),'~');
+                std::replace(aligned.begin(),aligned.end(),'~','-');
+                fasta+=">"+text(source_->sequence(row.id).name)+"\n"+text(aligned)+"\n";}
+            QApplication::clipboard()->setText(fasta);
+        });
         placements_=new QTableWidget(this);placements_->setObjectName("mergePlacements");placements_->setColumnCount(4);placements_->setHorizontalHeaderLabels({"Source sequence","Result / exclusion reason","Start","End"});placements_->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Interactive);placements_->setColumnWidth(0,240);placements_->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);placements_->setColumnWidth(2,70);placements_->setColumnWidth(3,70);placements_->setEditTriggers(QAbstractItemView::NoEditTriggers);placements_->setAlternatingRowColors(true);layout->addWidget(placements_,1);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel,this);outer->addWidget(buttons);
         apply_=buttons->button(QDialogButtonBox::Apply);apply_->setObjectName("mergeApply");apply_->setToolTip("Append the reviewed merged sequence to the alignment.");preview_=buttons->addButton("Preview",QDialogButtonBox::ActionRole);preview_->setObjectName("mergePreview");save_=buttons->addButton("Save FASTA…",QDialogButtonBox::ActionRole);save_->setObjectName("mergeSaveFasta");cancel_=buttons->button(QDialogButtonBox::Cancel);
@@ -149,7 +162,7 @@ private:
     void controls(){
         name_->setEnabled(!running_);minimum_->setEnabled(!running_);edits_->setEnabled(!running_);contigs_->setEnabled(!running_&&plan_&&plan_->contigs.size()>1);
         quality_->setEnabled(!running_&&mode_==MergeMode::Aligned&&allTraces_);margin_->setEnabled(!running_&&quality_->isChecked());preview_->setEnabled(!running_&&selected_.size()>1);
-        apply_->setEnabled(!running_&&usable());save_->setEnabled(!running_&&usable());
+        copyAlignment_->setEnabled(!running_&&usable());apply_->setEnabled(!running_&&usable());save_->setEnabled(!running_&&usable());
     }
     void invalidate(){alignment_->show_plan(nullptr,nullptr);plan_.reset();sequence_->clear();sequence_->setExtraSelections({});placements_->setRowCount(0);{QSignalBlocker guard(contigs_);contigs_->clear();}notice("working","Preview required","Choose settings, then Preview.");controls();}
     void render(){
@@ -198,7 +211,7 @@ private:
     std::shared_ptr<Document> source_;std::vector<SequenceId> selected_;MergeMode mode_;std::optional<MergePlan> plan_;
     bool allTraces_=false,running_=false,closing_=false,nameEdited_=false;std::shared_ptr<std::atomic_bool> cancelled_;
     QLineEdit* name_;QSpinBox *minimum_,*margin_,*edits_;QCheckBox *quality_;QComboBox* contigs_;QFrame* notice_;QLabel *heading_,*status_;
-    MergeAlignmentPreview* alignment_;QPlainTextEdit* sequence_;QTableWidget* placements_;QPushButton *apply_,*preview_,*cancel_,*save_;
+    MergeAlignmentPreview* alignment_;QPlainTextEdit* sequence_;QTableWidget* placements_;QPushButton *copyAlignment_,*apply_,*preview_,*cancel_,*save_;
 };
 }
 std::optional<SequenceId> merge_sequences_dialog(std::shared_ptr<Document> source,const std::vector<SequenceId>& selected,MergeMode mode,QWidget* parent){MergeDialog dialog(std::move(source),selected,mode,parent);dialog.exec();return dialog.appended;}

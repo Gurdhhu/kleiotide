@@ -1,4 +1,4 @@
-# Kleiotide 0.27.1
+# Kleiotide 0.27.2
 
 Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing update adds targeted overview recalculation, read-alignment merge previews, interface corrections and Windows Open With registration. It is not yet a publicly released RC.
 
@@ -59,10 +59,13 @@ native checkpoints and offers Recover/Open copy choices. The overview uses
 bounded tiles instead of a full-length column evidence array. Read
 [SETTINGS_AND_RECOVERY.md](SETTINGS_AND_RECOVERY.md) for behavior and native tests.
 
-The accepted native x64 baseline is 0.27.0 test 1. Native Windows acceptance for
+The accepted native x64 baseline is 0.27.1 test 1. Native Windows acceptance for
 this version is pending; ARM MAFFT remains pending and can use a later build.
 BLAST and trace linking are planned for 0.28.0 and are not included here. See
-[RELEASE_PLAN_0.27.1_0.28.0.md](RELEASE_PLAN_0.27.1_0.28.0.md) and
-[RELEASE_0.27.1_TESTING.md](RELEASE_0.27.1_TESTING.md). See
+[RELEASE_PLAN_0.27.2_0.28.0.md](RELEASE_PLAN_0.27.2_0.28.0.md) and
+[RELEASE_0.27.2_TESTING.md](RELEASE_0.27.2_TESTING.md). See
 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
 [VALIDATION.md](VALIDATION.md) for exact scope/results.
+
+0.27.2 adds clipboard merge alignments, session sequence/trace append, stable
+overview tooltips and trace/menu polish. See RELEASE_0.27.2_TESTING.md.
