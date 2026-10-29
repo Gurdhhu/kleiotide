@@ -1,0 +1,62 @@
+#include "test_preferences.hpp"
+#include "gui/blast_dialog.hpp"
+#include "gui/trace_link_dialog.hpp"
+#include "gui/blast_data.hpp"
+#include "core/abif.hpp"
+#include "core/trace_linking.hpp"
+#include "../tests/abif_fixture.hpp"
+#include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QFile>
+#include <QDir>
+#include <QFileDialog>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QTemporaryDir>
+#include <QTableView>
+#include <QTimer>
+#include <QUrlQuery>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QElapsedTimer>
+#include <sstream>
+#include <iostream>
+#include <stdexcept>
+using namespace kleiotide;
+namespace {void need(bool b,const char* m){if(!b)throw std::runtime_error(m);}
+template<class T>T* child(QObject& p,const char* id){auto* w=p.findChild<T*>(id);need(w,id);return w;}
+QByteArray response(){return R"({"BlastOutput2":[{"report":{"results":{"search":{"query_title":"q1","query_len":24,"hits":[{"description":[{"accession":"TEST.1","title":"Test sequence","sciname":"Test species"}],"hsps":[{"bit_score":99,"evalue":1e-15,"identity":24,"align_len":24,"query_from":1,"query_to":24,"hit_from":1,"hit_to":24,"gaps":0}]}]}}}}]})";}
+}
+int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{TestPreferences prefs;QTemporaryDir temp;auto source=std::make_shared<Document>();source->load({{"query A","ACGTTGCACTAGATCGACCTTGGA"},{"query B","ACGTTGCACTAGATCGACCTTGGA"}});const auto before=source->state_id();QString ab1Path;QTimer modal;modal.setInterval(2);QObject::connect(&modal,&QTimer::timeout,[&]{if(auto* box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget()))if(auto* yes=box->button(QMessageBox::Yes))yes->click();else box->accept();else if(auto* file=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());file&&!ab1Path.isEmpty()){file->selectFile(ab1Path);QMetaObject::invokeMethod(file,"accept",Qt::QueuedConnection);}});modal.start();
+ // Real loopback HTTP transport; no request leaves the machine.
+ QTcpServer server;need(server.listen(QHostAddress::LocalHost),"Fixture listen");int submitted=0,polls=0,records=0;bool forbiddenName=false;QString failure;QByteArray postBody,recordBody;int expectedSubmissions=1,expectedPolls=2;
+ QObject::connect(&server,&QTcpServer::newConnection,[&]{while(auto* socket=server.nextPendingConnection()){auto input=std::make_shared<QByteArray>();QObject::connect(socket,&QTcpSocket::readyRead,[&,socket,input]{*input+=socket->readAll();const int end=input->indexOf("\r\n\r\n");if(end<0)return;const auto header=input->left(end);int length=0;for(const auto& line:header.split('\n'))if(line.toLower().startsWith("content-length:"))length=line.mid(15).trimmed().toInt();if(input->size()<end+4+length)return;const auto first=header.split('\n').first();const auto body=input->mid(end+4,length);QByteArray output;
+ if(first.contains("/records")){recordBody=body;++records;output="<GBSet><GBSeq><GBSeq_accession-version>TEST.1</GBSeq_accession-version><GBSeq_organism>Verified species</GBSeq_organism><GBSeq_taxonomy>Eukaryota</GBSeq_taxonomy></GBSeq></GBSet>";}
+ else if(first.startsWith("POST")){++submitted;postBody=body;forbiddenName=body.contains("query%20A")||body.contains("query+A");output="RID = TEST-RID\nRTOE = 0\n";}
+ else{++polls;output=polls==1?QByteArray("Status=WAITING"):response();}
+ socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\nContent-Length: "+QByteArray::number(output.size())+"\r\n\r\n"+output);socket->disconnectFromHost();QObject::connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);});}});
+ BlastServices services;services.search=QUrl(QString("http://127.0.0.1:%1/search").arg(server.serverPort()));services.records=QUrl(QString("http://127.0.0.1:%1/records").arg(server.serverPort()));services.contactMs=1;services.pollMs=1;services.jobDirectory=temp.filePath("jobs");int stage=0;QElapsedTimer deadline;deadline.start();QTimer drive;drive.setInterval(2);
+ QObject::connect(&drive,&QTimer::timeout,[&]{try{if(deadline.elapsed()>=10000){auto* active=qobject_cast<QDialog*>(QApplication::activeModalWidget());QString statusText=active&&active->findChild<QLabel*>("blastStatus")?active->findChild<QLabel*>("blastStatus")->text():"no dialog";throw std::runtime_error(QString("BLAST workflow timeout: submit=%1 polls=%2 records=%3 stage=%4 status=%5").arg(submitted).arg(polls).arg(records).arg(stage).arg(statusText).toStdString());}if(auto* box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget())){if(auto* yes=box->button(QMessageBox::Yes))yes->click();else box->accept();return;}auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!d||d->objectName()!="blastDialog")return;
+ if(stage==0){stage=1;child<QLineEdit>(*d,"blastEmail")->setText("fixture@example.org");child<QPushButton>(*d,"blastStart")->click();}
+ else if(stage==1&&records&&child<QPushButton>(*d,"blastStart")->isEnabled()){auto* table=child<QTableView>(*d,"blastResults");need(table->model()->rowCount()==2,"Duplicate results expanded to both names");need(table->model()->index(0,3).data().toString()=="Verified species","HTTP metadata enriched");need(submitted==expectedSubmissions&&polls==expectedPolls&&!forbiddenName,"One deduplicated submission, waiting poll and synthetic names");if(argc>1)d->grab().save(QString::fromLocal8Bit(argv[1])+"/blast.png");stage=2;d->reject();drive.stop();}
+ }catch(const std::exception& e){failure=e.what();drive.stop();if(auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget())){d->reject();QTimer::singleShot(10,d,&QDialog::reject);}}});drive.start();blast_dialog(source,{1,2},false,nullptr,services);need(failure.isEmpty(),qPrintable(failure));need(stage==2&&source->state_id()==before,"Read-only HTTP search completes");
+ // Protein uses the same transport/parser but its own database/molecule/record namespace.
+ auto proteins=std::make_shared<Document>();proteins->load({{"protein A","ACDEFGHIKLMNPQRSTVWYACDE",RowKind::Protein},{"protein B","ACDEFGHIKLMNPQRSTVWYACDE",RowKind::Protein}});const auto proteinState=proteins->state_id();expectedSubmissions=submitted+1;expectedPolls=polls+1;stage=0;deadline.restart();drive.start();blast_dialog(proteins,{1,2},true,nullptr,services);need(stage==2&&failure.isEmpty()&&postBody.contains("PROGRAM=blastp")&&recordBody.contains("db=protein")&&recordBody.contains("rettype=gp")&&proteins->state_id()==proteinState,"Protein search, metadata namespace and read-only source");
+ // Cancel after an RID, then resume that RID without another POST.
+ services.pollMs=100;stage=0;deadline.restart();const int beforeSubmit=submitted;QString savedJob;QTimer stopJob;stopJob.setInterval(2);QObject::connect(&stopJob,&QTimer::timeout,[&]{try{need(deadline.elapsed()<10000,"Cancel workflow timeout");auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!d||d->objectName()!="blastDialog")return;if(stage==0){stage=1;child<QLineEdit>(*d,"blastEmail")->setText("fixture@example.org");child<QPushButton>(*d,"blastStart")->click();}else if(stage==1&&child<QLabel>(*d,"blastStatus")->text().contains("RID TEST-RID")){child<QPushButton>(*d,"blastCancel")->click();need(child<QPushButton>(*d,"blastStart")->isEnabled(),"Cancel restores controls");for(const auto& name:QDir(services.jobDirectory).entryList({"*.json"},QDir::Files)){QFile f(QDir(services.jobDirectory).filePath(name));if(f.open(QIODevice::ReadOnly)&&QJsonDocument::fromJson(f.readAll()).object()["rid"]=="TEST-RID")savedJob=f.fileName();}need(!savedJob.isEmpty(),"Cancelled RID persisted");stage=2;stopJob.stop();d->reject();}}catch(const std::exception& e){failure=e.what();stopJob.stop();if(auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget()))d->reject();}});stopJob.start();blast_dialog(source,{1,2},false,nullptr,services);need(stage==2&&submitted==beforeSubmit+1&&failure.isEmpty(),qPrintable(failure.isEmpty()?"Cancel RID":failure));
+ ab1Path=savedJob;stage=0;deadline.restart();QTimer resumeJob;resumeJob.setInterval(2);QObject::connect(&resumeJob,&QTimer::timeout,[&]{try{need(deadline.elapsed()<10000,"Resume workflow timeout");auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!d||d->objectName()!="blastDialog")return;if(stage==0){stage=1;child<QPushButton>(*d,"blastResume")->click();}else if(stage==1&&child<QPushButton>(*d,"blastStart")->isEnabled()&&child<QTableView>(*d,"blastResults")->model()->rowCount()==2){need(submitted==beforeSubmit+1,"Resume reuses RID without POST");stage=2;resumeJob.stop();d->reject();}}catch(const std::exception& e){failure=e.what();resumeJob.stop();if(auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget()))d->reject();}});resumeJob.start();blast_dialog(source,{1,2},false,nullptr,services);ab1Path.clear();need(stage==2&&failure.isEmpty(),qPrintable(failure.isEmpty()?"Resume result":failure));
+ // The toolkit backend uses an actual child process with a quoted temporary input.
+ if(argc>2){stage=0;deadline.restart();QTimer toolkit;toolkit.setInterval(2);QObject::connect(&toolkit,&QTimer::timeout,[&]{try{need(deadline.elapsed()<10000,"Toolkit workflow timeout");auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!d||d->objectName()!="blastDialog")return;if(stage==0){stage=1;child<QLineEdit>(*d,"blastEmail")->setText("fixture@example.org");child<QLineEdit>(*d,"blastLauncher")->setText(QString::fromLocal8Bit(argv[2]));child<QPushButton>(*d,"blastStart")->click();}else if(stage==1&&child<QPushButton>(*d,"blastStart")->isEnabled()&&child<QTableView>(*d,"blastResults")->model()->rowCount()==2){stage=2;toolkit.stop();d->reject();}}catch(const std::exception& e){failure=e.what();toolkit.stop();if(auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget()))d->reject();}});toolkit.start();blast_dialog(source,{1,2},false,nullptr,services);need(stage==2&&failure.isEmpty(),qPrintable(failure.isEmpty()?"Toolkit result":failure));}
+ // Trace file assignment, asynchronous preview and one Undo.
+ const std::string calls="ACGTTGCACTAGATCGACCTTGGA";const auto ab1=temp.filePath("query A.ab1");ab1Path=ab1;{QFile f(ab1);need(f.open(QIODevice::WriteOnly),"AB1 fixture");f.write(QByteArray::fromStdString(test::synthetic_abif(calls)));}stage=0;deadline.restart();QTimer traces;traces.setInterval(2);QObject::connect(&traces,&QTimer::timeout,[&]{try{need(deadline.elapsed()<10000,"Trace workflow timeout");if(auto* file=qobject_cast<QFileDialog*>(QApplication::activeModalWidget())){file->selectFile(ab1);QMetaObject::invokeMethod(file,"accept",Qt::QueuedConnection);return;}auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!d||d->objectName()!="traceLinkDialog")return;
+ if(stage==0){stage=1;child<QPushButton>(*d,"traceLinkAdd")->click();}
+ else if(stage==1&&child<QPushButton>(*d,"traceLinkPreview")->isEnabled()){auto* table=child<QTableView>(*d,"traceAssignments");need(table->model()->index(0,1).data().toString()=="query A.ab1","Exact filename suggestion");table->model()->setData(table->model()->index(1,1),0,Qt::EditRole);stage=2;child<QPushButton>(*d,"traceLinkPreview")->click();}
+ else if(stage==2&&child<QPushButton>(*d,"traceLinkApply")->isEnabled()){auto* table=child<QTableView>(*d,"traceAssignments");need(table->model()->index(0,2).data().toString()=="Forward"&&table->model()->index(1,3).data().toString()=="Perfect","Trace orientation/quality preview");if(argc>1)d->grab().save(QString::fromLocal8Bit(argv[1])+"/trace_link.png");stage=3;traces.stop();child<QPushButton>(*d,"traceLinkApply")->click();}
+ }catch(const std::exception& e){failure=e.what();traces.stop();if(auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget()))d->reject();}});traces.start();need(link_trace_dialog(source,{1,2},nullptr)&&stage==3&&failure.isEmpty(),qPrintable(failure.isEmpty()?"Trace apply":failure));need(source->sequence(1).trace->original==source->sequence(2).trace->original,"Many-to-one original evidence");source->undo();need(source->state_id()==before&&!source->sequence(1).trace&&!source->sequence(2).trace,"One Undo restores both rows");
+ std::cout<<"PASS loopback BLAST submission/wait/poll/metadata, exact query deduplication and name expansion, read-only source; trace file suggestion/manual shared assignment, async mapping, Apply and one Undo\n";
+}catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

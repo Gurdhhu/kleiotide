@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.27.2 LANGUAGES CXX)
+project(Kleiotide VERSION 0.28.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,8 +14,11 @@ else()
   target_compile_options(kleiotide_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 include(CTest)
-target_sources(kleiotide_core PRIVATE src/core/merge.cpp src/core/identity_groups.cpp)
+target_sources(kleiotide_core PRIVATE src/core/trace_linking.cpp src/core/merge.cpp src/core/identity_groups.cpp)
 if(BUILD_TESTING)
+  add_executable(kleiotide_trace_linking_tests tests/trace_linking_tests.cpp)
+  target_link_libraries(kleiotide_trace_linking_tests PRIVATE kleiotide_core)
+  add_test(NAME trace_linking COMMAND kleiotide_trace_linking_tests)
   add_executable(kleiotide_overview_bounds_tests tests/overview_bounds_tests.cpp)
   target_link_libraries(kleiotide_overview_bounds_tests PRIVATE kleiotide_core)
   add_test(NAME overview_bounds COMMAND kleiotide_overview_bounds_tests)
@@ -85,7 +88,7 @@ option(KLEIOTIDE_BUILD_VIEWPORT_CHECK "Build viewport validation tools" OFF)
 option(KLEIOTIDE_BUILD_GUI_SMOKE_CHECK "Build historical GUI workflow tools" OFF)
 option(KLEIOTIDE_BUILD_RELEASE_CHECKS "Build and register the release GUI regression suite" OFF)
 if(KLEIOTIDE_BUILD_GUI)
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Concurrent)
+  find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Concurrent Network)
   qt_standard_project_setup()
   # Qt Creator's Run environment and the build/CTest environment can differ.
   # Use the configured Qt DLL target so Release/Debug and custom kits agree.
@@ -112,6 +115,9 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/main_window.cpp
     src/gui/alignment_overview.cpp
     src/gui/file_output.cpp
+    src/gui/trace_link_dialog.cpp
+    src/gui/blast_data.cpp
+    src/gui/blast_dialog.cpp
     src/gui/group_import_dialog.cpp
     src/gui/identity_group_dialog.cpp
     src/gui/merge_dialog.cpp
@@ -134,7 +140,7 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/mafft_dialog.cpp
     src/gui/chromatogram_view.cpp
   )
-  target_link_libraries(kleiotide_gui PUBLIC kleiotide_core Qt6::Widgets Qt6::Concurrent)
+  target_link_libraries(kleiotide_gui PUBLIC kleiotide_core Qt6::Widgets Qt6::Concurrent Qt6::Network)
   if(MSVC)
     target_compile_options(kleiotide_gui PRIVATE /W4)
   else()
@@ -146,6 +152,8 @@ if(KLEIOTIDE_BUILD_GUI)
   install(TARGETS kleiotide RUNTIME DESTINATION . BUNDLE DESTINATION .)
   install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
   install(FILES
+    BLAST_AND_TRACE_LINKING.md
+    RELEASE_0.28.0_TESTING.md
     AB1_EXPORT.md
     AB1_IMPORT_RECOVERY.md
     BRANDING.md
@@ -181,7 +189,7 @@ if(KLEIOTIDE_BUILD_GUI)
     TESTER_FEEDBACK.md
     DESTINATION .)
   if(BUILD_TESTING)
-    foreach(test motif_search rename file_output preferences recovery)
+    foreach(test motif_search rename file_output preferences recovery blast_data)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)
       target_link_libraries(kleiotide_${test}_tests PRIVATE kleiotide_gui)
       add_test(NAME ${test} COMMAND kleiotide_${test}_tests)
@@ -234,6 +242,7 @@ if(KLEIOTIDE_BUILD_GUI)
     kleiotide_workflow(protein_mafft_window_check)
     kleiotide_workflow(protein_mafft_check)
     kleiotide_workflow(mafft_fixture)
+    kleiotide_workflow(blast_fixture)
     kleiotide_workflow(mafft_check)
     kleiotide_workflow(stage010_check)
     kleiotide_workflow(stage09_check)
@@ -246,8 +255,9 @@ if(KLEIOTIDE_BUILD_GUI)
       message(FATAL_ERROR "Release checks require BUILD_TESTING=ON")
     endif()
     kleiotide_workflow(mafft_fixture)
+    kleiotide_workflow(blast_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")
@@ -259,7 +269,10 @@ if(KLEIOTIDE_BUILD_GUI)
       if(workflow STREQUAL "abif_export_check" OR workflow STREQUAL "collapse_check" OR workflow STREQUAL "stage0191_check")
         set(workflow_output "${workflow_output}/preview.png")
       endif()
-      if(workflow STREQUAL "save_safety_check")
+      if(workflow STREQUAL "blast_trace_check")
+        add_dependencies(kleiotide_blast_trace_check kleiotide_blast_fixture)
+        add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}" $<TARGET_FILE:kleiotide_blast_fixture>)
+      elseif(workflow STREQUAL "save_safety_check")
         add_dependencies(kleiotide_save_safety_check kleiotide_mafft_fixture)
         add_test(NAME ${workflow_test_name} COMMAND kleiotide_${workflow} "${workflow_output}"
             $<TARGET_FILE:kleiotide_mafft_fixture>)

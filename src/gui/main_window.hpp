@@ -51,6 +51,9 @@ private:
     void install_document(std::shared_ptr<Document> document, const QString& path, bool saved);
     void add_new_sequence();
     void set_sequence_type();
+    void link_traces();
+    void delete_traces();
+    void search_blast(bool protein);
     void delete_selected();
     void collapse_sequences();
     void merge_sequences(bool findOverlap);

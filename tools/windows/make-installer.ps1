@@ -118,9 +118,11 @@ try {
     # Use the selected kit, never the Qt version embedded in Qt Creator itself.
     $env:PATH = (Join-Path $QtRoot 'bin') + ';' + $env:PATH
     Run-Native { & $deploy --release --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler --dir $payload $exe }
-    foreach ($required in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'platforms/qwindows.dll')) {
+    foreach ($required in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Network.dll', 'platforms/qwindows.dll', 'tls/qschannelbackend.dll')) {
         if (!(Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Missing deployed file: $required" }
     }
+    # Use Windows native TLS; no untracked OpenSSL runtime dependency.
+    Remove-Item -LiteralPath (Join-Path $payload 'tls/qopensslbackend.dll') -ErrorAction SilentlyContinue
     $noticeRoot = Join-Path $payload 'third-party/Qt'
     $noticeEntries = @{}
     # These deployed modules live in qtbase, qtsvg and qtimageformats. Avoid

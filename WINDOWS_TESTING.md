@@ -8,8 +8,8 @@ one used. Keep different Qt kits in separate build directories.
 There are two complementary checks:
 
 - **Automatic tests:** the program's test executables check expected results
-  through CTest. The current complete suite has **38 tests**: 19 core suites,
-  six Qt unit suites and thirteen GUI workflows. Each entry contains many checks.
+  through CTest. The current complete suite has **41 tests**: 20 core suites,
+  seven Qt unit suites and fourteen GUI workflows. Each entry contains many checks.
 - **Manual checks:** you run Kleiotide normally and use real Windows dialogs,
   mouse/clipboard, display scaling and research files. Automated GUI checks run
   offscreen and cannot establish every native Windows interaction.
@@ -21,7 +21,7 @@ process fixture. Testing the real MAFFT installation is a separate manual step.
 ## 1. Open a fresh source release
 
 1. Extract the source ZIP into a new folder, such as
-   `C:\Kleiotide-testing\Kleiotide_0.27.2`. Avoid mixing source releases.
+   `C:\Kleiotide-testing\Kleiotide_0.28.0`. Avoid mixing source releases.
 2. In Qt Creator, open that folder's `CMakeLists.txt` as you usually do.
 3. Select your existing **MSVC x64 Qt kit**, choose **Release**, and configure.
    Use a fresh build directory for this release.
@@ -60,7 +60,7 @@ the CMake variable configuration, not the application's command-line arguments.
 5. Success ends with:
 
    ```text
-   100% tests passed, 0 tests failed out of 38
+   100% tests passed, 0 tests failed out of 41
    ```
 
 The target builds the app and all required test programs before running CTest.
@@ -105,7 +105,7 @@ an error when no tests are registered.
 2. Select **`kleiotide`** as the run configuration in Qt Creator. Enabling tests
    adds other executables to that list, so confirm the application is selected.
 3. Build and press the green **Run** button, as you normally do.
-4. In **Help > About Kleiotide**, verify version **0.27.2**, Oleg Shchepin's
+4. In **Help > About Kleiotide**, verify version **0.28.0**, Oleg Shchepin's
    copyright, GPLv3-only notice and Elizaveta Shchepina's designer credit.
 
 Use a separate output folder and test copies of your research files. Record
@@ -137,7 +137,7 @@ filename and file type.
 
 - Windows version; Qt Creator version; exact Qt kit/version; MSVC version;
   Release/Debug; Windows scaling percentage.
-- Automatic result (38/38 or failed names), the text log and JUnit XML.
+- Automatic result (41/41 or failed names), the text log and JUnit XML.
 - Manual checklist results and descriptions of failures or skipped checks.
 
 The new suite is validated locally on Linux. Your native run establishes the
@@ -233,11 +233,13 @@ from the updated source and its matching Source_For_Installer ZIP, following
 docs/WINDOWS_TOOLBAR_TEST_FIX.md. The subsequent native 0.26.12 test-1 build
 passed all 33 tests and focused manual checks, as recorded in WINDOWS_ACCEPTANCE.md.
 
-## 0.27.2 preferences and recovery acceptance
+## 0.28.0 preferences and recovery acceptance
 
-After release-check reports 38/38, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
+After release-check reports 41/41, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
 Cancel/reset and restart, new-session defaults versus saved sessions, current
 window isolation, MAFFT defaults versus per-job overrides, resource refusals,
 checkpoint cancellation, and recovery after terminating a disposable test process.
 The guide explains how to avoid risking your only copy of unsaved work. Native
 Windows and the real ARM environment remain separate from offscreen test results.
+
+For this release, follow RELEASE_0.28.0_TESTING.md for BLAST, linking and preview height.

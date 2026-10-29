@@ -93,7 +93,8 @@ public:
     std::function<void()> copy_rows_requested,cut_rows_requested;
     std::function<void()> copy_fragment_requested,cut_fragment_requested,paste_fragment_requested;
     std::function<void(SequenceId)> rename_requested;
-    std::function<void()> delete_rows_requested;
+    std::function<void()> delete_rows_requested,link_trace_requested,delete_trace_requested;
+    std::function<void(bool)> blast_requested;
     std::function<void()> add_group_requested,remove_group_requested;
     std::function<void(const QString&)> message;
 protected:

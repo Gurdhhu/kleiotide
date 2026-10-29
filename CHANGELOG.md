@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.0 — BLAST and trace assignment
+
+- Fit the reads-to-contig preview to its row count, with scrolling for many rows.
+- Link AB1 evidence to selected/all-untraced nucleotide rows using name suggestions
+  and manual assignments; preview forward/reverse affine mapping, leave ambiguous
+  calls unmapped, preserve original evidence and Apply/Delete in one Undo.
+- Add nucleotide/protein BLAST menus: built-in documented HTTPS, optional NCBI
+  BLAST+ remote advanced options, query dedup/batches, throttled/off-peak jobs,
+  cancellation/resume, GenBank enrichment and linked TSV/XLSX result tables.
+- Require Qt Network and verify native Windows Schannel deployment.
+- Expand automatic tests to 41, including loopback HTTP/child-process fixtures and
+  trace-mapping ground truth. Record native 0.27.2 acceptance; real ARM is pending.
+
 ## 0.27.2 — clipboard alignment and session sequence imports
 
 - Copy consensus plus contributing reads in final-contig FASTA alignment.

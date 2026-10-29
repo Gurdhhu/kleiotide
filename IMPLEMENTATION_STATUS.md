@@ -1,15 +1,22 @@
-# Implementation status — 0.27.2
+# Implementation status — 0.28.0 testing release
 
-28 October 2026. All seven tester requests implemented: aligned-read FASTA
-clipboard copy, explanatory merge naming, motif icon, corrected trace shortcut
-help, unified overview tooltip handling, hidden trace title strip and session
-sequence/trace append by Add/drop with explicit metadata-discard notification.
+28 October 2026. Native Windows 0.27.2 is accepted: all 38 automatic tests and
+all seven focused manual workflows pass. This source implements BLAST and trace
+assignment/mapping plus the requested compact reads-to-contig preview.
 
-Session format remains 4; imported original evidence is retained by shared trace
-links and saved normally. Imports are transactional batches and one Undo. Complete
-session Open behavior is unchanged. BLAST/trace linking remain 0.28.0 work.
-Native 0.27.1 test 1 is accepted: 38/38 automatic and focused manual checks pass,
-including Explorer Open With and installation. The 729 Mbp single-row overview
-is reported at about 10 s initially, with near-instant overwrite updates.
-Real ARM Automatic/fallback remains pending; earlier explicit Threads=1 works.
-See RELEASE_0.27.2_TESTING.md and VALIDATION.md for this version's checks.
+Trace linking includes four-tier names/manual assignments, shared evidence,
+affine forward/reverse mapping, all-optimal-path ambiguity handling, cancellable
+preview, atomic Apply/Delete with Undo and existing session persistence.
+BLAST includes built-in documented HTTP searches and an optional NCBI BLAST+
+remote launcher for advanced controls, batching/dedup, throttling/off-peak waits,
+RID/job resume, metadata enrichment, a sortable linked table and TSV/XLSX.
+
+No bundled BLAST+ executable or local BLAST database is supplied. Unsupported
+HTTP controls explicitly require that optional backend. Publication precision
+is limited to information in GenBank references (often year only). Scientific
+mapping labels remain heuristics; native acceptance is still required. Read
+BLAST_AND_TRACE_LINKING.md, RELEASE_0.28.0_TESTING.md and VALIDATION.md.
+
+Session format 4, GPL-3.0-only and branding policy remain unchanged. No Git
+checkout/remote was available here; no push or Windows installer binary is
+claimed. This remains a testing build, not RC1. Real ARM MAFFT is still pending.

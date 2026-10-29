@@ -13,6 +13,9 @@
 #include "gui/alignment_overview.hpp"
 #include "gui/mafft_dialog.hpp"
 #include "core/fasta.hpp"
+#include "core/trace_linking.hpp"
+#include "gui/trace_link_dialog.hpp"
+#include "gui/blast_dialog.hpp"
 #include "core/abif.hpp"
 #include "core/session.hpp"
 #include <QJsonDocument>
@@ -166,6 +169,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     view_->copy_rows_requested=[this]{copy_selected(true);};view_->cut_rows_requested=[this]{cut_selected();};
     view_->copy_fragment_requested=[this]{copy_clipboard();};view_->cut_fragment_requested=[this]{cut_clipboard();};view_->paste_fragment_requested=[this]{paste_fragment();};
     view_->rename_requested = [this](SequenceId id) { rename_sequence(id); };
+    view_->link_trace_requested=[this]{link_traces();};view_->delete_trace_requested=[this]{delete_traces();};view_->blast_requested=[this](bool protein){search_blast(protein);};
     view_->delete_rows_requested = [this] { delete_selected(); };
     view_->add_group_requested=[this]{group_action(1);};view_->remove_group_requested=[this]{group_action(2);};
     view_->message = [this](const QString& text) { statusBar()->showMessage(text, 5000); };
@@ -268,6 +272,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* sequence = menuBar()->addMenu("&Sequence");
     auto* setType=action(sequence,"Set sequence type…",{},[this]{set_sequence_type();});setType->setObjectName("setSequenceType");
     sequence->addSeparator();
+    action(sequence,"Link trace (AB1)…",{},[this]{link_traces();})->setObjectName("linkTrace");
+    action(sequence,"Delete trace…",{},[this]{delete_traces();})->setObjectName("deleteTrace");sequence->addSeparator();
     auto* merge=action(sequence,"Merge aligned sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
     auto* overlapMerge=action(sequence,"Find overlap and merge…",{},[this]{merge_sequences(true);});overlapMerge->setObjectName("findOverlapAndMerge");overlapMerge->setToolTip("Find overlaps in the current orientation with an optional edit allowance, review partial contigs and append the chosen result.");
     auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview retained groups/traces and Undo the entire operation once.");
@@ -351,6 +357,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         try { document_->minimize(); view_->refresh(); update_state(); }
         catch (const std::exception& e) { QMessageBox::warning(this, "Minimize", QString::fromUtf8(e.what())); }
     });
+    auto* blast=menuBar()->addMenu("&BLAST");
+    action(blast,"Nucleotide BLAST…",{},[this]{search_blast(false);})->setObjectName("nucleotideBlast");
+    action(blast,"Protein BLAST…",{},[this]{search_blast(true);})->setObjectName("proteinBlast");
     auto* highlight=menuBar()->addMenu("&Highlight");highlighter_->add_menu(highlight,mutatingActions_);
     auto* statistics=menuBar()->addMenu("&Statistics");statistics->setObjectName("statisticsMenu");
     action(statistics,"Alignment statistics…",{},[this]{show_statistics();})->setObjectName("alignmentStatisticsAction");
@@ -825,6 +834,22 @@ void MainWindow::add_new_sequence() {
         view_->refresh(); update_state();
     } catch (const std::exception& e) { QMessageBox::warning(this, "Add sequence", QString::fromUtf8(e.what())); }
 }
+void MainWindow::link_traces(){
+    if(busy_)return;
+    const auto selected=view_->selected_ids();bool ok=false;
+    const auto scope=QInputDialog::getItem(this,"Link trace (AB1)","Sequences to include",{"Selected nucleotide sequences","All nucleotide sequences without traces"},selected.empty()?1:0,false,&ok);if(!ok)return;
+    std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(row.kind==RowKind::Nucleotide&&(scope.startsWith("All")?!row.trace:std::find(selected.begin(),selected.end(),row.id)!=selected.end()))ids.push_back(row.id);
+    if(ids.empty()){QMessageBox::information(this,"Link trace","No eligible nucleotide sequences in this scope.");return;}
+    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied)view_->refresh();set_busy(false);update_state();
+}
+void MainWindow::delete_traces(){
+    if(busy_)return;
+    auto ids=view_->selected_ids();if(ids.empty()){QMessageBox::information(this,"Delete trace","Select sequence names first.");return;}
+    std::vector<std::pair<SequenceId,std::shared_ptr<const TraceLink>>> links;for(auto id:ids)if(document_->sequence(id).trace)links.push_back({id,{}});if(links.empty())return;
+    if(QMessageBox::question(this,"Delete trace links?","Remove the selected session trace associations? Sequence letters and original AB1 files are retained. Undo restores the links.",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
+    try{apply_trace_links(*document_,links);view_->refresh();update_state();}catch(const std::exception& e){QMessageBox::warning(this,"Delete trace",e.what());}
+}
+void MainWindow::search_blast(bool protein){if(busy_)return;set_busy(true,"BLAST query/report window…");blast_dialog(document_,view_->selected_ids(),protein,this);set_busy(false);update_state();}
 void MainWindow::set_sequence_type(){
     if(busy_)return;
     const auto ids=view_->selected_ids();

@@ -976,6 +976,10 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     if(annotate_mask_requested){SequenceId mask=0;if(document_&&event->pos().y()>=rulerHeight_){auto row=static_cast<std::size_t>((event->pos().y()-rulerHeight_)/rowHeight_+verticalScrollBar()->value());if(row<document_->rows().size()&&document_->rows()[row].kind==RowKind::Mask)mask=document_->rows()[row].id;}
         auto* annotate=menu.addAction("Annotate using this mask",[this,mask]{if(mask)annotate_mask_requested(mask);});annotate->setEnabled(mask!=0);}
     menu.addSeparator();
+    auto* link=menu.addAction("Link trace (AB1)…",[this]{if(link_trace_requested)link_trace_requested();});link->setEnabled(!selected_.empty());
+    auto* unlink=menu.addAction("Delete trace…",[this]{if(delete_trace_requested)delete_trace_requested();});unlink->setEnabled(!selected_.empty());menu.addSeparator();
+    menu.addAction("Nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
+    menu.addAction("Protein BLAST…",[this]{if(blast_requested)blast_requested(true);})->setEnabled(!selected_.empty());menu.addSeparator();
     auto* addGroup=menu.addAction("Add to group…",[this]{if(add_group_requested)add_group_requested();});addGroup->setEnabled(!selected_.empty());
     auto* removeGroup=menu.addAction("Remove from group",[this]{if(remove_group_requested)remove_group_requested();});removeGroup->setEnabled(!selected_.empty());
     menu.exec(event->globalPos());

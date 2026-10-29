@@ -136,3 +136,12 @@ Explorer Open With/side-by-side installer checks and recovery preservation.
 The same approximately 729 Mbp single sequence initially calculates its overview
 in about 10 s, and single-base overwrites update almost instantly. ARM MAFFT
 Automatic/fallback will be tested on a later version.
+
+## User report — 0.27.2 test 1, received 28 October 2026
+
+All 38 automatic tests and seven focused manual checks pass: FASTA alignment
+clipboard, merge/icon naming, corrected trace help, stable overview tooltips,
+trace header removal, session sequence/trace Add/drop with metadata discard and
+transactional failure, and combined-session persistence/Undo/evidence protection.
+Only the preview height needs further adjustment; 0.28.0 fits it to row count.
+This does not establish native acceptance of 0.28.0.

@@ -1,71 +1,62 @@
-# Kleiotide 0.27.2
+# Kleiotide 0.28.0
 
-Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing update adds targeted overview recalculation, read-alignment merge previews, interface corrections and Windows Open With registration. It is not yet a publicly released RC.
+Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing
+release adds nucleotide/protein BLAST and trace assignment/mapping to the
+accepted native Windows 0.27.2 baseline. It is not RC1.
 
-Open FASTA, AB1 chromatograms, or native `.kleio` sessions. Save uses a native session when groups, traces, proteins, explicit row types, or translation metadata need preserving. Export FASTA writes sequence text only and does not mark unsaved session changes as saved.
+Open FASTA, AB1 or native .kleio sessions. Save sessions to retain groups,
+translation metadata and embedded original trace evidence; FASTA export writes
+sequence text without falsely marking unsaved session metadata saved.
 
-## Build
+## Build and test
 
-Requirements: CMake 3.21+, C++20 compiler, Qt 6.5+ Widgets and Concurrent. The accepted baseline used Qt Creator 15.0.1 with the Qt 6.5.3 / MSVC 2022 x64 application kit. Qt Creator itself uses Qt 6.8.1.
-
-In Qt Creator, open `CMakeLists.txt`, select the MSVC x64 Qt kit, configure, and build `kleiotide`.
-
-From an initialized compiler environment:
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/kit
-cmake --build build --parallel 2
-```
-
-To build and run the core, Qt unit, and selected GUI release checks:
+Requirements: CMake 3.21+, C++20 compiler, Qt >=6.5 Widgets, Concurrent and Network.
+The usual Qt 6.5.3/MSVC2022 x64 Release kit remains suitable. Qt Creator's own
+Qt 6.8.1 is separate from the selected application kit. Use a fresh build directory.
 
 ```sh
-cmake -S . -B build -DKLEIOTIDE_BUILD_RELEASE_CHECKS=ON
-cmake --build build --target release-check
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/kit -DKLEIOTIDE_BUILD_RELEASE_CHECKS=ON
+cmake --build build --target release-check --parallel 2
 ```
 
-GUI release checks run offscreen; native Windows interaction remains part of acceptance. Start with [WINDOWS_TESTING.md](WINDOWS_TESTING.md) for step-by-step Qt Creator instructions. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for remaining gates, and [VALIDATION.md](VALIDATION.md) for actual results of this build. The `release-check` target also saves `release-tests-Release.log` and `release-tests-Release.xml` in the build directory.
+Expected: 41/41 registered tests (20 core, seven Qt unit, fourteen GUI workflows).
+Automatic BLAST tests use loopback HTTP and a controlled process, never NCBI.
+Read [WINDOWS_TESTING.md](WINDOWS_TESTING.md), [VALIDATION.md](VALIDATION.md),
+[RELEASE_0.28.0_TESTING.md](RELEASE_0.28.0_TESTING.md) and
+[WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md) for native tests and packaging.
 
-Optional development builds:
+## New workflows
 
-- `KLEIOTIDE_BUILD_GUI=OFF`: core library and tests without Qt.
-- `BUILD_TESTING=OFF`: omit unit tests.
-- `KLEIOTIDE_BUILD_DEVELOPER_TOOLS=ON`: benchmarks and the ABIF probe.
-- `KLEIOTIDE_BUILD_GUI_SMOKE_CHECK=ON`: historical GUI workflow tools.
-- `KLEIOTIDE_BUILD_VIEWPORT_CHECK=ON`: viewport/drag checks.
+Sequence → Link trace (AB1) assigns batch evidence to selected/all-untraced
+nucleotide rows, previews orientation/peak mapping and applies in one Undo.
+Delete trace unlinks associations only. The original calls/signals remain intact.
+The merge read preview now fits its row count, with scrolling for many reads.
 
-GUI implementation sources are compiled once into a shared static build target, then linked into the application and checks. Qt itself remains dynamically linked.
+BLAST → Nucleotide BLAST / Protein BLAST sends captured ungapped queries after
+confirmation. Standard searches use built-in HTTPS; advanced options can use a
+separately installed NCBI BLAST+ blastn/blastp -remote executable. Batching,
+deduplication, cancellation/RID resume, GenBank enrichment, linked sortable
+results and TSV/XLSX export are included. Read
+[BLAST_AND_TRACE_LINKING.md](BLAST_AND_TRACE_LINKING.md) for supported options,
+limits, metric definitions, mapping heuristics and required native acceptance.
 
-## Features and formats
+The other workflows remain: nucleotide/protein/mask editing and gap locking,
+Undo/Redo, groups/table imports, identity clustering/representatives, trace edits
+and AB1 export, quality operations, merge/collapse, translation/annotations,
+motif search, site highlights/statistics, distances, MAFFT, global Settings and
+recovery. Feature guides and historical records remain included. Session format
+stays 4. ARM remains the x64 build under Windows 11 emulation; real MAFFT
+Automatic/fallback testing is pending on the colleague's machine.
 
-The application supports nucleotide, protein and mask rows; editing and gap locking; undo/redo; group management and table imports; identity grouping; representative selection; trace editing/export and quality operations; merge/overlap workflows; translation and coding annotations; motif search; site highlights and statistics; composition and distance analyses; and external MAFFT integration.
+## Source, citation and licensing
 
-Feature details remain in `IDENTITY_GROUPS.md`, `MERGING.md`, `COLLAPSE.md`, `SESSION_FORMAT.md`, `PROTEIN_TRANSLATION_PLAN.md`, `SITE_ANALYSIS.md`, `DISTANCES.md`, `DISPLAY_COLORS.md`, `MAFFT_PROTEINS.md`, and the AB1 documents. The source archive retains older development notes and testing guides under `docs/history/`.
+https://github.com/Gurdhhu/kleiotide
 
-See [CHANGELOG.md](CHANGELOG.md) for the complete recorded version history and [ICON_GUIDELINES.md](ICON_GUIDELINES.md) for artwork formats and export sizes.
+See [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md), CONTRIBUTING.md and CITATION.cff.
+The source ZIP/package script is matched to this exact version for embedding in
+the Windows installer. No Git commit/push or installer binary was produced here.
 
-## Source repository
-
-For an initial import into an empty private GitHub repository and a minimal command-line Git workflow, see [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md). Contributor guidance is in [CONTRIBUTING.md](CONTRIBUTING.md), and [CITATION.cff](CITATION.cff) provides provisional software citation metadata. The repository intentionally tracks source and release-building scripts, not compiled binaries or generated build directories.
-
-Copyright (C) 2026 Oleg Shchepin. Kleiotide is free software under the **GNU GPL version 3 only** (`GPL-3.0-only`), without warranty; see [LICENSE](LICENSE) and [LICENSE-STATUS.md](LICENSE-STATUS.md). The official logo/icon has a separate policy in [BRANDING.md](BRANDING.md). Its designer is **Elizaveta Shchepina (Storminka / Io Tikhaya)**; the artwork will be supplied later. Dependencies and distribution preparation are described in [DEPENDENCIES.md](DEPENDENCIES.md).
-
-Native Windows acceptance and the user's scale observations are recorded in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md). Bulk edits have a 2 GiB estimated additional working-memory limit; operations above it report an error before making sequence changes. This is separate from stored alignment size and the undo-history budget.
-
-Windows test installer preparation is described in [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
-This release follows the accepted 0.27.0 Settings/recovery checkpoint. File → Settings defines
-new-session defaults and operational limits. Recovery creates separate atomic
-native checkpoints and offers Recover/Open copy choices. The overview uses
-bounded tiles instead of a full-length column evidence array. Read
-[SETTINGS_AND_RECOVERY.md](SETTINGS_AND_RECOVERY.md) for behavior and native tests.
-
-The accepted native x64 baseline is 0.27.1 test 1. Native Windows acceptance for
-this version is pending; ARM MAFFT remains pending and can use a later build.
-BLAST and trace linking are planned for 0.28.0 and are not included here. See
-[RELEASE_PLAN_0.27.2_0.28.0.md](RELEASE_PLAN_0.27.2_0.28.0.md) and
-[RELEASE_0.27.2_TESTING.md](RELEASE_0.27.2_TESTING.md). See
-[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
-[VALIDATION.md](VALIDATION.md) for exact scope/results.
-
-0.27.2 adds clipboard merge alignments, session sequence/trace append, stable
-overview tooltips and trace/menu polish. See RELEASE_0.27.2_TESTING.md.
+Copyright © 2026 Oleg Shchepin. GPL version 3 only, without warranty; see LICENSE
+and LICENSE-STATUS.md. Logo/icon designer: Elizaveta Shchepina (Storminka /
+Io Tikhaya); separate policy in BRANDING.md. The artwork will be supplied later.
+Dependencies/distribution are documented in DEPENDENCIES.md and WINDOWS_INSTALLER.md.

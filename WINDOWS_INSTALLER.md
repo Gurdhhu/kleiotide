@@ -1,12 +1,13 @@
-# Windows test installer — Kleiotide 0.27.2 test 1
+# Windows test installer — Kleiotide 0.28.0 test 1
 
-This correction release follows accepted native Windows 0.27.1 test 1 (38/38
-and focused manual checks). The new suite has 38 entries and needs native
-acceptance. See RELEASE_0.27.2_TESTING.md, especially Explorer Open With and layout.
-ARM MAFFT can be retested on a later version; explicit Threads=1 is confirmed
-on the colleague's earlier 0.26.11 test 2, not this new automatic-policy build.
+This release follows accepted native Windows 0.27.2 test 1 (38/38 and focused
+manual checks). The suite now has 41 entries. Read RELEASE_0.28.0_TESTING.md and
+BLAST_AND_TRACE_LINKING.md; new native/live-server acceptance is required.
+Qt Network plus tls/qschannelbackend.dll are verified during deployment; the
+OpenSSL backend is omitted to avoid an untracked runtime dependency. The x64
+kit/source/runtime/NSIS workflow otherwise remains the same.
 
-Use the nested **Kleiotide_0.27.2_Source_For_Installer.zip** as the source ZIP,
+Use the nested **Kleiotide_0.28.0_Source_For_Installer.zip** as the source ZIP,
 not the outer checkpoint bundle. Extract it into a fresh source folder and open
 CMakeLists.txt with the existing Qt 6.5.3 / MSVC2022 x64 Release kit. Reuse the
 same matching Qt source ZIP, original Microsoft runtime and NSIS inputs. No
@@ -15,7 +16,7 @@ Windows setup executable was produced in the local Linux validation environment.
 ## What the installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.27.2-1`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.28.0-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -83,7 +84,7 @@ provide the source for the bundled Qt libraries.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt 6.8.1 is
    unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.27.2` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.28.0` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -91,7 +92,7 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.27.2_Source_For_Installer.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.28.0_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
@@ -108,7 +109,7 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.27.2_test1/
+test-installers/Kleiotide_0.28.0_test1/
 ```
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,
@@ -159,10 +160,10 @@ resolution of any failures that threaten data integrity or ordinary workflows.
   https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
 - NSIS: https://nsis.sourceforge.io/License
 
-## Focused checks for 0.27.2
+## Focused checks for 0.28.0
 
-The test-installer target runs the full 38-entry release-check before packaging.
-Read RELEASE_0.27.2_TESTING.md for the changed workflows and native Open With
+The test-installer target runs the full 41-entry release-check before packaging.
+Read RELEASE_0.28.0_TESTING.md for the changed workflows and native Open With
 retest; SETTINGS_AND_RECOVERY.md covers the existing preferences/recovery workflow,
 including strict session precedence, per-job MAFFT choices, cancellation, crash
 recovery on disposable data and the bounded overview of a long sequence. Native

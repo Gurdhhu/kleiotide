@@ -1,6 +1,6 @@
 # Dependencies and distribution status
 
-- Qt Widgets and Concurrent: required to build/run the GUI; obtain the matching Qt kit and retain its applicable notices. The source archive does not bundle Qt binaries.
+- Qt Widgets, Concurrent and Network: required to build/run the GUI; obtain the matching Qt kit and retain its applicable notices. The source archive does not bundle Qt binaries.
 - C++ standard library/compiler runtime: use the runtime matching the chosen Windows MSVC build. Check the output of the exact kit's deployment tool.
 - MAFFT: optional external program selected by the user. Neither its binaries nor its license are bundled here.
 - CMake/Ninja/compiler: development tools, not application runtime components.
@@ -20,3 +20,9 @@ checking x64 user-mode support. It still ships x64 application/Qt binaries and
 the original Microsoft x64 Redistributable. Microsoft's current x64 package
 also contains ARM64 components. Actual ARM64 runtime acceptance remains pending.
 Reference: https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
+
+0.28.0 uses built-in HTTPS via Qt Network and deploys the Windows Schannel TLS
+plugin. Standard BLAST needs no external executable. Optional advanced tasks
+use a user-installed NCBI BLAST+ blastn/blastp -remote executable; its binaries
+and databases are not bundled, and it remains separately licensed/distributed.
+The small XLSX/ZIP writer is project code with no added third-party library.

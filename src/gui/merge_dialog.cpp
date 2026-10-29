@@ -43,13 +43,14 @@ struct Preview {MergePlan plan;QString error;};
 class MergeAlignmentPreview final:public QAbstractScrollArea {
 public:
     MergeAlignmentPreview(QWidget* parent):QAbstractScrollArea(parent){
-        setObjectName("mergeAlignment");setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));setMinimumHeight(140);
+        setObjectName("mergeAlignment");setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));setMinimumHeight(0);
         connect(horizontalScrollBar(),&QScrollBar::valueChanged,viewport(),qOverload<>(&QWidget::update));
         connect(verticalScrollBar(),&QScrollBar::valueChanged,viewport(),qOverload<>(&QWidget::update));
     }
-    void show_plan(const MergeContig* plan,const Document* source){plan_=plan;source_=source;resize_ranges();viewport()->update();}
+    void show_plan(const MergeContig* plan,const Document* source){plan_=plan;source_=source;resize_ranges();fit_height();viewport()->update();}
+
 protected:
-    void resizeEvent(QResizeEvent* e)override{QAbstractScrollArea::resizeEvent(e);resize_ranges();}
+    void resizeEvent(QResizeEvent* e)override{QAbstractScrollArea::resizeEvent(e);resize_ranges();fit_height();}
     void paintEvent(QPaintEvent*)override{
         QPainter p(viewport());p.fillRect(viewport()->rect(),Qt::white);if(!plan_||!source_)return;
         p.setFont(font());const auto fm=fontMetrics();const int cell=std::max(1,fm.horizontalAdvance('M')),line=fm.height()+6,names=180;
@@ -71,6 +72,12 @@ protected:
         }
     }
 private:
+    void fit_height(){
+        const auto fm=fontMetrics();const auto rows=plan_?plan_->alignment.size()+2:std::size_t(1);
+        const bool horizontal=plan_&&plan_->symbols.size()>std::size_t(std::max(1,(viewport()->width()-180)/std::max(1,fm.horizontalAdvance('M'))));
+        const int wanted=int(std::min<std::size_t>(rows,12))*(fm.height()+6)+2*frameWidth()+2+(horizontal?horizontalScrollBar()->sizeHint().height():0);
+        if(minimumHeight()!=wanted)setFixedHeight(wanted);
+    }
     void resize_ranges(){
         const auto fm=fontMetrics();const int cell=std::max(1,fm.horizontalAdvance('M')),line=fm.height()+6;
         const int columns=plan_?int(std::min<std::size_t>(plan_->symbols.size(),std::numeric_limits<int>::max())):0;
