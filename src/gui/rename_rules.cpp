@@ -1,4 +1,5 @@
 #include "gui/rename_rules.hpp"
+#include "gui/table_io.hpp"
 #include <QHash>
 #include <QSet>
 #include <QTextBoundaryFinder>
@@ -28,8 +29,8 @@ RenamePlan make_rename_plan(const Document& document,const RenameOptions& option
     if((options.operation==RenameOperation::Prepend||options.operation==RenameOperation::Append||options.operation==RenameOperation::Filename||options.operation==RenameOperation::Replace)&&options.text.isEmpty())throw std::invalid_argument("Enter the text to add or find.");
     if((options.operation==RenameOperation::StripSuffix||options.operation==RenameOperation::Unique)&&options.separator.isEmpty())throw std::invalid_argument("Enter a nonempty suffix separator.");
     QHash<QString,QString> mappings;QHash<QString,std::size_t> matches;
-    if(table){auto lines=options.table.split('\n');int number=0;for(auto line:lines){++number;if(line.endsWith('\r'))line.chop(1);if(line.isEmpty())continue;const auto tab=line.indexOf('\t');if(tab<=0||tab==line.size()-1||line.indexOf('\t',tab+1)>=0)throw std::invalid_argument((QString("Line %1: expected old name<TAB>new name or appended text.").arg(number)).toStdString());
-        const auto old=line.left(tab),replacement=line.mid(tab+1);valid(replacement);if(mappings.contains(old)&&mappings[old]!=replacement)throw std::invalid_argument((QString("Line %1: conflicting mappings for %2.").arg(number).arg(old)).toStdString());mappings[old]=replacement;}
+    if(table){int number=0;for(const auto& cells:parse_text_table(options.table)){++number;if(cells.size()!=2)throw std::invalid_argument((QString("Line %1: expected two selected columns.").arg(number)).toStdString());
+        const auto old=normalized_table_cell(cells[0]),replacement=normalized_table_cell(cells[1]);valid(old);valid(replacement);if(mappings.contains(old)&&mappings[old]!=replacement)throw std::invalid_argument((QString("Line %1: conflicting mappings for %2.").arg(number).arg(old)).toStdString());mappings[old]=replacement;}
         if(mappings.isEmpty())throw std::invalid_argument("The rename table is empty.");}
     QSet<QString> reserved,assigned;
     for(const auto& row:document.rows()){reserved.insert(name_of(row));if(!included(row.id))assigned.insert(name_of(row));}

@@ -21,8 +21,7 @@ int main(int argc,char** argv){
     auto* initial=new kleiotide::MainWindow;initial->setAttribute(Qt::WA_DeleteOnClose);initial->show();QPointer<kleiotide::MainWindow> first=initial;bool useInitial=!files.isEmpty();
     requests.opened=[&](const QStringList& paths){auto* window=useInitial&&first?first.data():new kleiotide::MainWindow;useInitial=false;
         window->setAttribute(Qt::WA_DeleteOnClose);window->show();window->raise();window->activateWindow();window->open_paths(paths);};
-    requests.activate=[&]{auto* window=first.data();if(!window)for(auto* widget:QApplication::topLevelWidgets())if(auto* candidate=dynamic_cast<kleiotide::MainWindow*>(widget)){window=candidate;break;}
-        if(window){window->show();window->raise();window->activateWindow();}};
+    requests.activate=[&]{auto* window=new kleiotide::MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->show();window->raise();window->activateWindow();};
     if(!files.isEmpty())requests.queue(files);
     else QTimer::singleShot(0,initial,[initial]{initial->offer_recovery(true);});
     return app.exec();

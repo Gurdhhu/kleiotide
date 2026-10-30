@@ -174,7 +174,8 @@ Keep that source archive available to every recipient, including on download sit
 Qt shared libraries can be replaced with compatible modified builds.
 Microsoft Visual C++ runtime: separate Microsoft license; installed by its original installer.
 NSIS installer engine: see third-party/NSIS-COPYING.txt. Compression uses zlib.
-MAFFT is optional, external and not bundled. The official artwork is not yet included.
+miniz 3.0.2 inflate component (MIT): see third-party/miniz/LICENSE.
+MAFFT and NCBI BLAST+ are optional, external and not bundled. The official artwork is not yet included.
 "@
 $sourceNotice | Set-Content -LiteralPath (Join-Path $payload 'THIRD_PARTY.txt') -Encoding UTF8
 $sourceNotice | Set-Content -LiteralPath (Join-Path $releaseDir 'READ-ME.txt') -Encoding UTF8

@@ -1,8 +1,10 @@
-# Kleiotide 0.28.0
+# Kleiotide 0.29.0
 
 Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing
-release adds nucleotide/protein BLAST and trace assignment/mapping to the
-accepted native Windows 0.27.2 baseline. It is not RC1.
+release adds local BLAST databases/searches, SPART group exchange, CSV/XLSX table
+loading and merge/trace/dialog improvements. NCBI nucleotide searches use HTTPS;
+BLAST+ remote searches and NCBI protein searches have been removed. It is not RC1.
+See RELEASE_0.29.0_TESTING.md, LOCAL_BLAST.md and SPART_AND_TABLES.md.
 
 Open FASTA, AB1 or native .kleio sessions. Save sessions to retain groups,
 translation metadata and embedded original trace evidence; FASTA export writes
@@ -19,26 +21,25 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/k
 cmake --build build --target release-check --parallel 2
 ```
 
-Expected: 41/41 registered tests (20 core, seven Qt unit, fourteen GUI workflows).
-Automatic BLAST tests use loopback HTTP and a controlled process, never NCBI.
+Expected: 44/44 registered tests (20 core, eight Qt unit, sixteen GUI workflows).
+Automatic remote BLAST tests use loopback HTTP, never NCBI. Local UI checks do
+not require BLAST+; optional actual-tool validation is described in VALIDATION.md.
 Read [WINDOWS_TESTING.md](WINDOWS_TESTING.md), [VALIDATION.md](VALIDATION.md),
-[RELEASE_0.28.0_TESTING.md](RELEASE_0.28.0_TESTING.md) and
+[RELEASE_0.29.0_TESTING.md](RELEASE_0.29.0_TESTING.md) and
 [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md) for native tests and packaging.
 
 ## New workflows
 
 Sequence → Link trace (AB1) assigns batch evidence to selected/all-untraced
-nucleotide rows, previews orientation/peak mapping and applies in one Undo.
+nucleotide rows, previews orientation/peak mapping and applies the reviewed links.
 Delete trace unlinks associations only. The original calls/signals remain intact.
 The merge read preview now fits its row count, with scrolling for many reads.
 
-BLAST → Nucleotide BLAST / Protein BLAST sends captured ungapped queries after
-confirmation. Standard searches use built-in HTTPS; advanced options can use a
-separately installed NCBI BLAST+ blastn/blastp -remote executable. Batching,
-deduplication, cancellation/RID resume, GenBank enrichment, linked sortable
-results and TSV/XLSX export are included. Read
-[BLAST_AND_TRACE_LINKING.md](BLAST_AND_TRACE_LINKING.md) for supported options,
-limits, metric definitions, mapping heuristics and required native acceptance.
+BLAST → NCBI nucleotide BLAST sends ungapped queries after confirmation. It uses
+HTTPS with saved RID resume, GenBank enrichment, numbered/sortable results and
+TSV/XLSX exports with accession hyperlinks. Local BLAST supports all five search
+programs and databases created from FASTA/.kleio; see LOCAL_BLAST.md. SPART group
+exchange and common TSV/CSV/XLSX import are described in SPART_AND_TABLES.md.
 
 The other workflows remain: nucleotide/protein/mask editing and gap locking,
 Undo/Redo, groups/table imports, identity clustering/representatives, trace edits

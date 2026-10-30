@@ -93,7 +93,7 @@ void AlignmentOverview::paintEvent(QPaintEvent*){
         p.fillRect(viewport,QColor(0,220,255,38));p.setPen(QPen(Qt::white,5));p.drawRect(viewport.adjusted(2,2,-2,-2));
         p.setPen(QPen(QColor(0,90,180),3));p.drawRect(viewport.adjusted(2,2,-2,-2));
         std::optional<std::pair<std::size_t,std::size_t>> selected;
-        if(const auto& f=view_->fragment())selected=std::pair{f->start,f->start+f->width};
+        if(const auto& fragment=view_->fragment())selected=std::pair{fragment->start,fragment->start+fragment->width};
         else if(const auto caret=view_->caret())selected=std::pair{caret->second,caret->second+1};
         if(selected){
             const int left=area.left()+int(std::min(selected->first,document_->columns())*scale);

@@ -978,8 +978,8 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     menu.addSeparator();
     auto* link=menu.addAction("Link trace (AB1)…",[this]{if(link_trace_requested)link_trace_requested();});link->setEnabled(!selected_.empty());
     auto* unlink=menu.addAction("Delete trace…",[this]{if(delete_trace_requested)delete_trace_requested();});unlink->setEnabled(!selected_.empty());menu.addSeparator();
-    menu.addAction("Nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
-    menu.addAction("Protein BLAST…",[this]{if(blast_requested)blast_requested(true);})->setEnabled(!selected_.empty());menu.addSeparator();
+    menu.addAction("NCBI nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
+    menu.addAction("Local protein BLAST…",[this]{if(blast_requested)blast_requested(true);})->setEnabled(!selected_.empty());menu.addSeparator();
     auto* addGroup=menu.addAction("Add to group…",[this]{if(add_group_requested)add_group_requested();});addGroup->setEnabled(!selected_.empty());
     auto* removeGroup=menu.addAction("Remove from group",[this]{if(remove_group_requested)remove_group_requested();});removeGroup->setEnabled(!selected_.empty());
     menu.exec(event->globalPos());
@@ -1088,7 +1088,7 @@ void AlignmentView::keyPressEvent(QKeyEvent* event) {
 }
 }
 namespace kleiotide {
-void AlignmentView::set_translation(std::shared_ptr<const TranslationResult> t,bool enabled,bool amino,bool ruler){const bool changed=translation_!=t||translationEnabled_!=enabled||aminoLetters_!=amino;const bool metrics=codonRuler_!=(enabled&&ruler);translation_=std::move(t);translationEnabled_=enabled;aminoLetters_=amino;codonRuler_=enabled&&ruler;if(changed)tiles_.clear();if(metrics){update_metrics();clear_render_cache();refresh();}if(changed||metrics)viewport()->update();}
+void AlignmentView::set_translation(std::shared_ptr<const TranslationResult> t,bool enabled,bool amino,bool ruler){const bool translationChanged=translation_!=t||translationEnabled_!=enabled||aminoLetters_!=amino;const bool metrics=codonRuler_!=(enabled&&ruler);translation_=std::move(t);translationEnabled_=enabled;aminoLetters_=amino;codonRuler_=enabled&&ruler;if(translationChanged)tiles_.clear();if(metrics){update_metrics();clear_render_cache();refresh();}if(translationChanged||metrics)viewport()->update();}
 bool AlignmentView::complete_selection()const{if(!document_||!fragment_)return true;const std::unordered_set<SequenceId> selected(fragment_->ids.begin(),fragment_->ids.end());for(const auto& row:document_->rows())if(selected.contains(row.id)&&!complete_protein_selection(row,fragment_->start,fragment_->width))return false;return true;}
 bool AlignmentView::insertable_selection()const{if(!fragment_)return true;if(fragment_->ids.size()!=1)return false;if(fragment_->width==1)return true;auto span=protein_span(document_->sequence(fragment_->ids.front()),fragment_->start);return span&&span->first()==fragment_->start&&span->last()+1==fragment_->start+fragment_->width;}
 

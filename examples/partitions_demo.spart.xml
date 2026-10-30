@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <project_name>Kleiotide_example</project_name>
+  <date>2026-10-29</date>
+  <individuals>
+    <individual id="alpha"/>
+    <individual id="beta"/>
+    <individual id="unassigned"/>
+  </individuals>
+  <spartitions>
+    <spartition label="Separate">
+      <subsets>
+        <subset label="1"><individual ref="alpha"/></subset>
+        <subset label="2"><individual ref="beta"/></subset>
+      </subsets>
+    </spartition>
+    <spartition label="Together">
+      <subsets><subset label="5"><individual ref="alpha"/><individual ref="beta"/></subset></subsets>
+    </spartition>
+  </spartitions>
+</root>

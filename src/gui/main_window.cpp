@@ -3,6 +3,8 @@
 #include "core/version.hpp"
 #include "gui/site_highlighter.hpp"
 #include "gui/main_window.hpp"
+#include "gui/spart.hpp"
+#include "gui/local_blast.hpp"
 #include "gui/app_settings.hpp"
 #include "gui/settings_dialog.hpp"
 #include "gui/recovery.hpp"
@@ -269,6 +271,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(rename, "Using old name / new name table…", {}, [this] { rename_from_table(); });
     rename->addSeparator();
     for(int i=0;i<static_cast<int>(RenameOperation::Table);++i){const auto op=static_cast<RenameOperation>(i);action(rename,rename_operation_label(op),{},[this,op]{batch_rename(op);});}
+    action(file,"Export sequence groups…",{},[this]{export_sequence_groups(*document_,this);})->setObjectName("exportGroups");
     auto* sequence = menuBar()->addMenu("&Sequence");
     auto* setType=action(sequence,"Set sequence type…",{},[this]{set_sequence_type();});setType->setObjectName("setSequenceType");
     sequence->addSeparator();
@@ -276,12 +279,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(sequence,"Delete trace…",{},[this]{delete_traces();})->setObjectName("deleteTrace");sequence->addSeparator();
     auto* merge=action(sequence,"Merge aligned sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
     auto* overlapMerge=action(sequence,"Find overlap and merge…",{},[this]{merge_sequences(true);});overlapMerge->setObjectName("findOverlapAndMerge");overlapMerge->setToolTip("Find overlaps in the current orientation with an optional edit allowance, review partial contigs and append the chosen result.");
-    auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview retained groups/traces and Undo the entire operation once.");
+    auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview the retained groups and traces.");
     sequence->addSeparator();
     auto* groups=sequence->addMenu("Groups");
     const char* groupLabels[]={"Manage groups…","Add selected sequences to group…","Remove selected sequences from group","Import groups from table…"};
     const char* groupIds[]={"manageGroups","assignGroup","removeGroup","importGroups"};
     for(int i=0;i<4;++i){auto* a=action(groups,groupLabels[i],{},[this,i]{group_action(i);});a->setObjectName(groupIds[i]);}
+    action(groups,"Import groups from SPART…",{},[this]{if(busy_)return;if(import_spart_groups(*document_,this)){view_->refresh();update_state();}})->setObjectName("importSpart");
     auto* identityGroups=action(groups,"Group by % identity…",{},[this]{group_by_identity();});identityGroups->setObjectName("groupByIdentity");
     auto* identicalGroups=action(groups,"Group identical sequences…",{},[this]{group_action(5);});identicalGroups->setObjectName("groupIdentical");
     auto sequence_transform = [this](Document::Transform operation) {
@@ -358,8 +362,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         catch (const std::exception& e) { QMessageBox::warning(this, "Minimize", QString::fromUtf8(e.what())); }
     });
     auto* blast=menuBar()->addMenu("&BLAST");
-    action(blast,"Nucleotide BLAST…",{},[this]{search_blast(false);})->setObjectName("nucleotideBlast");
-    action(blast,"Protein BLAST…",{},[this]{search_blast(true);})->setObjectName("proteinBlast");
+    action(blast,"NCBI nucleotide BLAST…",{},[this]{search_blast(false);})->setObjectName("nucleotideBlast");
+    blast->addSeparator();action(blast,"Create a local nucleotide database file…",{},[this]{if(!busy_)create_local_database(false,this);})->setObjectName("createLocalNucleotideDatabase");action(blast,"Create a local protein database file…",{},[this]{if(!busy_)create_local_database(true,this);})->setObjectName("createLocalProteinDatabase");action(blast,"Local nucleotide BLAST…",{},[this]{if(busy_)return;set_busy(true,"Local BLAST…");local_blast_dialog(document_,view_->selected_ids(),false,this);set_busy(false);update_state();})->setObjectName("localNucleotideBlast");action(blast,"Local protein BLAST…",{},[this]{if(busy_)return;set_busy(true,"Local BLAST…");local_blast_dialog(document_,view_->selected_ids(),true,this);set_busy(false);update_state();})->setObjectName("localProteinBlast");
     auto* highlight=menuBar()->addMenu("&Highlight");highlighter_->add_menu(highlight,mutatingActions_);
     auto* statistics=menuBar()->addMenu("&Statistics");statistics->setObjectName("statisticsMenu");
     action(statistics,"Alignment statistics…",{},[this]{show_statistics();})->setObjectName("alignmentStatisticsAction");
@@ -849,7 +853,7 @@ void MainWindow::delete_traces(){
     if(QMessageBox::question(this,"Delete trace links?","Remove the selected session trace associations? Sequence letters and original AB1 files are retained. Undo restores the links.",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
     try{apply_trace_links(*document_,links);view_->refresh();update_state();}catch(const std::exception& e){QMessageBox::warning(this,"Delete trace",e.what());}
 }
-void MainWindow::search_blast(bool protein){if(busy_)return;set_busy(true,"BLAST query/report window…");blast_dialog(document_,view_->selected_ids(),protein,this);set_busy(false);update_state();}
+void MainWindow::search_blast(bool protein){if(busy_)return;if(protein){set_busy(true,"Local protein BLAST…");local_blast_dialog(document_,view_->selected_ids(),true,this);set_busy(false);update_state();return;}set_busy(true,"BLAST query/report window…");blast_dialog(document_,view_->selected_ids(),protein,this);set_busy(false);update_state();}
 void MainWindow::set_sequence_type(){
     if(busy_)return;
     const auto ids=view_->selected_ids();

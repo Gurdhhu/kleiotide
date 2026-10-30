@@ -1,5 +1,8 @@
 #include "gui/groups_dialog.hpp"
 #include "core/group_import.hpp"
+#include "gui/table_io.hpp"
+#include "gui/spart.hpp"
+#include <QMessageBox>
 #include <QAbstractTableModel>
 #include <QCheckBox>
 #include <QColor>
@@ -45,10 +48,10 @@ public:
 struct ImportResult {std::shared_ptr<GroupImportPlan> plan;QString error;};
 class ImportDialog final:public QDialog {
 public:
-    ImportDialog(Document& source,QWidget* parent):QDialog(parent),source_(source){
+    ImportDialog(Document& source,QWidget* parent,std::vector<SpartPartition> partitions={}):QDialog(parent),source_(source){
         setObjectName("groupImportDialog");setWindowTitle("Import sequence groups");resize(960,680);auto* layout=new QVBoxLayout(this);
-        auto* note=new QLabel("Paste or load a UTF-8 tab-separated table and choose its sequence-name and group-name columns. Two-column tables use the first column for names and the second for groups. Surrounding parentheses and TSV quotes are removed from cells. Empty group means Ungrouped. Unmatched titles are skipped; errors block Apply.",this);note->setWordWrap(true);layout->addWidget(note);
-        auto* load=new QPushButton("Load table…",this);load->setObjectName("groupImportLoad");layout->addWidget(load);
+        auto* note=new QLabel("Paste or load a TSV, CSV or XLSX table and choose its sequence-name and group-name columns. Two-column tables use the first column for names and the second for groups. Surrounding parentheses and TSV quotes are removed from cells. Empty group means Ungrouped. Unmatched titles are skipped; errors block Apply.",this);note->setWordWrap(true);layout->addWidget(note);
+        auto* load=new QPushButton("Load table…",this);load->setObjectName("groupImportLoad");load->setToolTip("Load a TSV, CSV or XLSX table and choose its columns.");layout->addWidget(load);
         input_=new QPlainTextEdit(this);input_->setObjectName("groupImportText");input_->setPlaceholderText("Sequence_name\tGroup_name");input_->setLineWrapMode(QPlainTextEdit::NoWrap);layout->addWidget(input_);
         header_=new QCheckBox("First row is a header",this);header_->setObjectName("groupImportHeader");duplicates_=new QCheckBox("Apply to all matching duplicate sequence titles",this);duplicates_->setObjectName("groupImportDuplicates");layout->addWidget(header_);layout->addWidget(duplicates_);
         auto* mapping=new QFormLayout;sequenceColumn_=new QComboBox(this);sequenceColumn_->setObjectName("groupImportSequenceColumn");groupColumn_=new QComboBox(this);groupColumn_->setObjectName("groupImportGroupColumn");
@@ -60,8 +63,11 @@ public:
         debounce_=new QTimer(this);debounce_->setSingleShot(true);debounce_->setInterval(200);connect(debounce_,&QTimer::timeout,this,[this]{start();});
         connect(input_,&QPlainTextEdit::textChanged,this,[this]{schedule();});connect(header_,&QCheckBox::toggled,this,[this]{schedule();});connect(duplicates_,&QCheckBox::toggled,this,[this]{schedule();});connect(sequenceColumn_,&QComboBox::currentIndexChanged,this,[this]{schedule();});connect(groupColumn_,&QComboBox::currentIndexChanged,this,[this]{schedule();});connect(buttons,&QDialogButtonBox::rejected,this,&ImportDialog::reject);
         connect(apply_,&QPushButton::clicked,this,[this]{try{if(!model_->plan)return;const auto before=source_.state_id();apply_group_import(source_,*model_->plan);changed=source_.state_id()!=before;accept();}catch(const std::exception& e){clearPreview();summary_->setText(QString::fromUtf8(e.what()));}});
-        connect(load,&QPushButton::clicked,this,[this]{const auto path=QFileDialog::getOpenFileName(this,"Load group table",{},"Tab-separated table (*.tsv *.txt);;All files (*)");if(path.isEmpty())return;clearPreview();QFile file(path);if(!file.open(QIODevice::ReadOnly)||file.size()>static_cast<qint64>(group_import_max_bytes)){summary_->setText("Cannot read table, or table exceeds 16 MiB.");return;}auto bytes=file.readAll();if(bytes.startsWith("\xef\xbb\xbf"))bytes.remove(0,3);const auto decoded=QString::fromUtf8(bytes);if(decoded.toUtf8()!=bytes){summary_->setText("The table must use valid UTF-8 encoding.");return;}input_->setPlainText(decoded);schedule();});
-        summary_->setText("Paste or load a table to preview its column mapping. Validation runs in the background.");
+        connect(load,&QPushButton::clicked,this,[this]{if(auto content=load_table_file(this,"Load group table")){input_->setPlainText(*content);schedule();}});
+
+        summary_->setText("Paste or load a table to preview its column mapping.");
+        if(!partitions.empty()){auto* partition=new QComboBox(this);partition->setObjectName("spartPartition");for(const auto& p:partitions)partition->addItem(p.name);auto* choice=new QFormLayout;choice->addRow("SPART partition",partition);layout->insertLayout(0,choice);load->hide();input_->setReadOnly(true);header_->hide();sequenceColumn_->hide();groupColumn_->hide();connect(partition,&QComboBox::currentIndexChanged,this,[this,partitions](int i){if(i>=0)input_->setPlainText(table_text(partitions[std::size_t(i)].assignments));});input_->setPlainText(table_text(partitions[0].assignments));}
+
     }
     ~ImportDialog()override{if(cancelled_)cancelled_->store(true);}
     bool changed=false;
@@ -96,5 +102,6 @@ private:
     Document& source_;ImportModel* model_;QPlainTextEdit* input_;QCheckBox *header_,*duplicates_;QComboBox *sequenceColumn_,*groupColumn_;QLabel* summary_;QPushButton* apply_;QTimer* debounce_;std::shared_ptr<std::atomic_bool> cancelled_;std::uint64_t generation_=0;bool running_=false,requested_=false;
 };
 }
+bool import_spart_groups(Document& source,QWidget* parent){const auto path=QFileDialog::getOpenFileName(parent,"Import groups from SPART",{},"SPART (*.spart *.spart.xml *.xml);;All files (*)");if(path.isEmpty())return false;try{QFile file(path);if(!file.open(QIODevice::ReadOnly)||file.size()>16*1024*1024)throw std::runtime_error("Cannot read SPART file, or it exceeds 16 MiB.");auto partitions=parse_spart(file.readAll());ImportDialog dialog(source,parent,std::move(partitions));dialog.exec();return dialog.changed;}catch(const std::exception& e){QMessageBox::warning(parent,"Import SPART",QString::fromUtf8(e.what()));return false;}}
 bool import_groups(Document& source,QWidget* parent){ImportDialog dialog(source,parent);dialog.exec();return dialog.changed;}
 }

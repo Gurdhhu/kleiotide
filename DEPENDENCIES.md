@@ -21,8 +21,10 @@ the original Microsoft x64 Redistributable. Microsoft's current x64 package
 also contains ARM64 components. Actual ARM64 runtime acceptance remains pending.
 Reference: https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
 
-0.28.0 uses built-in HTTPS via Qt Network and deploys the Windows Schannel TLS
-plugin. Standard BLAST needs no external executable. Optional advanced tasks
-use a user-installed NCBI BLAST+ blastn/blastp -remote executable; its binaries
-and databases are not bundled, and it remains separately licensed/distributed.
-The small XLSX/ZIP writer is project code with no added third-party library.
+0.29.0 uses built-in HTTPS for NCBI nucleotide searches and deploys the Windows
+Schannel TLS plugin. BLAST+ is optional and local only: makeblastdb, blastn,
+blastp, blastx, tblastn and tblastx are installed separately and are not bundled.
+The XLSX/ZIP writer is project code. Reading DEFLATE-compressed XLSX files uses
+the statically included miniz 3.0.2 tinfl component (MIT), with its source and
+license in third_party/miniz. Its notice is installed in third-party/miniz;
+no additional runtime DLL or developer-installed library is required.

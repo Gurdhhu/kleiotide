@@ -56,10 +56,20 @@ TraceMapping map_trace(std::string_view symbols,std::shared_ptr<const Chromatogr
  std::string query,calls;for(char c:symbols){stop(cancel);if(!is_gap(c)){if(query.size()>=2000000)throw std::length_error("Trace-link queries are limited to two million residues; trim terminal flanks first.");query+=base(c);}}for(char c:original->calls)calls+=base(c);
  if(query.size()>2000000)throw std::length_error("Trace-link queries are limited to two million residues; trim terminal flanks first.");
  if(query.empty()){result.reason="No nucleotide residues";return result;}
- if(query.size()==calls.size()){
+ // A unique literal substring is an exact mapping even when trimmed and N-rich.
+ // Ambiguous calls are compared literally, never as wildcards. Quality scores do
+ // not measure placement confidence and must not downgrade an exact mapping.
+ {
   auto reverseCalls=calls;std::reverse(reverseCalls.begin(),reverseCalls.end());for(auto& c:reverseCalls)c=base(trace_complement(c));
-  const bool forward=query==calls,reverse=query==reverseCalls;std::size_t concrete=0;for(char c:calls)concrete+=c=='A'||c=='C'||c=='G'||c=='T';
-  if(forward!=reverse&&concrete>=std::min<std::size_t>(40,calls.size())){auto link=std::make_shared<TraceLink>();link->original=original;link->reversed=reverse;for(std::size_t i=0;i<query.size();++i)link->originalCalls.push_back(static_cast<std::int32_t>(reverse?calls.size()-1-i:i));result.link=link;result.orientation=reverse?"Reverse":"Forward";result.quality="Perfect";result.identity=1;result.matches=query.size();result.aligned=query.size();result.reason="Exact full-call match; original indices retained, including ambiguous calls";return result;}
+  std::size_t concrete=0;for(char c:query)concrete+=c=='A'||c=='C'||c=='G'||c=='T';
+  const auto forward=calls.find(query),reverse=reverseCalls.find(query);
+  const bool oneForward=forward!=std::string::npos&&calls.find(query,forward+1)==std::string::npos;
+  const bool oneReverse=reverse!=std::string::npos&&reverseCalls.find(query,reverse+1)==std::string::npos;
+  if(concrete>=std::min<std::size_t>(40,query.size())&&((oneForward&&reverse==std::string::npos)||(oneReverse&&forward==std::string::npos))){
+   const bool reversed=oneReverse;const auto offset=reversed?reverse:forward;auto link=std::make_shared<TraceLink>();link->original=original;link->reversed=reversed;
+   for(std::size_t i=0;i<query.size();++i)link->originalCalls.push_back(static_cast<std::int32_t>(reversed?calls.size()-1-offset-i:offset+i));
+   result.link=link;result.orientation=reversed?"Reverse":"Forward";result.quality="Perfect";result.identity=1;result.matches=query.size();result.aligned=query.size();result.reason="Unique exact call match (terminal trimming allowed); original indices retained, including ambiguous calls. Peak quality does not affect this classification.";return result;
+  }
  }
  std::vector<Hit> all;
  for(bool reverse:{false,true}){

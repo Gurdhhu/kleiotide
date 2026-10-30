@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.28.0 LANGUAGES CXX)
+project(Kleiotide VERSION 0.29.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -106,6 +106,11 @@ if(KLEIOTIDE_BUILD_GUI)
     endif()
   endfunction()
   add_library(kleiotide_gui STATIC
+    src/gui/dialog_policy.cpp
+    src/gui/local_blast.cpp
+    src/gui/spart.cpp
+    src/gui/table_io.cpp
+    third_party/miniz/miniz_tinfl.cpp
     src/gui/open_requests.cpp
     src/gui/alignment_view.cpp
     src/gui/residue_clipboard.cpp
@@ -140,6 +145,8 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/mafft_dialog.cpp
     src/gui/chromatogram_view.cpp
   )
+  target_include_directories(kleiotide_gui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_definitions(kleiotide_gui PRIVATE MINIZ_NO_STDIO MINIZ_NO_TIME MINIZ_NO_ARCHIVE_APIS MINIZ_NO_ZLIB_APIS)
   target_link_libraries(kleiotide_gui PUBLIC kleiotide_core Qt6::Widgets Qt6::Concurrent Qt6::Network)
   if(MSVC)
     target_compile_options(kleiotide_gui PRIVATE /W4)
@@ -151,9 +158,13 @@ if(KLEIOTIDE_BUILD_GUI)
   set_target_properties(kleiotide PROPERTIES WIN32_EXECUTABLE TRUE MACOSX_BUNDLE TRUE)
   install(TARGETS kleiotide RUNTIME DESTINATION . BUNDLE DESTINATION .)
   install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
+  install(FILES third_party/miniz/LICENSE third_party/miniz/README.md DESTINATION third-party/miniz)
   install(FILES
+    RELEASE_0.29.0_TESTING.md
+    LOCAL_BLAST.md
+    SPART_AND_TABLES.md
     BLAST_AND_TRACE_LINKING.md
-    RELEASE_0.28.0_TESTING.md
+    RELEASE_0.28.1_TESTING.md
     AB1_EXPORT.md
     AB1_IMPORT_RECOVERY.md
     BRANDING.md
@@ -189,13 +200,13 @@ if(KLEIOTIDE_BUILD_GUI)
     TESTER_FEEDBACK.md
     DESTINATION .)
   if(BUILD_TESTING)
-    foreach(test motif_search rename file_output preferences recovery blast_data)
+    foreach(test motif_search rename file_output preferences recovery blast_data exchange)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)
       target_link_libraries(kleiotide_${test}_tests PRIVATE kleiotide_gui)
       add_test(NAME ${test} COMMAND kleiotide_${test}_tests)
       kleiotide_qt_test_runtime(${test})
     endforeach()
-    set_property(TEST file_output preferences recovery APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_property(TEST exchange file_output preferences recovery APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_executable(kleiotide_residue_style_tests tests/residue_style_tests.cpp)
     target_link_libraries(kleiotide_residue_style_tests PRIVATE kleiotide_gui)
     add_test(NAME residue_styles COMMAND kleiotide_residue_style_tests)
@@ -257,7 +268,7 @@ if(KLEIOTIDE_BUILD_GUI)
     kleiotide_workflow(mafft_fixture)
     kleiotide_workflow(blast_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")

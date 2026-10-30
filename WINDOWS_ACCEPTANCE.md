@@ -145,3 +145,14 @@ trace header removal, session sequence/trace Add/drop with metadata discard and
 transactional failure, and combined-session persistence/Undo/evidence protection.
 Only the preview height needs further adjustment; 0.28.0 fits it to row count.
 This does not establish native acceptance of 0.28.0.
+
+
+## 0.28.0 test 1 — user report
+
+41/41 automatic tests passed. Focused manual: merge height/copy, trace assignment,
+orientation/edit mapping and Undo/evidence persistence, live blastn defaults,
+result filtering/export/deduplication, RID cancel/resume all passed. Default
+blastp and BLAST+ advanced remote searches failed to return results during long
+waits; current evidence does not locate the cause. Clean-machine TLS/scaling and
+ARM MAFFT retesting were not attempted. Follow-up addressed in 0.28.1; live search
+success is pending, not inferred from fixtures.

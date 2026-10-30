@@ -156,3 +156,16 @@ This may scan several neighboring columns in the same summary, rather than
 retaining exact evidence for every column. It keeps memory bounded independently
 of assembly length. Structural/length changes and expired invalidation history
 fall back to a full scan; the initial scan still reads the nucleotide symbols.
+
+
+## BLAST defaults (0.28.1)
+
+The BLAST tab saves contact email, separate blastn/blastp executable paths,
+molecule-specific database/task, target count/E/local identity and cover filters,
+low-complexity/exclusion/backend defaults and maximum monitoring minutes per
+batch. It seeds new dialogs only. Current jobs and session settings are unchanged;
+per-job changes do not rewrite defaults. Paths alone do not force standard HTTPS
+searches through the client; advanced tasks select the client automatically.
+Restore defaults is draft-only until Apply/OK. The default monitoring limit is
+120 minutes; reaching it preserves completed results and an HTTP RID, while an
+external child is stopped with an explicit warning about its server submission.

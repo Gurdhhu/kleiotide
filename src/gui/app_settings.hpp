@@ -16,6 +16,12 @@ struct AppPreferences {
     int bulkMiB=2048,undoMiB=64,overviewMiB=16,scanDelayMs=150;
     QString mafftLauncher;
     int mafftThreads=0;
+    QString blastEmail,blastnLauncher,blastpLauncher,blastxLauncher,tblastnLauncher,tblastxLauncher,makeblastdbLauncher;
+    int localBlastThreads=1,localBlastMinutes=60,localBlastHits=10;double localBlastExpect=.05,localBlastIdentity=0,localBlastCoverage=0;bool localBlastNmask=true,localBlastPmask=false;
+    QString blastNucleotideDatabase="core_nt",blastProteinDatabase="nr",blastNucleotideTask="megablast",blastProteinTask="blastp";
+    int blastMaxHits=10,blastWaitMinutes=120;
+    double blastExpect=.05,blastIdentity=0,blastCoverage=0;
+    bool blastExclude=false,blastNucleotideMask=true,blastProteinMask=false,blastUseToolkit=false;
     bool recoveryEnabled=true;
     int recoverySeconds=120,recoveryQuotaMiB=1024;
     static AppPreferences defaults();

@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.29.0 — local BLAST, SPART and table exchange
+
+- Replace BLAST+ remote searches with local database creation and blastn, blastp,
+  blastx, tblastn and tblastx searches; remember databases by target molecule.
+- Remove NCBI protein searches after another small, valid live blastp job remained
+  pending beyond a reasonable interactive wait. Keep NCBI nucleotide HTTPS.
+- Add matricial/XML SPART group import with partition selection, plus SPART/XML/TSV
+  export; share TSV/CSV/XLSX loading and column mapping across all three table dialogs.
+- Retain only the reads-to-contig merge preview, color unresolved conflicts red and
+  Q-resolved conflicts amber, and allow dragging the name divider. Overlap Q
+  resolution applies after placement and leaves search acceptance unchanged.
+- Make the initial batch AB1 action prominent, restrict row imports to one file,
+  compact parameter fields, group BLAST controls, put executable browsing inline,
+  shorten tooltips and hide similarity/collapse rules behind expanders.
+- Limit BLAST modality to its owner window, open a new window on an empty relaunch,
+  preserve XLSX accession hyperlinks, and correct the reported narrowing/shadow warnings.
+
+
+## 0.28.1 — trace mapping and BLAST diagnostics/defaults
+
+- Trace assignment cells show dropdown arrows, filename-first searchable popups,
+  full-width layout with compact initial height, assignment reasons and explicit
+  Not attempted states for unassigned rows.
+- Unique exact trimmed matches retain original call indices and are Perfect even
+  for N-rich, low-quality traces. Adds a regression for this distinction.
+- BLAST has saved defaults in Settings, noneditable database menus, visible input
+  warnings, tooltips, submission-order query numbers, per-query identity-ranked
+  hit numbers and HSP count in the 21-column table/TSV/XLSX.
+- New protein searches default SEG off, matching the documented URL API default.
+  Configured paths and explicit standard-client routing are separate choices.
+- Live countdown/elapsed/server-reply diagnostics replace the fixed waiting label;
+  metadata no longer displays an out-of-range batch. Reports and RID links aid
+  investigation; BLAST+ version/arguments/stderr are recorded, clients serialized,
+  and monitoring has an explicit configurable bound without automatic resubmission.
+- The reported native blastp/advanced-client no-result searches require live
+  retesting with their RIDs/reports; a server-side cause is not established here.
+
 ## 0.28.0 — BLAST and trace assignment
 
 - Fit the reads-to-contig preview to its row count, with scrolling for many rows.

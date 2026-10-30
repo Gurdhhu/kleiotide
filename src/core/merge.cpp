@@ -102,7 +102,8 @@ MergeContig consensus(const std::vector<Input>& rows,const MergeSettings& settin
 }
 struct Reference {std::string text;std::vector<bool> information;};
 Reference reference(const std::vector<Input>& rows,const MergeSettings& settings,const MergeCancel& cancel){
-    Reference ref;ref.text=consensus(rows,settings,cancel).symbols;ref.information.resize(ref.text.size());
+    Reference ref;auto searchSettings=settings;searchSettings.resolveQuality=false;
+    ref.text=consensus(rows,searchSettings,cancel).symbols;ref.information.resize(ref.text.size());
     for(const auto& in:rows)for(std::size_t c=0;c<in.text.size();++c){if((c&4095)==0)check(cancel);if(!is_gap(in.text[c])&&!missing(in.text[c]))ref.information[c]=true;}
     return ref;
 }
@@ -269,11 +270,9 @@ void choose_merge_contig(MergePlan& plan,std::size_t index){
 }
 MergePlan plan_sequence_merge(const Document& d,const std::vector<SequenceId>& ids,MergeSettings settings,MergeCancel cancel){
     if((settings.mode!=MergeMode::Aligned&&settings.mode!=MergeMode::ExactOverlap)||!settings.minimumOverlap||settings.qualityMargin>255||settings.maximumEdits>100)throw std::invalid_argument("Invalid merge settings.");
-    if(settings.mode==MergeMode::ExactOverlap&&settings.resolveQuality)throw std::invalid_argument("Quality resolution is available only for current-alignment merging.");
     std::size_t previewBytes=0;
     for(const auto id:ids){const auto length=d.sequence(id).symbols.size();if(length>d.bulk_edit_memory_limit()-std::min(previewBytes,d.bulk_edit_memory_limit()))throw std::length_error("Merge preview exceeds the bulk working-memory limit. Select fewer or shorter reads.");previewBytes+=length;}
     const auto rows=inputs(d,ids,settings.mode==MergeMode::ExactOverlap,cancel);
-    if(settings.resolveQuality&&std::any_of(rows.begin(),rows.end(),[](const auto& in){return !in.row->trace;}))throw std::invalid_argument("Quality resolution requires linked traces on every selected sequence.");
     MergePlan plan;plan.source=&d;plan.revision=d.state_id();plan.settings=settings;
     for(const auto& in:rows)plan.selectedIds.push_back(in.row->id);
     if(settings.mode==MergeMode::Aligned){

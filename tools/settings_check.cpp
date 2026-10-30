@@ -17,6 +17,7 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -57,6 +58,7 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     Document native;native.load({{"saved","ACGT"}});QFont savedFont=defaults.font;savedFont.setPointSize(9);QJsonObject savedView{{"version",1},{"font",savedFont.toString()},{"residuePalette","okabe-ito"},{"mode",2}};
     const auto nativePath=temp.filePath("saved.kleio");{std::ofstream out(std::filesystem::path(nativePath.toStdU16String()),std::ios::binary);write_session(out,native,QJsonDocument(savedView).toJson().toStdString());}fresh.open_path(nativePath);wait([&]{return view(fresh)->isEnabled();});need(view(fresh)->font().pointSize()==9&&view(fresh)->residue_palette()==ResiduePalette::OkabeIto&&fresh.current_document().translation_settings().code==1,"Saved session overrides new defaults");
     const auto legacy=temp.filePath("legacy.kleio");{std::ofstream out(std::filesystem::path(legacy.toStdU16String()),std::ios::binary);write_session(out,native);}fresh.open_path(legacy);wait([&]{return view(fresh)->isEnabled();});need(view(fresh)->font().pointSize()==11&&view(fresh)->residue_palette()==ResiduePalette::Classic&&view(fresh)->mode()==AlignmentView::Mode::Rewrite,"Legacy session defaults remain independent of globals");
+    settings(*existing,[&](QDialog* d){d->findChild<QLineEdit*>("settingsBlastEmail")->setText("settings@example.org");d->findChild<QComboBox*>("settingsBlastNdb")->setCurrentText("refseq_rna");d->findChild<QSpinBox*>("settingsBlastHits")->setValue(25);d->findChild<QSpinBox*>("settingsLocalBlastThreads")->setValue(3);d->findChild<QLineEdit*>("settingsMakeblastdb")->setText("makeblastdb-path");d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();d->reject();});service.reload();need(service.values().blastEmail=="settings@example.org"&&service.values().blastNucleotideDatabase=="refseq_rna"&&service.values().blastMaxHits==25&&service.values().localBlastThreads==3&&service.values().makeblastdbLauncher=="makeblastdb-path","BLAST defaults persist across reload");
     const auto persisted=service.values();
     settings(*existing,[&](QDialog* d){d->findChild<QPushButton*>("settingsUseAppearance")->click();need(d->findChild<QSpinBox*>("settingsFontSize")->value()==11&&d->findChild<QComboBox*>("settingsPalette")->currentIndex()==int(ResiduePalette::Classic),"Current appearance fills draft");d->findChild<QPushButton*>("settingsUseCode")->click();need(d->findChild<QComboBox*>("settingsCode")->currentData().toUInt()==1,"Current code fills draft");d->reject();});need(service.values()==persisted,"Draft copy does not commit implicitly");
     settings(*existing,[&](QDialog* d){d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::RestoreDefaults)->click();d->reject();});need(service.values()==persisted,"Restore defaults is draft-only until Apply/OK");

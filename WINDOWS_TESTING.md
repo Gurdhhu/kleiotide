@@ -21,7 +21,7 @@ process fixture. Testing the real MAFFT installation is a separate manual step.
 ## 1. Open a fresh source release
 
 1. Extract the source ZIP into a new folder, such as
-   `C:\Kleiotide-testing\Kleiotide_0.28.0`. Avoid mixing source releases.
+   `C:\Kleiotide-testing\Kleiotide_0.28.1`. Avoid mixing source releases.
 2. In Qt Creator, open that folder's `CMakeLists.txt` as you usually do.
 3. Select your existing **MSVC x64 Qt kit**, choose **Release**, and configure.
    Use a fresh build directory for this release.
@@ -105,7 +105,7 @@ an error when no tests are registered.
 2. Select **`kleiotide`** as the run configuration in Qt Creator. Enabling tests
    adds other executables to that list, so confirm the application is selected.
 3. Build and press the green **Run** button, as you normally do.
-4. In **Help > About Kleiotide**, verify version **0.28.0**, Oleg Shchepin's
+4. In **Help > About Kleiotide**, verify version **0.28.1**, Oleg Shchepin's
    copyright, GPLv3-only notice and Elizaveta Shchepina's designer credit.
 
 Use a separate output folder and test copies of your research files. Record
@@ -233,7 +233,7 @@ from the updated source and its matching Source_For_Installer ZIP, following
 docs/WINDOWS_TOOLBAR_TEST_FIX.md. The subsequent native 0.26.12 test-1 build
 passed all 33 tests and focused manual checks, as recorded in WINDOWS_ACCEPTANCE.md.
 
-## 0.28.0 preferences and recovery acceptance
+## 0.28.1 preferences and recovery acceptance
 
 After release-check reports 41/41, follow SETTINGS_AND_RECOVERY.md. Verify Apply/
 Cancel/reset and restart, new-session defaults versus saved sessions, current
@@ -242,4 +242,4 @@ checkpoint cancellation, and recovery after terminating a disposable test proces
 The guide explains how to avoid risking your only copy of unsaved work. Native
 Windows and the real ARM environment remain separate from offscreen test results.
 
-For this release, follow RELEASE_0.28.0_TESTING.md for BLAST, linking and preview height.
+For this release, follow RELEASE_0.28.1_TESTING.md for BLAST, linking and preview height.

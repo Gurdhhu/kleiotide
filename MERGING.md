@@ -1,3 +1,20 @@
+# 0.29.0 merge preview update
+
+Both merge dialogs show only the reads-to-contig alignment. Drag the divider
+between names and residues to adjust the name width. Consensus conflict columns
+are red; Q-resolved conflicts are amber. Apply appends one merged sequence to the
+end of the alignment and preserves the source reads.
+
+Original trace Q may resolve final overlap consensus conflicts after read
+placement. It never changes overlap matching, accepted difference counts,
+component selection or repeat-placement rules. Each informative conflicting call
+needs valid original quality; missing/edited calls, ties and indels keep the
+ordinary consensus. A trace is not fabricated for a composite sequence.
+
+The following historical description remains useful except for superseded
+preview colors, the removed contig-only preview and the former aligned-only
+quality restriction.
+
 # Sequence merging — 0.27.1
 
 Select two or more nucleotide sequence names, then use a merge command in

@@ -1,0 +1,11 @@
+begin spart;
+Project_name = Kleiotide_example;
+Date = 2026-10-29;
+N_spartitions = 2: Separate / Together;
+N_individuals = 2 / 2;
+N_subsets = 2 / 1;
+Individual_assignment =
+alpha : 1 / 5
+beta : 2 / 5
+unassigned : ? / ?;
+end;
