@@ -253,6 +253,10 @@ std::vector<SpartPartition> parse_xml(const QByteArray &bytes) {
   return result;
 }
 } // namespace
+QString spart_sanitize(QString name) {
+  name.replace(QRegularExpression("[^A-Za-z0-9_]"), "_");
+  return name.isEmpty() ? QString("_") : name;
+}
 std::vector<SpartPartition> parse_spart(const QByteArray &bytes) {
   if (bytes.size() > 16 * 1024 * 1024)
     bad("SPART file exceeds 16 MiB.");
@@ -272,7 +276,7 @@ QByteArray export_spart(const Document &d, bool xml, const QString &project,
   QMap<GroupId, QString> labels;
   int assigned = 0;
   for (const auto &row : d.rows()) {
-    auto name = QString::fromStdString(row.name);
+    auto name = spart_sanitize(QString::fromStdString(row.name));
     sample(name);
     if (seen.contains(name))
       bad("SPART requires unique sequence names. Use Rename → Make names "
@@ -299,7 +303,7 @@ QByteArray export_spart(const Document &d, bool xml, const QString &project,
                   ";\nN_subsets = " + QString::number(groups.size()) +
                   ";\nIndividual_assignment =\n";
     for (const auto &row : d.rows())
-      out += QString::fromStdString(row.name) + " : " +
+      out += spart_sanitize(QString::fromStdString(row.name)) + " : " +
              (row.groupId ? QString::number(groups[row.groupId]) : "?") + "\n";
     out += ";\nKleiotide_group_names =\n";
     for (auto it = groups.cbegin(); it != groups.cend(); ++it)
@@ -318,7 +322,7 @@ QByteArray export_spart(const Document &d, bool xml, const QString &project,
   x.writeStartElement("individuals");
   for (const auto &row : d.rows()) {
     x.writeEmptyElement("individual");
-    x.writeAttribute("id", QString::fromStdString(row.name));
+    x.writeAttribute("id", spart_sanitize(QString::fromStdString(row.name)));
   }
   x.writeEndElement();
   x.writeStartElement("spartitions");
@@ -332,7 +336,8 @@ QByteArray export_spart(const Document &d, bool xml, const QString &project,
     for (const auto &row : d.rows())
       if (row.groupId == it.key()) {
         x.writeEmptyElement("individual");
-        x.writeAttribute("ref", QString::fromStdString(row.name));
+        x.writeAttribute("ref",
+                         spart_sanitize(QString::fromStdString(row.name)));
       }
     x.writeEndElement();
   }
@@ -366,7 +371,7 @@ void export_sequence_groups(const Document &d, QWidget *parent) {
       for (const auto &row : d.rows()) {
         auto *group = d.group(row.groupId);
         table.push_back(
-            {QString::fromStdString(row.name),
+            {spart_sanitize(QString::fromStdString(row.name)),
              group ? QString::fromStdString(group->name) : QString{}});
       }
       bytes = table_text(table).toUtf8();

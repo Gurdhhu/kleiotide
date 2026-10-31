@@ -115,7 +115,7 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     // Protein export shares content protection and uses atomic streaming output.
     Document proteins;proteins.load({{"nt","ATGAAATAG"},{"protein","MKT",RowKind::Protein}});const auto proteinSession=dir.filePath("proteins.kleio");session(proteinSession,proteins);MainWindow proteinWindow;open(app,proteinWindow,proteinSession);
     const auto original=get(proteinSession);
-    {Picker picker(proteinSession,QMessageBox::Yes);action(proteinWindow,"Export protein sequences…")->trigger();need(picker.warnings==1&&get(proteinSession)==original,"Protein export cannot overwrite session");}
+    {Picker picker(proteinSession,QMessageBox::Yes);action(proteinWindow,"Export protein sequences…")->trigger();until(app,[&]{return view(proteinWindow)->isEnabled();});need(get(proteinSession)==original,"Normalized protein export leaves session untouched");}
     const auto proteinOutput=dir.filePath("proteins.faa");put(proteinOutput,"old output");
     {Picker picker(proteinOutput);action(proteinWindow,"Export protein sequences…")->trigger();need(picker.replacements==1&&get(proteinOutput)=="old output","Protein export replacement can be cancelled");}
     {Picker picker(proteinOutput,QMessageBox::Yes);action(proteinWindow,"Export protein sequences…")->trigger();check_busy(proteinWindow);until(app,[&]{return view(proteinWindow)->isEnabled();});need(get(proteinOutput)==">protein\nMKT\n"&&picker.warnings==0,"Protein FASTA export completes");}

@@ -1,19 +1,12 @@
-# Implementation status — 0.29.0 testing release
+# 0.29.1 implementation status
 
-Implements the 20 follow-up items from the user's 0.28.1 acceptance report:
-trace import guidance and per-row single-file selection; inline executable
-browsing; compact parameter controls and grouped BLAST settings; local databases
-and all five BLAST programs; owner-window modality/new blank windows; required
-email indicator; single merge preview, colors/name divider and post-placement Q;
-shorter tooltips and expandable rules; SPART matrix/XML import/export; shared
-TSV/CSV/XLSX table loading; XLSX accession hyperlinks; reported warning fixes.
+Implements the 23-item follow-up to accepted 0.29.0: revised labels, output
+extensions, Resume directory, context menu, linked XLSX styling and sequence
+metadata, full database popups, merge ruler/colors, rules/tooltips, compact dialogs,
+preview automation, SPART sanitation/matching, color cues and Cancel placement.
 
-The requested fallback is applied: NCBI protein search was removed after another
-small valid blastp request stayed pending beyond twelve minutes. No routing or
-performance fix is claimed. NCBI nucleotide remains HTTPS; BLAST+ is local only.
-
-The intermittent invisible scrollbar handles could not be reproduced and are
-not declared fixed. Native MSVC/Windows DPI/Excel and clean-machine TLS checks,
-and ARM MAFFT Automatic/fallback remain manual gates. See VALIDATION.md and
-RELEASE_0.29.0_TESTING.md. Session format 4 and existing license/artwork policies
-are unchanged. No Windows installer EXE or Git push is produced here.
+Preview calculations remain read-only until an explicit named action is clicked.
+Native Windows retesting is needed, particularly for intermittent divider cursor
+behavior and dialog layout. The supplied pending NCBI job still received WAITING;
+no client-side cause or server performance fix is claimed. No resubmission occurred.
+See the current release guide and validation logs. Session format remains 4.

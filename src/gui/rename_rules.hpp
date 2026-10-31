@@ -3,7 +3,7 @@
 #include <QString>
 #include <QStringList>
 namespace kleiotide {
-enum class RenameOperation { SpacesToUnderscores,UnderscoresToSpaces,Prepend,Append,Replace,Filename,Reverse,StripSuffix,Unique,RowNumber,Length,TrueLength,AppendTable,Sanitize,AppendGroup,PrependGroup,Table };
+enum class RenameOperation { SpacesToUnderscores,UnderscoresToSpaces,Prepend,Append,Replace,Filename,Reverse,StripSuffix,Unique,RowNumber,Length,TrueLength,AppendTable,Sanitize,SanitizeSpart,AppendGroup,PrependGroup,Table };
 struct RenameOptions {RenameOperation operation=RenameOperation::SpacesToUnderscores;QString text,replacement,separator="_",table;};
 struct RenameChange {SequenceId id=0;QString before,after;bool duplicate=false;};
 struct RenamePlan {

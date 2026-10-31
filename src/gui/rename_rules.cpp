@@ -1,4 +1,5 @@
 #include "gui/rename_rules.hpp"
+#include "gui/spart.hpp"
 #include "gui/table_io.hpp"
 #include <QHash>
 #include <QSet>
@@ -61,6 +62,7 @@ RenamePlan make_rename_plan(const Document& document,const RenameOptions& option
         case RenameOperation::RowNumber:after=options.text+QString::number(static_cast<qulonglong>(ordinal));break;
         case RenameOperation::Length:after=options.text+QString::number(static_cast<qulonglong>(row.symbols.size()));break;
         case RenameOperation::TrueLength:after=options.text+QString::number(static_cast<qulonglong>(row.symbols.residue_count()));break;
+        case RenameOperation::SanitizeSpart:after=spart_sanitize(before);break;
         case RenameOperation::Sanitize:{const auto base=sanitized_name(before),key=base.toCaseFolded();after=base;
             if(sanitizedAssigned.contains(key)||(safeOwner.contains(key)&&safeOwner.value(key)!=row.id)){
                 auto& next=suffixes[key];if(!next)next=2;

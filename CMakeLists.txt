@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.29.0 LANGUAGES CXX)
+project(Kleiotide VERSION 0.29.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -160,7 +160,7 @@ if(KLEIOTIDE_BUILD_GUI)
   install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
   install(FILES third_party/miniz/LICENSE third_party/miniz/README.md DESTINATION third-party/miniz)
   install(FILES
-    RELEASE_0.29.0_TESTING.md
+    RELEASE_0.29.1_TESTING.md
     LOCAL_BLAST.md
     SPART_AND_TABLES.md
     BLAST_AND_TRACE_LINKING.md
@@ -268,7 +268,7 @@ if(KLEIOTIDE_BUILD_GUI)
     kleiotide_workflow(mafft_fixture)
     kleiotide_workflow(blast_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check auto_preview_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")

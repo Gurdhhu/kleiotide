@@ -368,6 +368,7 @@ public:
     QDialog::reject();
   }
 };
+class WideDatabaseCombo final:public QComboBox{public:void showPopup()override{int width=this->width();for(int i=0;i<count();++i)width=std::max(width,fontMetrics().horizontalAdvance(itemText(i))+48);if(screen())width=std::min(width,screen()->availableGeometry().width()-32);view()->setMinimumWidth(width);view()->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);view()->setTextElideMode(Qt::ElideNone);QComboBox::showPopup();}};
 class LocalSearch final : public QDialog {
   std::shared_ptr<Document> source;
   std::vector<SequenceId> selected;
@@ -451,7 +452,7 @@ public:
     scope = combo("localBlastScope", "Query scope",
                   {"Selected names", "All matching rows"});
     scope->setCurrentIndex(selected.empty() ? 1 : 0);
-    database = new QComboBox;
+    database = new WideDatabaseCombo;
     database->setObjectName("localBlastDatabase");
     database->setMinimumContentsLength(25);
     database->setSizeAdjustPolicy(

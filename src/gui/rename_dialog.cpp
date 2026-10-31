@@ -17,7 +17,7 @@
 #include <limits>
 namespace kleiotide {
 QString rename_operation_label(RenameOperation op){
-    const char* labels[]={"Spaces to underscores","Underscores to spaces","Prepend text…","Append text…","Replace text…","Append filename…","Reverse names","Strip numeric suffixes…","Make names unique…","Names from row numbers…","Names from aligned lengths…","Names from true lengths…","Append taxonomy / text from table…","Sanitize names","Append group name…","Prepend group name…","Using old name / new name table…"};
+    const char* labels[]={"Spaces to underscores","Underscores to spaces","Prepend text…","Append text…","Replace text…","Append filename…","Reverse names","Strip numeric suffixes…","Make names unique…","Names from row numbers…","Names from aligned lengths…","Names from true lengths…","Append taxonomy / text from table…","Sanitize names","Sanitize names for SPART","Append group name…","Prepend group name…","Using old name / new name table…"};
     return QString::fromUtf8(labels[static_cast<int>(op)]);
 }
 namespace {
@@ -43,7 +43,7 @@ std::optional<std::vector<std::pair<SequenceId,std::string>>> show_batch_rename(
     if(!selected.empty())scope.addItem(QString("Selected sequences (%1)").arg(static_cast<qulonglong>(selected.size())),true);
     scope.addItem(QString("All sequences (%1)").arg(static_cast<qulonglong>(document.rows().size())),false);
     if(initial==RenameOperation::Sanitize)scope.setCurrentIndex(scope.count()-1);
-    fields.addRow("Operation",&operation);fields.addRow("Apply to",&scope);
+    fields.addRow("Operation",&operation);fields.addRow("Scope",&scope);
     QLineEdit text,replacement,separator;text.setObjectName("renameText");replacement.setObjectName("renameReplacement");separator.setObjectName("renameSeparator");
     QLabel textLabel,replacementLabel("Replace with"),separatorLabel("Separator");fields.addRow(&textLabel,&text);fields.addRow(&replacementLabel,&replacement);fields.addRow(&separatorLabel,&separator);
     QPlainTextEdit table;table.setObjectName("renameTable");table.setTabChangesFocus(false);table.setMaximumHeight(150);QLabel tableLabel("Table");fields.addRow(&tableLabel,&table);layout.addLayout(&fields);
@@ -51,14 +51,14 @@ std::optional<std::vector<std::pair<SequenceId,std::string>>> show_batch_rename(
     auto updateColumns=[&]{QSignalBlocker a(oldColumn),b(newColumn);const auto old=oldColumn.currentIndex(),next=newColumn.currentIndex();oldColumn.clear();newColumn.clear();TextTable parsed;try{parsed=parse_text_table(table.toPlainText());}catch(...){}int count=2;for(const auto& row:parsed)count=std::max(count,int(row.size()));for(int i=0;i<count;++i){QString label=QString("Column %1").arg(i+1);if(header.isChecked()&&!parsed.empty()&&i<parsed[0].size())label+=" — "+parsed[0][i].left(80);oldColumn.addItem(label);newColumn.addItem(label);}oldColumn.setCurrentIndex(count==2||old<0||old>=count?0:old);newColumn.setCurrentIndex(count==2||next<0||next>=count?1:next);oldColumn.setEnabled(count>2);newColumn.setEnabled(count>2);};updateColumns();
     QObject::connect(&load,&QPushButton::clicked,&dialog,[&]{if(auto content=load_table_file(&dialog,"Load rename table"))table.setPlainText(*content);});
 
-    QLabel status("Click Preview to review the names. No changes are made until Apply.");status.setObjectName("renameStatus");status.setWordWrap(true);status.setTextInteractionFlags(Qt::TextSelectableByMouse);layout.addWidget(&status);
+    QLabel status("Review the automatic preview, then click Rename.");status.setObjectName("renameStatus");status.setWordWrap(true);status.setTextInteractionFlags(Qt::TextSelectableByMouse);layout.addWidget(&status);
     QTableView preview;preview.setObjectName("renamePreview");PreviewModel model;preview.setModel(&model);preview.setEditTriggers(QAbstractItemView::NoEditTriggers);preview.horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);preview.setWordWrap(false);layout.addWidget(&preview,1);
     QDialogButtonBox buttons;auto* build=buttons.addButton("Preview",QDialogButtonBox::ActionRole);auto* apply=buttons.addButton("Apply",QDialogButtonBox::AcceptRole);buttons.addButton(QDialogButtonBox::Cancel);build->setObjectName("renamePreviewButton");apply->setObjectName("renameApplyButton");apply->setEnabled(false);build->setDefault(true);layout.addWidget(&buttons);
     auto invalidate=[&]{apply->setEnabled(false);model.set({});status.setText(static_cast<RenameOperation>(operation.currentIndex())==RenameOperation::Sanitize?
-        "Keep ASCII letters, digits and underscores; replace unsupported runs with underscores. Names are made unique ignoring case, with _2, _3, … suffixes. Preview before Apply.":
+        "Keep ASCII letters, digits and underscores; replace unsupported runs with underscores. Names are made unique ignoring case, with _2, _3, … suffixes. Review the automatic preview before renaming.":
         static_cast<RenameOperation>(operation.currentIndex())==RenameOperation::AppendGroup||static_cast<RenameOperation>(operation.currentIndex())==RenameOperation::PrependGroup?
-        "Add each sequence's group name using the separator below. Ungrouped sequences stay unchanged. Preview before Apply.":
-        "Click Preview to review the names. No changes are made until Apply.");};
+        "Add each sequence's group name using the separator below. Ungrouped sequences stay unchanged. Review the automatic preview before renaming.":
+        "Review the automatic preview, then click Rename.");};
     auto configure=[&]{const auto op=static_cast<RenameOperation>(operation.currentIndex());const bool hasText=op==RenameOperation::Prepend||op==RenameOperation::Append||op==RenameOperation::Replace||op==RenameOperation::Filename||op==RenameOperation::RowNumber||op==RenameOperation::Length||op==RenameOperation::TrueLength;
         fields.setRowVisible(&text,hasText);fields.setRowVisible(&replacement,op==RenameOperation::Replace);fields.setRowVisible(&separator,op==RenameOperation::Filename||op==RenameOperation::StripSuffix||op==RenameOperation::Unique||op==RenameOperation::AppendTable||op==RenameOperation::AppendGroup||op==RenameOperation::PrependGroup);fields.setRowVisible(&table,op==RenameOperation::Table||op==RenameOperation::AppendTable);tableControls.setVisible(op==RenameOperation::Table||op==RenameOperation::AppendTable);
         textLabel.setText(op==RenameOperation::Replace?"Find (literal, case-sensitive)":op==RenameOperation::Filename?"Filename text":op==RenameOperation::RowNumber||op==RenameOperation::Length||op==RenameOperation::TrueLength?"Optional prefix":"Text (spaces are literal)");

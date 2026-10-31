@@ -284,7 +284,8 @@ void show_settings(
   auto *localCover =
       localFilter("settingsLocalBlastCover", "Minimum query cover (%)");
   auto *localNmask =
-      check(local, "settingsLocalBlastNmask", "Nucleotide DUST filtering");
+      check(local, "settingsLocalBlastNmask", "Nucleotide low-complexity filtering (DUST)");
+  localNmask->setToolTip("Mask simple repetitive nucleotide regions during the search.");blastNmask->setToolTip(localNmask->toolTip());
   auto *localPmask =
       check(local, "settingsLocalBlastPmask", "Protein SEG filtering");
   note(local, "Install NCBI BLAST+ separately. Create databases from FASTA or "

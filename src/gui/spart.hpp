@@ -6,6 +6,7 @@ struct SpartPartition {
   QString name;
   TextTable assignments;
 };
+QString spart_sanitize(QString);
 std::vector<SpartPartition> parse_spart(const QByteArray &);
 QByteArray export_spart(const Document &, bool xml, const QString &project,
                         const QString &partition);

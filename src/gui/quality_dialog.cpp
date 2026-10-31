@@ -9,6 +9,7 @@
 #include <QFutureWatcher>
 #include <QHeaderView>
 #include <QLabel>
+#include <QToolButton>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -27,7 +28,7 @@ public:
         :QDialog(parent),source_(std::move(source)),selected_(std::move(selected)),operation_(operation){
         const bool trim=operation==QualityOperation::TrimEnds;setObjectName("traceQualityDialog");setWindowTitle(trim?"Trim low quality ends":"Low-quality calls to N");resize(1040,660);
         auto* layout=new QVBoxLayout(this);auto* form=new QFormLayout;layout->addLayout(form);
-        scope_=new QComboBox(this);scope_->setObjectName("qualityScope");scope_->addItem(QString("Selected sequence names: %1").arg(selected_.size()));scope_->addItem("All sequences with traces");form->addRow("Apply to",scope_);
+        scope_=new QComboBox(this);scope_->setObjectName("qualityScope");scope_->addItem(QString("Selected sequence names: %1").arg(selected_.size()));scope_->addItem("All sequences with traces");form->addRow("Scope",scope_);
         QSettings saved(QSettings::defaultFormat(),QSettings::UserScope,"Kleiotide","Kleiotide");threshold_=new QSpinBox(this);threshold_->setObjectName("qualityThreshold");threshold_->setRange(0,255);threshold_->setValue(saved.value("quality/threshold",20).toInt());form->addRow(trim?"Minimum mean Phred Q":"Convert calls with Phred Q below",threshold_);
         window_=new QSpinBox(this);window_->setObjectName("qualityWindow");window_->setRange(1,10000);window_->setValue(saved.value("quality/window",10).toInt());if(trim)form->addRow("Window length (non-gap symbols)",window_);else window_->hide();
         edited_=new QCheckBox("Use original-call Q for substituted symbols",this);edited_->setObjectName("qualityUseOriginalQ");edited_->setToolTip("Edited means the current symbol differs from its linked imported call, including earlier cleanup replacements. Use that original call's Q as evidence, not a new measurement for the edited symbol. Inserted calls still have no Q.");layout->addWidget(edited_);
@@ -35,6 +36,7 @@ public:
             "Scoring: arithmetic mean Phred Q. Keep the interval from the first through the last complete window meeting the threshold; internal low-quality islands remain. Trimmed calls become open gaps (~), preserving every column and existing gap states. Rows without a passing window are left unchanged.":
             "Only calls strictly below the threshold become N (n for lowercase calls). Existing N/n and all gap states keep their positions. Original trace signals and quality values are never changed.",this);policy->setWordWrap(true);layout->addWidget(policy);
         auto* protectedPolicy=new QLabel("Calls without usable Q are always retained. By default, substituted symbols are protected too. Trimming expands its retained interval to include protected calls; each passing window needs Q for every non-gap symbol. No selection does not imply all sequences.",this);protectedPolicy->setWordWrap(true);if(!trim)protectedPolicy->setText("Calls without usable Q and, by default, substituted symbols are left unchanged. Inserted calls never acquire a measured Q. No selection does not imply all sequences.");layout->addWidget(protectedPolicy);
+        auto* rules=new QToolButton(this);rules->setText("Quality calculation rules");rules->setCheckable(true);rules->setArrowType(Qt::RightArrow);rules->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);layout->insertWidget(1,rules,0,Qt::AlignLeft);policy->hide();protectedPolicy->hide();connect(rules,&QToolButton::toggled,this,[rules,policy,protectedPolicy](bool on){policy->setVisible(on);protectedPolicy->setVisible(on);rules->setArrowType(on?Qt::DownArrow:Qt::RightArrow);});scope_->setToolTip("Choose selected names or all sequences with linked traces.");threshold_->setToolTip("Minimum original Phred quality to retain; larger values are stricter.");window_->setToolTip("Number of non-gap calls in each quality averaging window.");edited_->setToolTip("Use the linked original call quality for substituted symbols; inserted calls have no quality.");
         table_=new QTableWidget(this);table_->setObjectName("qualityPreview");table_->setColumnCount(10);table_->setHorizontalHeaderLabels({"Sequence","Result","Calls","Q used","No Q","Edited protected","Changed","Trim left","Trim right","Retained calls"});table_->setEditTriggers(QAbstractItemView::NoEditTriggers);table_->setSelectionBehavior(QAbstractItemView::SelectRows);table_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);table_->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Interactive);table_->setColumnWidth(0,190);table_->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);for(int c=7;c<10;++c)table_->setColumnHidden(c,!trim);layout->addWidget(table_,1);
         status_=new QLabel(this);status_->setObjectName("qualityStatus");status_->setWordWrap(true);layout->addWidget(status_);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel,this);layout->addWidget(buttons);apply_=buttons->button(QDialogButtonBox::Apply);apply_->setObjectName("qualityApply");preview_=buttons->addButton("Preview",QDialogButtonBox::ActionRole);preview_->setObjectName("qualityPreviewButton");preview_->setDefault(true);cancel_=buttons->button(QDialogButtonBox::Cancel);
@@ -49,7 +51,7 @@ protected:
         QDialog::reject();
     }
 private:
-    void invalidate(){plan_.reset();table_->setRowCount(0);apply_->setEnabled(false);const bool valid=scope_->currentIndex()==1||!selected_.empty();preview_->setEnabled(valid);status_->setText(valid?"Choose settings, then Preview. Apply uses only the displayed preview.":"No sequence names selected. Choose All sequences with traces explicitly, or cancel and select names first.");}
+    void invalidate(){plan_.reset();table_->setRowCount(0);apply_->setEnabled(false);const bool valid=scope_->currentIndex()==1||!selected_.empty();preview_->setEnabled(valid);status_->setText(valid?"Preview updates automatically after changing settings.":"No sequence names selected. Choose All sequences with traces explicitly, or cancel and select names first.");}
     void preview(){
         if(running_||(scope_->currentIndex()==0&&selected_.empty()))return;
         plan_.reset();running_=true;closing_=false;cancelled_=std::make_shared<std::atomic_bool>(false);apply_->setEnabled(false);preview_->setEnabled(false);for(auto* widget:std::array<QWidget*,4>{scope_,threshold_,window_,edited_})widget->setEnabled(false);status_->setText("Computing quality preview…");

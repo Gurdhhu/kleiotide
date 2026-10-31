@@ -1,3 +1,14 @@
+# 0.29.1 merge UI
+
+Preview recalculates automatically after parameter changes. Merge appends the
+reviewed sequence; Cancel leaves the alignment unchanged. Conflicts are red;
+Q-resolved conflicts are bright yellow. Read names have white backgrounds and
+the merged-result name retains its cue. The pinned ruler value has an opaque,
+padded background so neighboring tick labels cannot merge with it.
+
+The following is historical implementation reference; the current release guide
+supersedes older button labels and colors.
+
 # 0.29.0 merge preview update
 
 Both merge dialogs show only the reads-to-contig alignment. Drag the divider

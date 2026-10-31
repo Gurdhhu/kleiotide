@@ -19,6 +19,7 @@
 #include <QPainter>
 #include <QIcon>
 #include <QLabel>
+#include <QToolButton>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
@@ -104,7 +105,7 @@ bool manage_groups(Document& d,const std::vector<SequenceId>& selected,QWidget* 
 bool assign_group(Document& d,const std::vector<SequenceId>& ids,QWidget* parent){
     if(ids.empty())return false;
     QDialog dialog(parent);dialog.setObjectName("assignGroupDialog");dialog.setWindowTitle("Add to group");QFormLayout layout(&dialog);
-    QComboBox choice;choice.setObjectName("assignGroupChoice");for(const auto& g:d.groups())choice.addItem(text(g.name),QVariant::fromValue<qulonglong>(g.id));choice.addItem("Create new…",QVariant::fromValue<qulonglong>(0));layout.addRow("Group",&choice);
+    QComboBox choice;choice.setObjectName("assignGroupChoice");for(const auto& g:d.groups())choice.addItem(group_marker(g.color),text(g.name),QVariant::fromValue<qulonglong>(g.id));choice.addItem("Create new…",QVariant::fromValue<qulonglong>(0));layout.addRow("Group",&choice);
     QLineEdit name;name.setObjectName("assignGroupName");name.setText(text(unique_name(d.groups(),"Group")));layout.addRow("New group name",&name);QColor selected=color(default_group_color(d.groups().size()));QPushButton paint("Choose color…");paint.setObjectName("assignGroupColor");layout.addRow(&paint);
     auto refresh=[&]{const bool fresh=choice.currentData().toULongLong()==0;name.setEnabled(fresh);paint.setEnabled(fresh);};QObject::connect(&choice,&QComboBox::currentIndexChanged,&dialog,[&]{refresh();});refresh();
     QObject::connect(&paint,&QPushButton::clicked,&dialog,[&]{const auto c=QColorDialog::getColor(selected,&dialog,"Group color");if(c.isValid())selected=c;});
@@ -125,7 +126,7 @@ void MainWindow::group_action(int operation){
         else if(operation==5){
             const auto plan=plan_identical_groups(*document_);
             QDialog dialog(this);dialog.setObjectName("groupIdenticalDialog");dialog.setWindowTitle("Group identical sequences");QVBoxLayout layout(&dialog);
-            QLabel note(QString("Create %1 groups of identical sequences across the alignment. Matching ignores letter case and all gaps; nucleotide, protein and mask rows are compared separately. The full sequences must match after removing gaps: a shorter sequence matching only a substring of a longer sequence is not grouped with it. Singletons become Ungrouped. This replaces all existing groups and memberships.").arg(plan.groups.size()));note.setWordWrap(true);layout.addWidget(&note);dialog.resize(560,220);
+            QLabel count(QString("Identical sequence groups: %1").arg(plan.groups.size()));layout.addWidget(&count);QLabel warning("This replaces all existing groups and memberships");layout.addWidget(&warning);QToolButton toggle;toggle.setText("Comparison rules");toggle.setCheckable(true);toggle.setArrowType(Qt::RightArrow);toggle.setToolButtonStyle(Qt::ToolButtonTextBesideIcon);layout.addWidget(&toggle,0,Qt::AlignLeft);QLabel rules("Matching ignores case and gaps. Full ungapped strings must match; each sequence type is compared separately. Singletons become Ungrouped.");rules.setWordWrap(true);rules.hide();layout.addWidget(&rules);connect(&toggle,&QToolButton::toggled,&dialog,[&](bool on){rules.setVisible(on);toggle.setArrowType(on?Qt::DownArrow:Qt::RightArrow);});
             QDialogButtonBox buttons(QDialogButtonBox::Apply|QDialogButtonBox::Cancel);layout.addWidget(&buttons);connect(buttons.button(QDialogButtonBox::Apply),&QPushButton::clicked,&dialog,&QDialog::accept);connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
             if(dialog.exec()==QDialog::Accepted){const auto before=document_->state_id();document_->apply_groups(plan.groups,plan.assignments);changed=before!=document_->state_id();}
         }

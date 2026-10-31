@@ -233,7 +233,7 @@ public:
       return w;
     };
     scope = combo("blastScope", "Query scope",
-                  {"Selected names", "All matching rows"});
+                  {"Selected names", "All nucleotide sequences"});
     scope->setCurrentIndex(selected.empty() ? 1 : 0);
     database = combo("blastDatabase", "NCBI database", blast_databases(p));
     task =
@@ -298,7 +298,7 @@ public:
                        : defaults.blastNucleotideMask);
     waitMinutes->setValue(defaults.blastWaitMinutes);
     const std::vector<std::pair<QWidget *, QString>> help = {
-        {scope, "Choose selected names or every row of this molecule."},
+        {scope, "Search selected nucleotide names or all nucleotide sequences."},
         {database, "Choose an NCBI database."},
         {task, "Megablast finds close matches; blastn is more sensitive."},
         {email, "Required contact address for NCBI requests."},
@@ -340,8 +340,8 @@ public:
         new QLabel("Identity and query-cover filters are applied to received "
                    "hits. Retrieving 10 targets can show fewer than 10 after "
                    "filtering. Query cover = union of all HSP query spans; "
-                   "other metrics = best bit-score HSP. Publication year is "
-                   "the year of the first published reference, if provided.");
+                   "other metrics = best bit-score HSP. Sequence release date is "
+                   "the GenBank creation date; authors come from the direct submission, when available.");
     summary->setToolTip(summary->text());
     summary->setText("Cover = union of HSP query spans; other metrics use the "
                      "best HSP. Filters apply locally.");
@@ -650,7 +650,7 @@ public:
             {"batch", int(batch)},
             {"rid", rid},
             {"completed", completed},
-            {"metadata", metadataCache},
+            {"metadataSchema",2},{"metadata", metadataCache},
             {"diagnostics", diagnostics}};
   }
   bool persist() {
@@ -795,7 +795,8 @@ public:
       return;
     const auto now = QDateTime::currentMSecsSinceEpoch();
     QString text = phase;
-    const auto elapsed = monitorStarted ? (now - monitorStarted) / 1000 : 0;
+    qint64 submitted=0;for(const auto& item:diagnostics){auto line=item.toString();if(line.contains("RID accepted at")&&line.contains(rid)&&!rid.isEmpty()){submitted=QDateTime::fromString(line.left(20),Qt::ISODate).toMSecsSinceEpoch();break;}}const auto elapsed=submitted?(now-submitted)/1000:monitorStarted?(now-monitorStarted)/1000:0;
+
     if (waitUntil > now)
       text += QString(" Next contact in %1 s (rate-limited).")
                   .arg((waitUntil - now + 999) / 1000);
@@ -811,6 +812,7 @@ public:
                   .arg(elapsed / 60)
                   .arg(elapsed % 60)
                   .arg(batch);
+    if(elapsed>=600&&!rid.isEmpty())text+=" NCBI is still reporting this RID as pending. Resume keeps the same request; elapsed time includes earlier monitoring.";
     if (!lastServer.isEmpty())
       text += " Last server reply: " + lastServer;
     if (!rid.isEmpty())
@@ -1083,7 +1085,7 @@ public:
       status->setText(
           QString(
               "Complete: %1 displayed hit rows. Job: %2. Unavailable fields "
-              "remain blank; publication year is not a record-update date.")
+              "remain blank; sequence release date uses GenBank creation metadata.")
               .arg(model.rows.size())
               .arg(jobPath));
       return;
@@ -1125,7 +1127,7 @@ public:
   }
   void load_job() {
     const auto path = QFileDialog::getOpenFileName(
-        this, "Resume Kleiotide BLAST job", {}, "JSON (*.json)");
+        this, "Resume Kleiotide BLAST job", services.jobDirectory.isEmpty()?QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)+"/blast-jobs":services.jobDirectory, "JSON (*.json)");
     if (path.isEmpty())
       return;
     try {
@@ -1251,7 +1253,7 @@ public:
       completed = std::move(nextCompleted);
       rid = std::move(nextRid);
       hits = std::move(nextHits);
-      metadataCache = j["metadata"].toObject();
+      metadataCache = j["metadataSchema"].toInt()==2?j["metadata"].toObject():QJsonObject{};
       jobPath = path;
       {
         QSignalBlocker blockIdentity(identity), blockCoverage(coverage),

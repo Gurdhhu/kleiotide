@@ -13,6 +13,7 @@ QString output_filename_error(const QString& path,OutputNameRules rules=OutputNa
 // Validate before QFileDialog can interpret ?/* as a directory listing filter.
 QString choose_output_filename(QWidget*,const QString& caption,const QString& directory,
     const QString& filters,QString* selectedFilter=nullptr,QFileDialog::Options options={},OutputNameRules rules=OutputNameRules::Platform);
+QString ensure_output_extension(QString path,const QString& filter);
 bool requires_session(const Document&);
 QString output_path(QString path, OutputFormat);
 QString output_path_error(const QString& path, OutputFormat, const Document* source = nullptr);

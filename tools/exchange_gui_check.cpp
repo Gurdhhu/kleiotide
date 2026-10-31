@@ -254,6 +254,7 @@ int main(int argc, char **argv) {
                                            : "alpha renamed alpha"),
            "Both rename operations map selected XLSX columns");
     }
+    source.rename({{1," alpha "}});
     const auto spart = temp.filePath("partitions.spart");
     {
       QFile file(spart);
@@ -261,7 +262,7 @@ int main(int argc, char **argv) {
       file.write("begin "
                  "spart;Project_name=p;Date=2026;N_spartitions=2:Separate/"
                  "Together;N_individuals=2/2;N_subsets=2/"
-                 "1;Individual_assignment=\nalpha:1/5\nbeta:2/5;end;");
+                 "1;Individual_assignment=\n_alpha_:1/5\nbeta:2/5;end;");
     }
     input = spart;
     stage = 0;
@@ -292,7 +293,7 @@ int main(int argc, char **argv) {
         if (stage == 0) {
           stage = 1;
           auto *parts = child<QComboBox>(*dialog, "spartPartition");
-          need(parts->count() == 2, "SPART partition dropdown");
+          need(parts->count() == 2, "SPART partition dropdown");need(child<QCheckBox>(*dialog,"spartAssumeSanitation")->isChecked(),"SPART sanitation matching defaults on");
           parts->setCurrentIndex(1);
         } else if (stage == 1 && child<QPushButton>(*dialog, "groupImportApply")
                                      ->isEnabled()) {
@@ -312,7 +313,7 @@ int main(int argc, char **argv) {
     need(import_spart_groups(source, nullptr) && stage == 2 &&
              failure.isEmpty(),
          qPrintable(failure));
-    need(source.sequence(1).groupId == source.sequence(2).groupId &&
+    need(source.sequence(1).name==" alpha " && source.sequence(1).groupId == source.sequence(2).groupId &&
              source.group(source.sequence(1).groupId)->name == "5",
          "Chosen SPART partition applied");
     std::cout << "PASS CSV/XLSX group import with worksheet/header/column "

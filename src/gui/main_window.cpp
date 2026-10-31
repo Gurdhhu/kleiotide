@@ -222,6 +222,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(file,"Export FASTA…",{},[this]{save(true,{},true);});
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
     auto* exportBatch=action(file,"Batch export edited traces (AB1)…",{},[this]{export_traces();});exportBatch->setObjectName("exportAbifBatch");exportBatch->setToolTip("Export all traces or traces linked to selected sequence names into separate AB1 files.");
+    action(file,"Export sequence groups…",{},[this]{export_sequence_groups(*document_,this);})->setObjectName("exportGroups");
     file->addSeparator();
     action(file,"Recover session…",{},[this]{offer_recovery();})->setObjectName("recoverSession");
     action(file,"Write recovery checkpoint now (testing only)",{},[this]{write_recovery(true);})->setObjectName("checkpointNow");
@@ -271,7 +272,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(rename, "Using old name / new name table…", {}, [this] { rename_from_table(); });
     rename->addSeparator();
     for(int i=0;i<static_cast<int>(RenameOperation::Table);++i){const auto op=static_cast<RenameOperation>(i);action(rename,rename_operation_label(op),{},[this,op]{batch_rename(op);});}
-    action(file,"Export sequence groups…",{},[this]{export_sequence_groups(*document_,this);})->setObjectName("exportGroups");
     auto* sequence = menuBar()->addMenu("&Sequence");
     auto* setType=action(sequence,"Set sequence type…",{},[this]{set_sequence_type();});setType->setObjectName("setSequenceType");
     sequence->addSeparator();

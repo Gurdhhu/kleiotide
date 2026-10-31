@@ -2,6 +2,7 @@
 #include "gui/local_blast.hpp"
 #include "gui/rename_rules.hpp"
 #include "gui/spart.hpp"
+#include "gui/file_output.hpp"
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -16,7 +17,8 @@ void need(bool b, const char *m) {
 }
 template <class F> void rejects(F f) {
   bool caught = false;
-  try {
+  try {need(ensure_output_extension("result","Excel (*.xlsx)")=="result.xlsx","XLSX extension supplied");need(ensure_output_extension("result.txt","Table (*.tsv)")=="result.txt.tsv","Wrong extension is followed by format extension");need(ensure_output_extension("read.FAS","FASTA (*.fasta *.fas *.fa)")=="read.FAS","Accepted alternative suffix retained");need(spart_sanitize(" alpha  ")=="_alpha__","SPART retains boundary whitespace as underscores");
+
     f();
   } catch (...) {
     caught = true;
@@ -76,7 +78,7 @@ int main(int argc, char **argv) {
       parse_spart(bad);
     });
     d.rename({{1, "invalid name"}});
-    rejects([&] { export_spart(d, false, "p", "part"); });
+    need(parse_spart(export_spart(d,false,"p","part"))[0].assignments[0][0]=="invalid_name","SPART export sanitizes without editing");
     d.rename({{1, "sample_1"}});
     RenameOptions rename;
     rename.operation = RenameOperation::Table;

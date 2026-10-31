@@ -1,50 +1,24 @@
-# Sequence groups and table exchange
+# SPART and table exchange — 0.29.1
 
-Sequence → Groups → Import groups from SPART… reads matricial .spart and SPART
-XML (.spart.xml), following the supplied SPART format specification dated
-2 August 2021. If several partitions exist, choose one from the dropdown and
-review its assignments before Apply. Missing assignments (?) become Ungrouped
-for matching sequence names; unmatched titles are skipped. Duplicate titles
-require explicitly enabling assignment to every matching row. Import changes
-group membership, not sequences or names. Scores and analysis annotations are
-not stored as Kleiotide group data.
+SPART export automatically converts each character outside ASCII letters,
+digits and underscores to an underscore, including leading/trailing whitespace.
+It changes only the exported names. A separate Rename → Sanitize names for SPART
+operation applies that rule to alignment names after reviewing the automatic
+preview. It does not silently invent suffixes for collisions; export rejects
+colliding sanitized names so they can be resolved explicitly.
 
-File → Export sequence groups… offers .spart, .spart.xml or a TSV table of
-sequence name and group name. SPART exports one partition representing the
-current memberships; choose its name when saving. SPART requires unique sample
-names containing ASCII letters, digits or underscores. Invalid names are reported
-without changing the document; use Rename → Sanitize names / Make names unique,
-or export TSV. Ungrouped rows use ? in matricial output and remain unassigned in
-XML.
+SPART import offers Assume SPART name sanitation, checked by default. It sanitizes
+an in-memory name snapshot for comparison, retaining original IDs and names in
+the alignment. Turning the checkbox off restores literal matching. Ambiguous
+matching titles use the same duplicate-title validation as table import.
 
-Standard SPART subset identifiers are numbers. Optional Kleiotide_group_names
-(matricial, Base64 UTF-8) and kleiotideName attributes (XML) preserve named groups
-on a Kleiotide round trip. Other readers may display their numeric subset labels.
+Both matrix and XML variants support partition selection, grouped/ungrouped
+assignments and group-name round trips. Standard numeric subset labels are
+retained; optional Kleiotide group-name metadata preserves descriptive labels.
+Scores and analysis annotations are not stored as group data.
 
-## Shared table loading
-
-Load table… is available in:
-
-- Sequence → Groups → Import groups from table…
-- Edit → Rename → Using old name / new name table…
-- Edit → Rename → Append taxonomy / text from table…
-
-All accept UTF-8 TSV/TXT, comma-separated CSV (including quoted commas/doubled
-quotes; semicolon CSV is also accepted), and XLSX. Select a worksheet if there
-is more than one, indicate whether the first row is a header, and choose source
-and value columns for tables with more than two columns. Two-column tables use
-the first and second columns. Column selections invalidate the old preview.
-
-Matching uses complete, case-sensitive sequence names. Quotes are decoded and
-one balanced outer pair of parentheses is removed, as in the existing group
-importer. Conflicting mappings are rejected. Preview before Apply.
-
-XLSX imports use stored cell values, including shared and inline strings. They
-never execute formulas, macros or external links. Formula cells need saved cached
-values; recalculate and save the workbook first if these are missing. Text cells
-preserve identifiers exactly; numeric formatting is not applied. Cells containing
-line breaks or null characters are rejected. Limits: 16 MiB decoded table,
-100,000 data rows, 4,096 columns, 64 MiB XLSX file/individual decompressed entry.
-The bundled miniz inflate component requires no additional runtime installation.
-
-examples/table_import_demo.xlsx provides two worksheets for manual testing.
+All three table loaders accept UTF-8 TSV/CSV/XLSX, worksheets, headers and column
+selection. Quotes and balanced outer parentheses are decoded consistently.
+XLSX uses stored cell values; formulas are not executed and need cached values.
+Rename previews update automatically; the Rename button commits the result.
+Group import previews retain their existing automatic behavior and Apply action.

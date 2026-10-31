@@ -836,7 +836,7 @@ void AlignmentView::mouseMoveEvent(QMouseEvent* event) {
     if(resizingNames_&&event->buttons().testFlag(Qt::LeftButton)){
         resize_name_area(point.x()-nameResizeOffset_+1);QToolTip::hideText();event->accept();return;
     }
-    if(!dragAnchor_&&on_name_border(point.x())){viewport()->setCursor(Qt::SplitHCursor);QToolTip::hideText();return;}
+    if(!event->buttons().testFlag(Qt::LeftButton)&&on_name_border(point.x())){viewport()->setCursor(Qt::SplitHCursor);QToolTip::hideText();return;}
     viewport()->unsetCursor();
     if (dragAnchor_ && event->buttons().testFlag(Qt::LeftButton)) {
         QToolTip::hideText(); update_fragment_drag(point); event->accept(); return;
@@ -979,7 +979,6 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     auto* link=menu.addAction("Link trace (AB1)…",[this]{if(link_trace_requested)link_trace_requested();});link->setEnabled(!selected_.empty());
     auto* unlink=menu.addAction("Delete trace…",[this]{if(delete_trace_requested)delete_trace_requested();});unlink->setEnabled(!selected_.empty());menu.addSeparator();
     menu.addAction("NCBI nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
-    menu.addAction("Local protein BLAST…",[this]{if(blast_requested)blast_requested(true);})->setEnabled(!selected_.empty());menu.addSeparator();
     auto* addGroup=menu.addAction("Add to group…",[this]{if(add_group_requested)add_group_requested();});addGroup->setEnabled(!selected_.empty());
     auto* removeGroup=menu.addAction("Remove from group",[this]{if(remove_group_requested)remove_group_requested();});removeGroup->setEnabled(!selected_.empty());
     menu.exec(event->globalPos());

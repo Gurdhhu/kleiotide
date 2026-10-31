@@ -1,4 +1,10 @@
-# BLAST and trace linking — 0.29.0 testing release
+# BLAST and trace linking — 0.29.1 testing release
+
+Current UI: trace mapping previews update automatically; Link traces commits
+the reviewed assignments. Batch add AB1 files starts import/inference. NCBI result
+dates use GBSeq_create-date, authors use direct-submission references, and XLSX
+accessions are blue/underlined. Older article-based metadata caches are refreshed.
+See RELEASE_0.29.1_TESTING.md for current UI behavior.
 
 ## Trace assignment
 
@@ -50,7 +56,7 @@ or a guarantee of mapping correctness. Four previously supplied real AB1 reads
 and constructed ground-truth edits were checked locally; broader manual
 calibration on research reads remains part of native acceptance.
 
-Changing assignments invalidates Preview. Apply checks the source revision and
+Changing assignments starts a new automatic preview. Link traces checks the source revision and
 adds valid links together in one Undo step. Unassigned/failed rows retain their
 current trace associations; remove old links through Delete trace when desired.
 Preview/file loading run in workers; Cancel leaves sequence data unchanged.

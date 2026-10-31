@@ -1,3 +1,11 @@
+# Latest native report: 0.29.0
+
+The user reports all 41 automatic tests shown by their build and all twelve
+focused manual items passing on Windows. SPART Explorer also displayed their
+matricial exports successfully. This is user-reported acceptance of 0.29.0.
+The 0.29.1 source registers 45 tests; build it in a fresh directory and use its
+new focused guide. Native 0.29.1 acceptance remains pending.
+
 # Windows acceptance and scale observations
 
 Reports supplied by Oleg Shchepin for 0.26.10 and the subsequent **0.26.11**

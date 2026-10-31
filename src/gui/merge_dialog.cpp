@@ -60,16 +60,17 @@ protected:
         p.setFont(font());const auto fm=fontMetrics();const int cell=std::max(1,fm.horizontalAdvance('M')),line=fm.height()+6,names=nameWidth_;
         const auto first=std::size_t(horizontalScrollBar()->value());const auto end=std::min(plan_->symbols.size(),first+std::size_t(std::max(0,viewport()->width()-names)/cell+1));
         p.setPen(Qt::darkGray);p.drawText(4,line-fm.descent(),"Result column");
-        for(auto c=first;c<end;++c)if(c==first||(c+1)%10==0)p.drawText(names+int(c-first)*cell,line-fm.descent(),QString::number(c+1));
+        for(auto c=first;c<end;++c)if((c+1)%10==0)p.drawText(names+int(c-first)*cell,line-fm.descent(),QString::number(c+1));
+        const auto label=QString::number(first+1);const int labelWidth=fm.horizontalAdvance(label)+12;p.fillRect(names,0,labelWidth,line,Qt::white);p.setPen(Qt::darkGray);p.drawText(names+4,line-fm.descent(),label);
         const auto top=std::size_t(verticalScrollBar()->value());const auto bottom=std::min(plan_->alignment.size()+1,top+std::size_t(std::max(0,viewport()->height()/line)));
         for(auto row=top;row<bottom;++row){
             const int y=int(row-top+1)*line;const auto label=row?text(source_->sequence(plan_->alignment[row-1].id).name):QString("Merged result");
-            p.fillRect(0,y,names,line,QColor(row?"#edf1f5":"#dcebdc"));p.setPen(Qt::black);p.drawText(QRect(4,y,names-8,line),Qt::AlignVCenter,fm.elidedText(label,Qt::ElideRight,names-8));
+            p.fillRect(0,y,names,line,QColor(row?"#ffffff":"#dcebdc"));p.setPen(Qt::black);p.drawText(QRect(4,y,names-8,line),Qt::AlignVCenter,fm.elidedText(label,Qt::ElideRight,names-8));
             p.save();p.setClipRect(QRect(names,y,viewport()->width()-names,line));
             for(auto c=first;c<end;++c){
                 const int x=names+int(c-first)*cell;
                 const auto conflict=std::lower_bound(plan_->conflicts.begin(),plan_->conflicts.end(),c,[](const auto& item,std::size_t column){return item.column<column;});
-                if(conflict!=plan_->conflicts.end()&&conflict->column==c)p.fillRect(x,y,cell,line,QColor(conflict->resolvedByQuality?"#ffd68a":"#ffc5cd"));
+                if(conflict!=plan_->conflicts.end()&&conflict->column==c)p.fillRect(x,y,cell,line,QColor(conflict->resolvedByQuality?"#fff030":"#ffc5cd"));
                 char symbol=plan_->symbols[c];
                 if(row){const auto& read=plan_->alignment[row-1];symbol=c>=read.begin&&c<read.end?read.symbols[c]:' ';}
                 p.setPen(Qt::black);p.drawText(x,y+line-fm.descent()-3,QString(QChar::fromLatin1(symbol)));
@@ -121,8 +122,8 @@ public:
             "Uses the current alignment columns. Terminal regions containing only N, ? and gaps supply no evidence. Conflicting residues give an IUPAC union; internal gap conflicts retain the residue. Q resolution requires original quality for every informative call at a conflict, a concrete highest-Q call and the chosen advantage over different calls. Missing Q, ties, edited/inserted calls or indels retain the ordinary consensus.":
             "Uses the current orientation after removing alignment gaps. N/? keep their positions but supply no matching evidence. Zero differences means exact overlap; otherwise each substitution or internal inserted/deleted base costs one. Terminal overhangs are free. The minimum counts informative matching positions. Ambiguity codes other than N/? are compared literally: R versus A costs one search difference but produces no consensus conflict. Counts describe different things: search events are summed across read additions; conflict positions are unique final columns with incompatible evidence. Each added read must meet these limits against the current contig consensus. Among overlaps meeting the minimum, fewer differences win; matching support breaks ties. Equally strong repeat placements are deferred. Components are searched separately; choose one result. Excluded reads remain unchanged. Q resolves consensus conflicts only after placement; it does not change overlap acceptance.",this);
         details->setWordWrap(true);details->setVisible(false);layout->addWidget(details);connect(detailsToggle,&QToolButton::toggled,this,[details,detailsToggle](bool on){details->setVisible(on);detailsToggle->setArrowType(on?Qt::DownArrow:Qt::RightArrow);});
-        auto* policy=new QLabel("Apply appends the merged sequence to the end of the alignment. Original reads are retained.",this);policy->setWordWrap(true);layout->addWidget(policy);
-        auto* legendRow=new QHBoxLayout;auto* legend=new QLabel("Consensus conflicts: red · Q-resolved conflicts: amber. Drag the divider to resize sequence names.",this);legend->setWordWrap(true);legendRow->addWidget(legend,1);
+        auto* policy=new QLabel("Merge appends the merged sequence to the end of the alignment. Original reads are retained.",this);policy->setWordWrap(true);layout->addWidget(policy);
+        auto* legendRow=new QHBoxLayout;auto* legend=new QLabel("Consensus conflicts: red · Q-resolved conflicts: yellow. Drag the divider to resize sequence names.",this);legend->setWordWrap(true);legendRow->addWidget(legend,1);
         layout->addLayout(legendRow);
         alignment_=new MergeAlignmentPreview(this);layout->addWidget(alignment_);
         copyAlignment_=new QPushButton("Copy reads-to-contig alignment as FASTA",this);copyAlignment_->setObjectName("mergeCopyAlignment");layout->addWidget(copyAlignment_);
@@ -176,7 +177,7 @@ private:
         quality_->setEnabled(!running_&&anyTraces_);margin_->setEnabled(!running_&&quality_->isChecked());preview_->setEnabled(!running_&&selected_.size()>1);
         copyAlignment_->setEnabled(!running_&&usable());apply_->setEnabled(!running_&&usable());save_->setEnabled(!running_&&usable());
     }
-    void invalidate(){alignment_->show_plan(nullptr,nullptr);plan_.reset();placements_->setRowCount(0);{QSignalBlocker guard(contigs_);contigs_->clear();}notice("working","Preview required","Choose settings, then Preview.");controls();}
+    void invalidate(){alignment_->show_plan(nullptr,nullptr);plan_.reset();placements_->setRowCount(0);{QSignalBlocker guard(contigs_);contigs_->clear();}notice("working","Preview required","Preview updates automatically after changing settings.");controls();}
     void render(){
         if(!plan_)return;
         const auto& p=*plan_;alignment_->show_plan(&p,source_.get());
@@ -186,7 +187,7 @@ private:
         if(mode_==MergeMode::ExactOverlap)summary+=QString("\n%1 edit events used: %2 substitutions, %3 inserted/deleted bases; %4 substitutions are compatible IUPAC symbol differences")
             .arg(p.editsUsed).arg(p.substitutionsUsed).arg(p.indelBasesUsed).arg(p.compatibleDifferencesUsed);
         if(p.ids.empty())notice("error","No contig found","No two selected reads have an unambiguous overlap within these limits. Review the per-sequence results below; lower the minimum or increase the difference allowance and Preview again.");
-        else if(!p.omitted.empty())notice("partial","Partial contig — review excluded reads",summary+"\n"+QString("%1 reads excluded. Apply or Save uses this contig; excluded reads remain unchanged.").arg(p.omitted.size()));
+        else if(!p.omitted.empty())notice("partial","Partial contig — review excluded reads",summary+"\n"+QString("%1 reads excluded. Merge or Save uses this contig; excluded reads remain unchanged.").arg(p.omitted.size()));
         else notice("ready","Ready to merge",summary);
         placements_->setRowCount(static_cast<int>(p.selectedIds.size()));
         for(std::size_t i=0;i<p.selectedIds.size();++i){const auto id=p.selectedIds[i];const auto row=static_cast<int>(i);placements_->setItem(row,0,new QTableWidgetItem(text(source_->sequence(id).name)));

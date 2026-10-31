@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.1
+
+- Build fix 1: use distinct widget variables in automatic-preview signature collection to fix the reported MSVC shadow/redefinition errors.
+
+- Automatic read-only previews with named confirmation actions.
+- Shared filename extensions, sequence submission metadata and visible XLSX links.
+- SPART sanitation on export, optional sanitation-aware matching and rename action.
+- Compact dialogs, Cancel placement, color markers, full database popups, merge ruler/colors and revised labels/tooltips.
+- Preserve collapse representatives during title-format edits and trace preview invalidation when adding files.
+
+
 ## 0.29.0 — local BLAST, SPART and table exchange
 
 - Replace BLAST+ remote searches with local database creation and blastn, blastp,

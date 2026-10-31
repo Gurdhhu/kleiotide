@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: Shchepin
     given-names: Oleg
-version: "0.29.0"
+version: "0.29.1"
 license: GPL-3.0-only
 abstract: >-
   Kleiotide is a C++20 and Qt Widgets editor for nucleotide and protein

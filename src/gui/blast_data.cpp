@@ -399,7 +399,7 @@ void enrich_blast(std::vector<BlastHit> &hits, const QByteArray &bytes) {
   std::vector<Record> records;
   Record record;
   QString qualifier;
-  bool inReference = false, chosen = false;
+  bool inReference = false;
   QStringList authors;
   QString journal, fallbackAuthors;
   while (!x.atEnd()) {
@@ -410,7 +410,7 @@ void enrich_blast(std::vector<BlastHit> &hits, const QByteArray &bytes) {
         throw std::runtime_error(x.readElementText().toStdString());
       if (tag == "GBSeq") {
         record = {};
-        chosen = false;
+
         fallbackAuthors.clear();
       } else if (tag == "GBSeq_accession-version" ||
                  tag == "GBSeq_primary-accession") {
@@ -419,6 +419,8 @@ void enrich_blast(std::vector<BlastHit> &hits, const QByteArray &bytes) {
           record.accession = s;
       } else if (tag == "GBSeq_organism")
         record.species = x.readElementText();
+      else if (tag == "GBSeq_create-date")
+        record.date = x.readElementText();
       else if (tag == "GBSeq_taxonomy")
         record.taxonomy = x.readElementText();
       else if (tag == "GBQualifier_name")
@@ -445,18 +447,12 @@ void enrich_blast(std::vector<BlastHit> &hits, const QByteArray &bytes) {
         inReference = false;
         if (fallbackAuthors.isEmpty())
           fallbackAuthors = authors.join("; ");
-        if (!chosen && !journal.startsWith("Submitted", Qt::CaseInsensitive) &&
-            journal != "Unpublished") {
+        if (journal.startsWith("Submitted", Qt::CaseInsensitive)) {
           record.authors = authors.join("; ");
-          auto m =
-              QRegularExpression("\\b(?:18|19|20)\\d{2}\\b").match(journal);
-          record.date = m.hasMatch() ? m.captured() : QString{};
-          chosen = true;
         }
       }
       if (tag == "GBSeq") {
-        if (record.authors.isEmpty())
-          record.authors = fallbackAuthors;
+
         records.push_back(record);
       }
     }
@@ -517,7 +513,7 @@ QStringList blast_columns(bool local) {
           "Hit title",
           "Taxonomy",
           "Authors",
-          "Publication date/year"};
+          "Sequence release date"};
 }
 bool blast_numeric_column(int c, bool local) {
   if (local)
@@ -708,6 +704,8 @@ QByteArray blast_xlsx(const BlastTable &rows, bool local, bool protein) {
     x.writeStartElement("row");
     for (int column = 0; column < row.size(); ++column) {
       x.writeStartElement("c");
+      if (!header && !local && column == 4)
+        x.writeAttribute("s", "1");
       if (!header && blast_numeric_column(column, local))
         x.writeTextElement("v", row[column]);
       else {
@@ -766,7 +764,10 @@ QByteArray blast_xlsx(const BlastTable &rows, bool local, bool protein) {
         "vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/"
         "><Override PartName=\"/xl/worksheets/sheet1.xml\" "
         "ContentType=\"application/"
-        "vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/></"
+        "vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/"
+        "><Override PartName=\"/xl/styles.xml\" "
+        "ContentType=\"application/"
+        "vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></"
         "Types>"},
        {"_rels/.rels", "<Relationships "
                        "xmlns=\"http://schemas.openxmlformats.org/package/2006/"
@@ -786,7 +787,11 @@ QByteArray blast_xlsx(const BlastTable &rows, bool local, bool protein) {
         "relationships\"><Relationship Id=\"rId1\" "
         "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/"
         "relationships/worksheet\" "
-        "Target=\"worksheets/sheet1.xml\"/></Relationships>"},
+        "Target=\"worksheets/sheet1.xml\"/><Relationship Id=\"rId2\" "
+        "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/"
+        "relationships/styles\" Target=\"styles.xml\"/></Relationships>"},
+       {"xl/styles.xml",
+        R"STYLE(<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/><u/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf fontId="0" fillId="0" borderId="0"/><xf fontId="1" fillId="0" borderId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>)STYLE"},
        {"xl/worksheets/sheet1.xml", sheet},
        {"xl/worksheets/_rels/sheet1.xml.rels", relationships}});
 }
