@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.2
+
+- Unified XLSX/TSV/CSV table saving with settings and separate workbook data blocks; preserve remote accession links.
+- Protein alignment statistics with molecule selection and IQ-TREE state conventions.
+- Modeless BLAST searches from alignment snapshots, clear status badges and compact scrolling forms.
+- Compact merge controls/dialogs, footer layout fixes, resizable preview columns and result-only TSV clipboard copies.
+- Avoid remapping unchanged trace assignments and activate traces after linking.
+- Infer supported terminal signal anchors without inventing original calls or measured quality; retain them through edits, AB1 export and format-5 sessions (formats 1–4 still load).
+- Lowercase SPART sanitation; add XLSX/CSV group export and separate BLAST menu sections.
+
 ## 0.29.1
 
 - Build fix 1: use distinct widget variables in automatic-preview signature collection to fix the reported MSVC shadow/redefinition errors.

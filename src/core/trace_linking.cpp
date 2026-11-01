@@ -68,6 +68,7 @@ TraceMapping map_trace(std::string_view symbols,std::shared_ptr<const Chromatogr
   if(concrete>=std::min<std::size_t>(40,query.size())&&((oneForward&&reverse==std::string::npos)||(oneReverse&&forward==std::string::npos))){
    const bool reversed=oneReverse;const auto offset=reversed?reverse:forward;auto link=std::make_shared<TraceLink>();link->original=original;link->reversed=reversed;
    for(std::size_t i=0;i<query.size();++i)link->originalCalls.push_back(static_cast<std::int32_t>(reversed?calls.size()-1-offset-i:offset+i));
+   refine_trace_flanks(*link,query,cancel,maxCells);
    result.link=link;result.orientation=reversed?"Reverse":"Forward";result.quality="Perfect";result.identity=1;result.matches=query.size();result.aligned=query.size();result.reason="Unique exact call match (terminal trimming allowed); original indices retained, including ambiguous calls. Peak quality does not affect this classification.";return result;
   }
  }
@@ -95,8 +96,8 @@ TraceMapping map_trace(std::string_view symbols,std::shared_ptr<const Chromatogr
  const auto mapped=std::count_if(h.map.begin(),h.map.end(),[](auto index){return index>=0;});
  if(std::size_t(mapped)<minimum||double(mapped)<.5*(h.end-h.begin)){result.reason="Too many ambiguous original-call indices";return result;}
  if(all.size()>1&&all[1].score>=h.score*.95){result.reason="Ambiguous orientation or repeat placement";return result;}
- auto link=std::make_shared<TraceLink>();link->original=std::move(original);link->originalCalls=std::move(h.map);link->reversed=h.reverse;result.link=link;result.orientation=h.reverse?"Reverse":"Forward";
- result.quality=h.indels==0&&h.matches==query.size()?"Perfect":result.identity>=.9?"Good":"Terrible";result.reason="Heuristic affine overlap; terminal additions and ambiguous near-indel calls have no peak";return result;
+ auto link=std::make_shared<TraceLink>();link->original=std::move(original);link->originalCalls=std::move(h.map);link->reversed=h.reverse;refine_trace_flanks(*link,query,cancel,maxCells);result.link=link;result.orientation=h.reverse?"Reverse":"Forward";
+ result.quality=h.indels==0&&h.matches==query.size()?"Perfect":result.identity>=.9?"Good":"Terrible";result.reason="Heuristic affine overlap; supported terminal additions use inferred signal peaks without measured quality; uncertain calls remain unassigned";return result;
 }
 int suggest_trace(std::string_view name,const std::vector<std::string>& stems,const std::vector<std::string>& internal){
  if(name.empty())return -1;

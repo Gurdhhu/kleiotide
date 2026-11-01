@@ -1,4 +1,5 @@
 #include "gui/local_blast.hpp"
+#include "gui/search_status.hpp"
 #include "core/fasta.hpp"
 #include "core/session.hpp"
 #include "core/translation.hpp"
@@ -381,11 +382,11 @@ class LocalSearch final : public QDialog {
       *composition, *threads, *minutes;
   QDoubleSpinBox *identity, *coverage;
   QCheckBox *mask, *soft;
-  QLabel *status;
+  QLabel *status, *badge;
   QPlainTextEdit *diagnostics;
   QTableView *table;
   QStandardItemModel model;
-  QPushButton *start, *cancel, *tsv, *xlsx;
+  QPushButton *start, *cancel, *saveTable;
   QProcess process;
   QTimer timer;
   std::unique_ptr<QTemporaryDir> temp;
@@ -397,6 +398,7 @@ class LocalSearch final : public QDialog {
   BlastTable rows;
   bool running = false, checking = false;
   qint64 started = 0;
+  QString backendVersion, searchTime, usedArguments;
 
 public:
   LocalSearch(std::shared_ptr<Document> d, std::vector<SequenceId> ids,
@@ -405,7 +407,7 @@ public:
     setObjectName("localBlastDialog");
     setWindowTitle("Local BLAST");
     setWindowModality(Qt::WindowModal);
-    resize(1040, 800);
+    resize(680, 620);
     auto *layout = new QVBoxLayout(this);
     tabs = new QTabWidget;
     layout->addWidget(tabs, 1);
@@ -415,6 +417,7 @@ public:
     scroll->setWidget(controls);
     tabs->addTab(scroll, "Search options");
     auto *fields = new QVBoxLayout(controls);
+    auto* snapshotNote=new QLabel("Queries use a snapshot taken when this window opens; you can keep editing the alignment.");snapshotNote->setWordWrap(true);fields->addWidget(snapshotNote);
     auto section = [&](const QString &text) {
       auto *box = new QGroupBox(text);
       auto *form = new QFormLayout(box);
@@ -561,6 +564,7 @@ public:
     status = new QLabel("Choose a local database and search type.");
     status->setObjectName("localBlastStatus");
     status->setWordWrap(true);
+    badge=new QLabel;badge->setObjectName("localBlastStatusBadge");search_status(badge,"Ready — choose a database","#e7effa");resultLayout->insertWidget(0,badge);
     resultLayout->addWidget(status);
     diagnostics = new QPlainTextEdit;
     diagnostics->setObjectName("localBlastDiagnostics");
@@ -573,13 +577,12 @@ public:
                                QDialogButtonBox::ActionRole);
     start->setObjectName("localBlastStart");
     cancel = buttons->addButton("Close", QDialogButtonBox::RejectRole);
-    tsv = buttons->addButton("Save TSV…", QDialogButtonBox::ActionRole);
-    xlsx = buttons->addButton("Save XLSX…", QDialogButtonBox::ActionRole);
-    auto *report = buttons->addButton("Save diagnostic report…",
+    auto* exportButtons=new QDialogButtonBox;resultLayout->addWidget(exportButtons);
+    saveTable = exportButtons->addButton("Save table…",QDialogButtonBox::ActionRole);saveTable->setObjectName("localBlastSaveTable");saveTable->setToolTip("Save search settings and filtered hits as XLSX, TSV or CSV.");
+    auto *report = exportButtons->addButton("Save diagnostic report…",
                                       QDialogButtonBox::ActionRole);
     layout->addWidget(buttons);
-    tsv->setEnabled(false);
-    xlsx->setEnabled(false);
+    saveTable->setEnabled(false);
     start->setToolTip("Search the chosen database on this computer.");
     report->setToolTip("Save executable details, timing and program messages.");
     auto refill = [this] {
@@ -662,8 +665,7 @@ public:
     });
     connect(start, &QPushButton::clicked, this, [this] { begin(); });
     connect(cancel, &QPushButton::clicked, this, &LocalSearch::reject);
-    connect(tsv, &QPushButton::clicked, this, [this] { save(false); });
-    connect(xlsx, &QPushButton::clicked, this, [this] { save(true); });
+    connect(saveTable, &QPushButton::clicked, this, [this] { save(); });
     connect(report, &QPushButton::clicked, this, [this] {
       auto path =
           choose_export_path(this, "Save local BLAST diagnostics", {},
@@ -712,12 +714,14 @@ public:
               if (!version.contains(options.program + ":", Qt::CaseInsensitive))
                 bad("Select the NCBI " + options.program +
                     " executable. Version output: " + version.left(2048));
-              record(version.trimmed());
+              backendVersion=version.trimmed();
+              record(backendVersion);
               output.clear();
               errorOutput.clear();
               process.setArguments(
                   blast_arguments(options, temp->filePath("query.fa")));
-              record("Arguments: " + process.arguments().join(' '));
+              usedArguments=process.arguments().join(' ');
+              record("Arguments: " + usedArguments);
               process.start();
               return;
             }
@@ -746,6 +750,7 @@ public:
                     .arg(rows.size())
                     .arg((QDateTime::currentMSecsSinceEpoch() - started) /
                          1000));
+            search_status(badge,"Completed","#d9f2dc");
             record("Search complete.");
           } catch (const std::exception &e) {
             stop(e.what());
@@ -784,8 +789,8 @@ public:
             [refilter] { refilter(); });
     if (auto *screen = this->screen()) {
       auto size = screen->availableGeometry().size();
-      resize(std::min(1040, size.width() - 40),
-             std::min(850, size.height() - 60));
+      resize(std::min(680, size.width() - 40),
+             std::min(620, size.height() - 60));
     }
   }
   ~LocalSearch() override {
@@ -812,10 +817,10 @@ public:
     controls->setEnabled(true);
     start->setEnabled(true);
     cancel->setText("Close");
+    search_status(badge,message.startsWith("Cancelled")?"Cancelled — completed results retained":"Failed — completed results retained",message.startsWith("Cancelled")?"#eeeeee":"#ffd9dc");
     status->setText(message);
     record(message);
-    tsv->setEnabled(!rows.empty());
-    xlsx->setEnabled(!rows.empty());
+    saveTable->setEnabled(!queries.empty());
   }
   void reject() override {
     if (running) {
@@ -888,8 +893,7 @@ public:
       hits.clear();
       rows.clear();
       model.clear();
-      tsv->setEnabled(false);
-      xlsx->setEnabled(false);
+      saveTable->setEnabled(false);
       diagnostics->clear();
       record("Executable: " + options.launcher);
       record("Database: " + db.manifest);
@@ -897,6 +901,8 @@ public:
       start->setEnabled(false);
       cancel->setText("Cancel job");
       tabs->setCurrentIndex(1);
+      searchTime=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);backendVersion.clear();usedArguments.clear();
+      search_status(badge,"Search in progress","#d7eaff");
       started = QDateTime::currentMSecsSinceEpoch();
       timer.start();
       process.setProgram(options.launcher);
@@ -931,28 +937,16 @@ public:
     }
     table->setSortingEnabled(true);
     table->sortByColumn(-1, Qt::AscendingOrder);
-    tsv->setEnabled(!rows.empty());
-    xlsx->setEnabled(!rows.empty());
+    saveTable->setEnabled(!queries.empty());
   }
-  void save(bool excel) {
+  void save() {
     try {
-      auto path = choose_export_path(
-          this, excel ? "Save local BLAST XLSX" : "Save local BLAST TSV", {},
-          excel ? "Excel workbook (*.xlsx)" : "Tab-separated table (*.tsv)",
-          OutputFormat::Table, source.get());
-      if (path.isEmpty())
-        return;
-      const auto bytes = excel ? blast_xlsx(rows, true) : blast_tsv(rows, true);
-      auto error = write_export_atomic(
-          path, OutputFormat::Table, source.get(),
-          [&](auto &out) { out.write(bytes.constData(), bytes.size()); });
-      if (!error.isEmpty())
-        bad(error);
-      status->setText("Saved: " + path);
-    } catch (const std::exception &e) {
-      QMessageBox::warning(this, "Save local results", e.what());
-    }
+      const auto path=choose_table_path(this,"local_blast_results.xlsx",source.get());if(path.isEmpty())return;
+      auto report=blast_report(rows,options,searchTime,backendVersion,usedArguments);report[0].rows.push_back({"Local database manifest",db.manifest});report[0].rows.push_back({"Local database name",db.title});
+      const auto bytes=report_bytes(path,report);const auto error=write_export_atomic(path,OutputFormat::Table,source.get(),[&](auto& out){out.write(bytes.constData(),bytes.size());});if(!error.isEmpty())bad(error);status->setText("Saved: "+path);
+    }catch(const std::exception& e){QMessageBox::warning(this,"Save local results",e.what());}
   }
+
 };
 } // namespace
 void create_local_database(bool protein, QWidget *parent) {
@@ -983,7 +977,8 @@ void create_local_database(bool protein, QWidget *parent) {
 }
 void local_blast_dialog(std::shared_ptr<Document> document,
                         const std::vector<SequenceId> &selected, bool protein,
-                        QWidget *parent) {
+                        QWidget *parent, bool modeless) {
+  if(modeless){try{std::vector<SequenceId> ids;for(const auto& row:document->rows())ids.push_back(row.id);auto snapshot=std::make_shared<Document>(document->subset(ids));auto* dialog=new LocalSearch(std::move(snapshot),selected,protein,parent);dialog->setWindowModality(Qt::NonModal);dialog->setModal(false);dialog->setAttribute(Qt::WA_DeleteOnClose);dialog->show();}catch(const std::bad_alloc&){QMessageBox::warning(parent,"BLAST query snapshot","Not enough memory to prepare the query snapshot. Try a smaller alignment.");}catch(const std::exception& e){QMessageBox::warning(parent,"BLAST query snapshot",QString::fromUtf8(e.what()));}return;}
   LocalSearch dialog(std::move(document), selected, protein, parent);
   dialog.exec();
 }

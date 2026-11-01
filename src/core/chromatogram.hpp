@@ -1,6 +1,8 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <string_view>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,9 +22,15 @@ struct TraceLink {
     std::shared_ptr<const Chromatogram> original;
     // One entry per current non-gap symbol; -1 denotes an inserted symbol.
     std::vector<std::int32_t> originalCalls;
+    // Optional original-signal sample anchors for inserted residues. These are
+    // inferred positions, not original calls and never supply measured Q.
+    std::vector<std::int32_t> inferredPeaks;
     bool reversed = false;
 };
 char trace_complement(char symbol) noexcept;
+std::optional<std::uint32_t> trace_sample_anchor(const TraceLink&,std::size_t ordinal);
+std::vector<double> trace_sample_positions(const TraceLink&);
+void refine_trace_flanks(TraceLink&,std::string_view residues,const std::function<bool()>& cancelled={},std::size_t maxCells=1000000);
 std::shared_ptr<const TraceLink> reversed_trace(const std::shared_ptr<const TraceLink>& link);
 void validate_trace(const Sequence& row);
 std::size_t trace_storage_bytes(const std::shared_ptr<const TraceLink>& link) noexcept;
@@ -32,7 +40,7 @@ struct TracePosition {
     double sample = 0;
     std::optional<std::size_t> originalCall;
     char current = '~', imported = '?';
-    bool edited = false;
+    bool edited = false, inferred = false;
     std::optional<unsigned> quality;
 };
 // Synthetic positions are display anchors only: no original peak or quality is invented.

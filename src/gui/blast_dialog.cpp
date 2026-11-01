@@ -1,4 +1,5 @@
 #include "gui/blast_dialog.hpp"
+#include "gui/search_status.hpp"
 #include "gui/app_settings.hpp"
 #include "gui/blast_data.hpp"
 #include "gui/file_output.hpp"
@@ -19,6 +20,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QJsonArray>
@@ -126,7 +128,7 @@ public:
   QJsonArray completed;
   QJsonObject metadataCache;
   std::size_t batch = 0, resultBytes = 0;
-  QString rid, jobPath;
+  QString rid, jobPath, searchTime;
   QStringList accessions;
   bool running = false, metadata = false;
   int generation = 0, processGeneration = 0;
@@ -145,8 +147,8 @@ public:
   QTableView *table;
   QTabWidget *tabs;
   QSortFilterProxyModel proxy;
-  QLabel *status, *summary;
-  QPushButton *start, *resume, *cancel, *tsv, *xlsx, *fetch, *saveJob,
+  QLabel *status, *summary, *badge;
+  QPushButton *start, *resume, *cancel, *saveTable, *fetch, *saveJob,
       *saveReport, *openRid;
   QComboBox *scope, *database, *task, *strand, *matrix;
   QLineEdit *email, *entrez, *launcher;
@@ -167,7 +169,7 @@ public:
     setObjectName("blastDialog");
     setWindowModality(Qt::WindowModal);
     setWindowTitle(p ? "NCBI protein BLAST" : "NCBI nucleotide BLAST");
-    resize(1000, 820);
+    resize(680, 620);
     auto *outer = new QVBoxLayout(this);
     auto *bodyScroll = new QScrollArea;
     bodyScroll->setWidgetResizable(true);
@@ -182,7 +184,7 @@ public:
     auto *layout = new QVBoxLayout(body);
     auto *notice =
         new QLabel("Searches NCBI over HTTPS. Query sequences are sent to "
-                   "NCBI; original names and traces stay on this computer.");
+                   "NCBI; original names and traces stay on this computer. Queries use a snapshot taken when this window opens.");
     notice->setWordWrap(true);
     layout->addWidget(notice);
     controls = new QWidget;
@@ -370,6 +372,7 @@ public:
     status = new QLabel("Configure a search. Nothing has been submitted.");
     status->setObjectName("blastStatus");
     status->setWordWrap(true);
+    badge=new QLabel;badge->setObjectName("blastStatusBadge");search_status(badge,"Ready — no search submitted","#e7effa");resultsLayout->insertWidget(0,badge);
     resultsLayout->addWidget(status);
     details = new QPlainTextEdit;
     details->setObjectName("blastDiagnostics");
@@ -391,13 +394,12 @@ public:
     fetch = buttons->addButton("Fetch GenBank metadata",
                                QDialogButtonBox::ActionRole);
     fetch->setObjectName("blastMetadata");
-    tsv = buttons->addButton("Save TSV…", QDialogButtonBox::ActionRole);
-    xlsx = buttons->addButton("Save XLSX…", QDialogButtonBox::ActionRole);
+    saveTable = buttons->addButton("Save table…", QDialogButtonBox::ActionRole);
+    saveTable->setObjectName("blastSaveTable");
     cancel = buttons->addButton("Close", QDialogButtonBox::RejectRole);
     cancel->setObjectName("blastCancel");
     fetch->setEnabled(false);
-    tsv->setEnabled(false);
-    xlsx->setEnabled(false);
+    saveTable->setEnabled(false);
     saveJob->setEnabled(false);
     saveReport = buttons->addButton("Save diagnostic report…",
                                     QDialogButtonBox::ActionRole);
@@ -406,28 +408,27 @@ public:
         buttons->addButton("Open RID at NCBI", QDialogButtonBox::ActionRole);
     openRid->setObjectName("blastOpenRid");
     openRid->setEnabled(false);
-    auto *recordsRow = new QDialogButtonBox;
+    auto *recordsRow = new QWidget;auto* recordsGrid=new QGridLayout(recordsRow);recordsGrid->setContentsMargins(0,0,0,0);int recordIndex=0;
     auto *exportRow = new QDialogButtonBox;
     for (auto *button : {fetch, saveJob, saveReport, openRid}) {
       buttons->removeButton(button);
-      recordsRow->addButton(button, QDialogButtonBox::ActionRole);
+      recordsGrid->addWidget(button,recordIndex/2,recordIndex%2);++recordIndex;
     }
-    for (auto *button : {tsv, xlsx}) {
+    for (auto *button : {saveTable}) {
       buttons->removeButton(button);
       exportRow->addButton(button, QDialogButtonBox::ActionRole);
     }
-    outer->addWidget(recordsRow);
-    outer->addWidget(exportRow);
+    resultsLayout->addWidget(recordsRow);
+    resultsLayout->addWidget(exportRow);
     if (auto *screen = this->screen()) {
       const auto size = screen->availableGeometry().size();
-      resize(std::min(1150, std::max(360, size.width() - 48)),
-             std::min(850, std::max(360, size.height() - 64)));
+      resize(std::min(680, std::max(360, size.width() - 48)),
+             std::min(620, std::max(360, size.height() - 64)));
     }
     connect(start, &QPushButton::clicked, this, [this] { begin(); });
     connect(resume, &QPushButton::clicked, this, [this] { load_job(); });
     connect(cancel, &QPushButton::clicked, this, &Dialog::reject);
-    connect(tsv, &QPushButton::clicked, this, [this] { export_table(false); });
-    connect(xlsx, &QPushButton::clicked, this, [this] { export_table(true); });
+    connect(saveTable, &QPushButton::clicked, this, [this] { export_table(); });
     connect(fetch, &QPushButton::clicked, this, [this] { begin_metadata(); });
     connect(saveJob, &QPushButton::clicked, this, [this] {
       const auto path =
@@ -449,10 +450,7 @@ public:
                         "contains sequences and original names.");
     fetch->setToolTip(
         "Retry missing GenBank record details without repeating BLAST.");
-    tsv->setToolTip("Save the currently filtered hits as a tab-separated "
-                    "table, in query/hit order.");
-    xlsx->setToolTip("Save the currently filtered hits as an Excel workbook "
-                     "with numeric metric columns.");
+    saveTable->setToolTip("Save search settings and filtered hits as XLSX, TSV or CSV.");
     cancel->setToolTip(
         "While running, stop monitoring or stop the external client, retaining "
         "completed results. Submitted sequences cannot be retracted. When "
@@ -565,6 +563,7 @@ public:
   }
   void set_running(bool on) {
     running = on;
+    if(on)search_status(badge,metadata?"Fetching GenBank metadata":"Search in progress","#d7eaff");
     if (on)
       tabs->setCurrentIndex(1);
     else
@@ -574,8 +573,7 @@ public:
     start->setEnabled(!on);
     resume->setEnabled(!on);
     fetch->setEnabled(!on && !hits.empty());
-    tsv->setEnabled(!on && !model.rows.empty());
-    xlsx->setEnabled(!on && !model.rows.empty());
+    saveTable->setEnabled(!on && !queries.empty());
     cancel->setText(on ? "Cancel job" : "Close");
   }
   void reject() override {
@@ -595,6 +593,7 @@ public:
           "Cancelled by user; submitted remote queries cannot be retracted.");
       persist();
       set_running(false);
+      search_status(badge,"Cancelled — completed results retained","#eeeeee");
       status->setText(
           "Cancelled. Submitted queries cannot be retracted. Resume from " +
           jobPath);
@@ -618,6 +617,7 @@ public:
     record("Stopped: " + error);
     set_running(false);
     persist();
+    search_status(badge,metadata?"Metadata failed — BLAST hits retained":"Failed — completed results retained","#ffd9dc");
     status->setText(error +
                     "\nCompleted results are retained. Job: " + jobPath);
   }
@@ -627,8 +627,7 @@ public:
     } catch (const std::exception &e) {
       status->setText(e.what());
     }
-    tsv->setEnabled(!running && !model.rows.empty());
-    xlsx->setEnabled(!running && !model.rows.empty());
+    saveTable->setEnabled(!running && !queries.empty());
   }
   QJsonObject state() const {
     QJsonArray qs;
@@ -646,6 +645,7 @@ public:
     return {{"format", "Kleiotide BLAST job"},
             {"version", 1},
             {"options", options.json()},
+            {"searchStarted",searchTime},
             {"queries", qs},
             {"batch", int(batch)},
             {"rid", rid},
@@ -739,6 +739,7 @@ public:
              "; backend " +
              (options.toolkit() ? options.launcher : QString("HTTPS")));
       hits.clear();
+      searchTime=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
       completed = {};
       metadataCache = {};
       batch = 0;
@@ -785,6 +786,7 @@ public:
   }
   void set_phase(const QString &value) {
     phase = value;
+    search_status(badge,metadata?"Fetching GenBank metadata":"Search in progress",metadata?"#fff0c2":"#d7eaff");
     phaseStarted = QDateTime::currentMSecsSinceEpoch();
     waitUntil = 0;
     record(value);
@@ -898,8 +900,10 @@ public:
               .arg(model.rows.size()));
       if (!hits.empty())
         begin_metadata();
-      else
+      else {
+        search_status(badge,"Completed — no hits","#d9f2dc");
         status->setText("Search complete: no hits returned. Job: " + jobPath);
+      }
       return;
     }
     if (batches.size() > 50 && rid.isEmpty() &&
@@ -1069,6 +1073,7 @@ public:
         accessions.append(h.accession);
     }
     metadata = true;
+    search_status(badge,"Fetching GenBank metadata","#fff0c2");
     set_running(true);
     ++generation;
     if (accessions.isEmpty())
@@ -1081,6 +1086,7 @@ public:
     if (accessions.isEmpty()) {
       metadata = false;
       set_running(false);
+      search_status(badge,"Completed","#d9f2dc");
       refresh();
       status->setText(
           QString(
@@ -1251,6 +1257,7 @@ public:
       batch = nextBatch;
       resultBytes = nextBytes;
       completed = std::move(nextCompleted);
+      searchTime=j["searchStarted"].toString();
       rid = std::move(nextRid);
       hits = std::move(nextHits);
       metadataCache = j["metadataSchema"].toInt()==2?j["metadata"].toObject():QJsonObject{};
@@ -1276,39 +1283,25 @@ public:
     }
   }
 
-  void export_table(bool excel) {
+  void export_table() {
     try {
-      const auto ext = excel ? ".xlsx" : ".tsv";
-      auto path = choose_output_filename(
-          this, excel ? "Save BLAST XLSX" : "Save BLAST TSV", {},
-          excel ? "Excel workbook (*.xlsx)" : "Tab-separated table (*.tsv)",
-          nullptr, QFileDialog::DontConfirmOverwrite);
-      if (path.isEmpty())
-        return;
-      if (QFileInfo(path).suffix().isEmpty())
-        path += ext;
-      path = approve_output_path(this, path, OutputFormat::Table, source.get());
-      if (path.isEmpty())
-        return;
-      const auto bytes = excel ? blast_xlsx(model.rows, false, protein)
-                               : blast_tsv(model.rows);
-      const auto error = write_export_atomic(
-          path, OutputFormat::Table, source.get(),
-          [&](auto &out) { out.write(bytes.constData(), bytes.size()); });
-      status->setText(error.isEmpty() ? "Saved table: " + path : error);
-    } catch (const std::exception &e) {
-      status->setText(e.what());
-    }
+      const auto path=choose_table_path(this,"blast_results.xlsx",source.get());if(path.isEmpty())return;
+      QStringList versions;for(const auto& chunk:completed){const auto outputs=chunk.toObject()["BlastOutput2"].toArray();for(const auto& item:outputs){const auto value=item.toObject()["report"].toObject()["version"].toString();if(!value.isEmpty()&&!versions.contains(value))versions<<value;}}
+      const auto bytes=report_bytes(path,blast_report(model.rows,options,searchTime,versions.join("; ")));
+      const auto error=write_export_atomic(path,OutputFormat::Table,source.get(),[&](auto& out){out.write(bytes.constData(),bytes.size());});status->setText(error.isEmpty()?"Saved table: "+path:error);
+    }catch(const std::exception& e){status->setText(e.what());}
   }
+
 };
 } // namespace
 void blast_dialog(std::shared_ptr<Document> d,
                   const std::vector<SequenceId> &ids, bool protein,
-                  QWidget *parent, BlastServices services) {
+                  QWidget *parent, BlastServices services, bool modeless) {
   if (protein) {
     local_blast_dialog(std::move(d), ids, true, parent);
     return;
   }
+  if(modeless){try{std::vector<SequenceId> all;for(const auto& row:d->rows())all.push_back(row.id);auto snapshot=std::make_shared<Document>(d->subset(all));auto* dialog=new Dialog(std::move(snapshot),ids,false,parent,std::move(services));dialog->setWindowModality(Qt::NonModal);dialog->setModal(false);dialog->setAttribute(Qt::WA_DeleteOnClose);dialog->show();}catch(const std::bad_alloc&){QMessageBox::warning(parent,"BLAST query snapshot","Not enough memory to prepare the query snapshot. Try a smaller alignment.");}catch(const std::exception& e){QMessageBox::warning(parent,"BLAST query snapshot",QString::fromUtf8(e.what()));}return;}
   Dialog dialog(std::move(d), ids, false, parent, std::move(services));
   dialog.exec();
 }

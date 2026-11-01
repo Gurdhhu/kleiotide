@@ -1,5 +1,11 @@
 # Local BLAST
 
+## Current 0.29.2 behavior
+
+Local BLAST windows launched from the main menu leave the alignment editable and use a snapshot of its sequence names/letters. Save table offers XLSX/TSV/CSV: settings and BLAST+ version/arguments first, hits second; local subjects have no GenBank links. A visible status inset distinguishes active, completed, cancelled and failed jobs. Forms scroll inside a screen-bounded window.
+
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions below.
+
 Install NCBI BLAST+ separately. Kleiotide does not bundle its executables.
 Set paths in File → Settings → BLAST, under Local BLAST+. You can set each tool,
 leave paths blank to find it beside another configured tool or on PATH, or browse

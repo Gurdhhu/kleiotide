@@ -1,5 +1,11 @@
 # Distance analysis and similarity ordering — 0.21.1
 
+## Current 0.29.2 behavior
+
+Save table offers XLSX, TSV and CSV. XLSX separates calculation settings, the main result and supplementary tables. TSV/CSV retain the full analysis blocks. Copy table copies only the currently displayed results (including matrix count views), without settings or vertical sequence indices. Comparison rules start collapsed; method help remains visible below its selector.
+
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions below.
+
 Statistics has Pairwise distance matrix…, Overall mean distance…,
 Within-group mean distance… and Between-group mean distance…. Each uses the same
 explicit settings and underlying typed sequence data, independent of the live

@@ -18,12 +18,13 @@ std::shared_ptr<const TraceLink> reversed_trace(const std::shared_ptr<const Trac
     if(!link)return {};
     auto result=std::make_shared<TraceLink>(*link);
     std::reverse(result->originalCalls.begin(),result->originalCalls.end());
+    std::reverse(result->inferredPeaks.begin(),result->inferredPeaks.end());
     result->reversed=!result->reversed;return result;
 }
 std::size_t trace_storage_bytes(const std::shared_ptr<const TraceLink>& link) noexcept {
     if(!link)return 0;
     const auto& data=*link->original;
-    auto size=sizeof(TraceLink)+link->originalCalls.size()*sizeof(std::int32_t)+sizeof(Chromatogram)+data.sourcePath.size()+data.sampleName.size()+data.calls.size()+data.peaks.size()*sizeof(std::uint32_t)+data.quality.size();
+    auto size=sizeof(TraceLink)+(link->originalCalls.size()+link->inferredPeaks.size())*sizeof(std::int32_t)+sizeof(Chromatogram)+data.sourcePath.size()+data.sampleName.size()+data.calls.size()+data.peaks.size()*sizeof(std::uint32_t)+data.quality.size();
     for(const auto& channel:data.channels)size+=channel.size()*sizeof(std::int32_t);
     return size;
 }
@@ -40,12 +41,13 @@ void validate_trace(const Sequence& row) {
     for(const auto& channel:data.channels)if(channel.size()!=size)throw std::invalid_argument("Unequal trace channels.");
     for(std::size_t i=0;i<data.peaks.size();++i)if(data.peaks[i]>=size||(i&&data.peaks[i]<data.peaks[i-1]))
         throw std::invalid_argument("Invalid original trace peak positions.");
-    std::int32_t previous=-1;
-    for(auto call:link.originalCalls){
+    if(!link.inferredPeaks.empty()&&link.inferredPeaks.size()!=link.originalCalls.size())throw std::invalid_argument("Invalid inferred peak mapping length.");
+    std::int32_t previous=-1;std::optional<std::uint32_t> lastPeak;
+    for(std::size_t i=0;i<link.originalCalls.size();++i){const auto call=link.originalCalls[i];
         if(call < -1||call>=static_cast<std::int64_t>(data.calls.size()))throw std::invalid_argument("Invalid original call index.");
-        if(call<0)continue;
-        if(previous>=0&&(!link.reversed?call<=previous:call>=previous))throw std::invalid_argument("Trace anchors must retain strand order.");
-        previous=call;
+        if(call>=0){if(previous>=0&&(!link.reversed?call<=previous:call>=previous))throw std::invalid_argument("Trace anchors must retain strand order.");previous=call;}
+        if(!link.inferredPeaks.empty()){const auto hint=link.inferredPeaks[i];if(hint < -1||hint>=static_cast<std::int64_t>(size)||(call>=0&&hint>=0))throw std::invalid_argument("Invalid inferred peak anchor.");}
+        const auto peak=trace_sample_anchor(link,i);if(peak){if(lastPeak&&(!link.reversed?*peak<*lastPeak:*peak>*lastPeak))throw std::invalid_argument("Trace sample anchors must retain strand order.");lastPeak=peak;}
     }
 }
 std::shared_ptr<const TraceLink> edited_trace(const Sequence& row,std::size_t start,std::size_t count,const std::string& after) {
@@ -56,14 +58,16 @@ std::shared_ptr<const TraceLink> edited_trace(const Sequence& row,std::size_t st
     const auto rank=row.symbols.residue_rank(start),end=row.symbols.residue_rank(start+count);
     auto result=std::make_shared<TraceLink>();result->original=row.trace->original;result->reversed=row.trace->reversed;
     const auto& old=row.trace->originalCalls;
+    const auto& oldHints=row.trace->inferredPeaks;
+    if(!oldHints.empty())result->inferredPeaks.insert(result->inferredPeaks.end(),oldHints.begin(),oldHints.begin()+static_cast<std::ptrdiff_t>(rank));
     result->originalCalls.insert(result->originalCalls.end(),old.begin(),old.begin()+static_cast<std::ptrdiff_t>(rank));
     auto ordinal=rank;
     for(std::size_t c=0;c<std::max(before.size(),after.size());++c){
         const bool was=c<before.size()&&!is_gap(before[c]);
-        if(c<after.size()&&!is_gap(after[c]))result->originalCalls.push_back(was?old[ordinal]:-1);
+        if(c<after.size()&&!is_gap(after[c])){result->originalCalls.push_back(was?old[ordinal]:-1);if(!oldHints.empty())result->inferredPeaks.push_back(was?oldHints[ordinal]:-1);}
         if(was)++ordinal;
     }
-    result->originalCalls.insert(result->originalCalls.end(),old.begin()+static_cast<std::ptrdiff_t>(end),old.end());return result;
+    result->originalCalls.insert(result->originalCalls.end(),old.begin()+static_cast<std::ptrdiff_t>(end),old.end());if(!oldHints.empty())result->inferredPeaks.insert(result->inferredPeaks.end(),oldHints.begin()+static_cast<std::ptrdiff_t>(end),oldHints.end());return result;
 }
 TracePosition trace_position(const Sequence& row,std::size_t column) {
     TracePosition result;if(!row.trace)return result;
@@ -78,16 +82,13 @@ TracePosition trace_position(const Sequence& row,std::size_t column) {
         if(!result.edited&&!data.quality.empty())result.quality=data.quality[call];
         return result;
     }
-    // Interpolate between surviving original calls, including runs of inserted bases.
-    const auto& anchors=link.originalCalls;std::size_t left=ordinal,right=ordinal;
-    while(left&&anchors[left-1]<0)--left;
-    while(right<anchors.size()&&anchors[right]<0)++right;
-    const double direction=link.reversed?-1.:1.;
-    const double lo=left?data.peaks[static_cast<std::size_t>(anchors[left-1])]:
-        (right<anchors.size()?data.peaks[static_cast<std::size_t>(anchors[right])]-direction*12.*static_cast<double>(right-left+1):0.);
-    const double hi=right<anchors.size()?data.peaks[static_cast<std::size_t>(anchors[right])]:lo+direction*12.*static_cast<double>(right-left+2);
-    const double fraction=is_gap(result.current)?0.5:static_cast<double>(ordinal-left+1)/static_cast<double>(right-left+1);
-    result.sample=std::clamp(lo+(hi-lo)*fraction,0.,static_cast<double>(data.channels[0].size()-1));
+    result.inferred=!is_gap(result.current)&&!link.inferredPeaks.empty()&&ordinal<link.inferredPeaks.size()&&link.inferredPeaks[ordinal]>=0;
+    const auto positions=trace_sample_positions(link);
+    if(!is_gap(result.current)&&ordinal<positions.size())result.sample=positions[ordinal];
+    else if(positions.empty())result.sample=0;
+    else if(!ordinal)result.sample=positions.front();
+    else if(ordinal>=positions.size())result.sample=positions.back();
+    else result.sample=(positions[ordinal-1]+positions[ordinal])*.5;
     return result;
 }
 std::optional<std::size_t> trace_column(const Sequence& row,std::size_t originalCall) {

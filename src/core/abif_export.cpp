@@ -26,10 +26,11 @@ AbifExport prepare_abif_export(const Sequence& row,AbifCancel cancel){
         if(negative&&high>std::numeric_limits<std::int16_t>::max())throw std::invalid_argument("This signal mixes negative samples and amplitudes above 32767, which cannot be preserved in a common 16-bit AB1 channel.");
         result.channelTypes[channel]=high>std::numeric_limits<std::int16_t>::max()?3U:4U;
     }
+    const auto signalPositions=trace_sample_positions(*row.trace);
     std::vector<std::optional<std::uint32_t>> positions;const auto& anchors=row.trace->originalCalls;std::size_t ordinal=0;
     result.calls.reserve(anchors.size());result.quality.reserve(anchors.size());positions.reserve(anchors.size());
     for(char c:row.symbols.text()){if((ordinal&4095)==0)check(cancel);if(is_gap(c)){++result.omittedGaps;continue;}result.calls+=c;const auto originalCall=anchors.at(ordinal++);std::uint8_t q=0;
-        if(originalCall<0){++result.inserted;positions.push_back({});}
+        if(originalCall<0){++result.inserted;const auto sample=signalPositions[ordinal-1];positions.push_back(static_cast<std::uint32_t>(std::llround(result.reversed?samples-1-sample:sample)));}
         else{const auto call=static_cast<std::size_t>(originalCall);const auto peak=original.peaks[call];positions.push_back(static_cast<std::uint32_t>(result.reversed?samples-1-peak:peak));
             const auto expected=result.reversed?trace_complement(original.calls[call]):original.calls[call];
             if(upper(c)!=upper(expected))++result.substituted;

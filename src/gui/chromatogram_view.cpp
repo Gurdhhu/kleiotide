@@ -30,7 +30,7 @@ QString position_text(const TracePosition& position,std::size_t column) {
         else if(position.quality)text+=QString(" · imported Q=%1").arg(*position.quality);
         else text+=" · quality unavailable";
     }else if(is_gap(position.current))text+=" · gap; no original peak or quality";
-    else text+=" · inserted symbol; interpolated display anchor; no original peak or quality";
+    else text+=position.inferred?" · inserted symbol; inferred signal position; no original call or measured quality":" · inserted symbol; interpolated position; no original call or quality";
     return text;
 }
 }
@@ -69,16 +69,8 @@ void TraceCanvas::rebuild_positions(){
         const auto ordinal=currentColumns_.size();currentColumns_.push_back(c);const auto call=link.originalCalls[ordinal];
         if(call>=0){anchorOrdinals_.push_back(ordinal);originalColumns_[static_cast<std::size_t>(call)]=c;currentSamples_[ordinal]=evidence.peaks[static_cast<std::size_t>(call)];}
     }
-    const double direction=link.reversed?-1.:1.;const auto& calls=link.originalCalls;
-    // Same interpolation as trace_position(), once per synthetic run instead
-    // of rescanning residue prefixes and neighboring calls for every label.
-    for(std::size_t first=0;first<calls.size();){
-        if(calls[first]>=0){++first;continue;}auto end=first+1;while(end<calls.size()&&calls[end]<0)++end;
-        const double lo=first?evidence.peaks[static_cast<std::size_t>(calls[first-1])]:end<calls.size()?evidence.peaks[static_cast<std::size_t>(calls[end])]-direction*12.*static_cast<double>(end-first+1):0.;
-        const double hi=end<calls.size()?evidence.peaks[static_cast<std::size_t>(calls[end])]:lo+direction*12.*static_cast<double>(end-first+2);
-        for(auto i=first;i<end;++i){const double fraction=static_cast<double>(i-first+1)/static_cast<double>(end-first+1);currentSamples_[i]=std::clamp(lo+(hi-lo)*fraction,0.,static_cast<double>(evidence.channels[0].size()-1));}
-        first=end;
-    }
+    currentSamples_=trace_sample_positions(link);
+
 }
 TracePosition TraceCanvas::position(std::size_t column)const {
     TracePosition result;if(!active_)return result;column=std::min(column,row_.symbols.size());
@@ -86,19 +78,17 @@ TracePosition TraceCanvas::position(std::size_t column)const {
     const auto ordinal=static_cast<std::size_t>(std::lower_bound(currentColumns_.begin(),currentColumns_.end(),column)-currentColumns_.begin());
     result.current=column<row_.symbols.size()?row_.symbols.text()[column]:'~';
     if(!is_gap(result.current)){
-        result.sample=currentSamples_[ordinal];const auto call=link.originalCalls[ordinal];
+        result.sample=currentSamples_[ordinal];result.inferred=!link.inferredPeaks.empty()&&link.inferredPeaks[ordinal]>=0;const auto call=link.originalCalls[ordinal];
         if(call>=0){const auto index=static_cast<std::size_t>(call);result.originalCall=index;result.imported=link.reversed?trace_complement(evidence.calls[index]):evidence.calls[index];
             result.edited=std::toupper(static_cast<unsigned char>(result.current))!=std::toupper(static_cast<unsigned char>(result.imported));
             if(!result.edited&&!evidence.quality.empty())result.quality=evidence.quality[index];}
         return result;
     }
-    const auto next=std::lower_bound(anchorOrdinals_.begin(),anchorOrdinals_.end(),ordinal);
-    const auto left=next==anchorOrdinals_.begin()?0:*(next-1)+1;
-    const auto right=next==anchorOrdinals_.end()?link.originalCalls.size():*next;
-    const double direction=link.reversed?-1.:1.;
-    const double lo=left?evidence.peaks[static_cast<std::size_t>(link.originalCalls[left-1])]:right<link.originalCalls.size()?evidence.peaks[static_cast<std::size_t>(link.originalCalls[right])]-direction*12.*static_cast<double>(right-left+1):0.;
-    const double hi=right<link.originalCalls.size()?evidence.peaks[static_cast<std::size_t>(link.originalCalls[right])]:lo+direction*12.*static_cast<double>(right-left+2);
-    result.sample=std::clamp(lo+(hi-lo)*.5,0.,static_cast<double>(evidence.channels[0].size()-1));return result;
+    if(currentSamples_.empty())result.sample=0;
+    else if(!ordinal)result.sample=currentSamples_.front();
+    else if(ordinal>=currentSamples_.size())result.sample=currentSamples_.back();
+    else result.sample=(currentSamples_[ordinal-1]+currentSamples_[ordinal])*.5;
+    return result;
 }
 void TraceCanvas::update_scrollbar() {
     const auto units=active_?(aligned_?static_cast<double>(std::max(alignmentColumns_,row_.symbols.size()))+1.5:static_cast<double>(row_.trace->original->channels[0].size())):0.;

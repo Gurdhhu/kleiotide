@@ -1,4 +1,9 @@
 #include "gui/dialog_policy.hpp"
+#include "gui/table_export.hpp"
+#include <QClipboard>
+#include <QMessageBox>
+#include <QScrollArea>
+#include <QScreen>
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QApplication>
@@ -21,6 +26,8 @@
 #include <QSet>
 #include <QSpinBox>
 #include <QTableView>
+#include <QHeaderView>
+#include <QFileDialog>
 #include <QTimer>
 #include <memory>
 namespace kleiotide {
@@ -90,21 +97,52 @@ class Policy final : public QObject {
                   }
                 }
             }
-          const QSet<QString> compact = {
-              "sequenceTypeDialog",  "selectionDialog", "assignGroupDialog",
-              "analysisScopeDialog", "mafftSettings",   "groupIdenticalDialog"};
-          if (compact.contains(dialog->objectName()) ||
-              qobject_cast<QFontDialog *>(dialog) ||
-              dialog->windowTitle().startsWith("Select ") ||
-              dialog->windowTitle().contains("Analysis scope",
-                                             Qt::CaseInsensitive) ||
-              dialog->windowTitle() == "Alignment font") {
-            if (dialog->layout())
-              dialog->layout()->setAlignment(Qt::AlignTop);
-            QTimer::singleShot(0, dialog, [dialog] {
-              dialog->resize(dialog->width(), dialog->sizeHint().height());
-            });
+          const QMap<QString,QString> previews = {
+            {"batchRenameDialog","renamePreview"},{"traceLinkDialog","traceAssignments"},
+            {"mergeDialog","mergePlacements"},{"groupImportDialog","groupImportPreview"},
+            {"traceQualityDialog","qualityPreview"},{"distanceDialog","distanceTable"},
+            {"translationDialog","translationPreviewTable"}};
+          if(previews.contains(dialog->objectName())){
+            auto* table=dialog->findChild<QTableView*>(previews[dialog->objectName()]);
+            if(!table&&dialog->objectName()=="translationDialog")table=dialog->findChild<QTableView*>();
+            if(table){
+              table->horizontalHeader()->setStretchLastSection(false);
+              table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+              table->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+              table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+              table->setMinimumSize(0,80);
+              if(!buttonBoxes.isEmpty()&&dialog->objectName()!="distanceDialog"){
+                auto* copy=buttonBoxes.back()->addButton("Copy table",QDialogButtonBox::ActionRole);
+                copy->setObjectName("copyPreviewTable");copy->setToolTip("Copy the current preview table as TSV.");
+                connect(copy,&QPushButton::clicked,dialog,[dialog,table]{try{QApplication::clipboard()->setText(copy_model_table(table->model()));}catch(const std::exception& e){QMessageBox::warning(dialog,"Copy table",e.what());}});
+              }
+            }
           }
+          // Content and footer fill the root layout; no AlignTop leaves a blank
+          // resizable strip below confirmation buttons.
+          if(dialog->layout())dialog->layout()->setAlignment({});
+          QTimer::singleShot(0,dialog,[dialog]{
+            auto* screen=dialog->screen();if(!screen||!dialog->layout())return;
+            const auto area=screen->availableGeometry().adjusted(24,36,-24,-36);
+            const bool search=dialog->objectName()=="blastDialog"||dialog->objectName()=="localBlastDialog";
+            const bool merge=dialog->objectName()=="mergeDialog";
+            const bool table=!dialog->findChildren<QTableView*>().isEmpty();
+            const bool compact=!table&&!dialog->findChild<QScrollArea*>()&&!qobject_cast<QMessageBox*>(dialog)&&!qobject_cast<QFileDialog*>(dialog);
+            if(compact){
+              for(auto* label:dialog->findChildren<QLabel*>())if(label->wordWrap())label->setMaximumWidth(std::max(160,area.width()-40));
+              for(auto* form:dialog->findChildren<QFormLayout*>())form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+              dialog->layout()->setSizeConstraint(QLayout::SetFixedSize);
+              dialog->adjustSize();
+            }else{
+              dialog->setMinimumSize(0,0);
+              dialog->setMaximumSize(area.size());
+              const int width=std::min(area.width(),search?680:merge?900:dialog->width());
+              const int height=std::min(area.height(),search?620:merge?690:dialog->height());
+              dialog->resize(width,height);
+            }
+            const auto size=dialog->frameGeometry().size();
+            dialog->move(screen->availableGeometry().center()-QPoint(size.width()/2,size.height()/2));
+          });
           for (auto *label : dialog->findChildren<QLabel *>())
             if (label->text() == "Identical sequence clusters" ||
                 label->text() == "Members of the selected cluster") {

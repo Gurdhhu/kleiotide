@@ -1,5 +1,6 @@
 #pragma once
 #include "core/alignment.hpp"
+#include "gui/table_export.hpp"
 #include <QByteArray>
 #include <QJsonObject>
 #include <QStringList>
@@ -51,6 +52,7 @@ QStringList blast_databases(bool protein);
 using BlastTable = std::vector<QStringList>;
 BlastTable blast_table(const std::vector<BlastQuery> &,
                        const std::vector<BlastHit> &, const BlastOptions &);
+TableReport blast_report(const BlastTable&, const BlastOptions&, const QString& searchTime, const QString& backendVersion, const QString& arguments = {});
 QByteArray blast_tsv(const BlastTable &, bool local = false);
 QByteArray blast_xlsx(const BlastTable &, bool local = false,
                       bool protein = false);

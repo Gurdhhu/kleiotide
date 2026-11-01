@@ -1,5 +1,11 @@
 # BLAST and trace linking — 0.29.1 testing release
 
+## Current 0.29.2 behavior
+
+BLAST windows launched from the main menu are modeless and use an alignment snapshot, so edits in the originating session do not change pending queries or result aliases. Search status has a visible text/color inset. Save table offers XLSX/TSV/CSV with settings first, results second, and GenBank accession hyperlinks preserved. Trace linking opens the chromatogram after confirmation; supported terminal additions can use inferred signal positions without original-call Q. New session saves use format 5; older formats still load.
+
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions below.
+
 Current UI: trace mapping previews update automatically; Link traces commits
 the reviewed assignments. Batch add AB1 files starts import/inference. NCBI result
 dates use GBSeq_create-date, authors use direct-submission references, and XLSX

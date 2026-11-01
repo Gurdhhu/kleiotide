@@ -19,5 +19,5 @@ QJsonObject prepare_local_database(const QString &source, bool protein,
 void create_local_database(bool protein, QWidget *);
 void local_blast_dialog(std::shared_ptr<Document>,
                         const std::vector<SequenceId> &, bool protein,
-                        QWidget *);
+                        QWidget *, bool modeless=false);
 } // namespace kleiotide

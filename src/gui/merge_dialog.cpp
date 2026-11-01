@@ -82,7 +82,7 @@ private:
     void fit_height(){
         const auto fm=fontMetrics();const auto rows=plan_?plan_->alignment.size()+2:std::size_t(1);
         const bool horizontal=plan_&&plan_->symbols.size()>std::size_t(std::max(1,(viewport()->width()-nameWidth_)/std::max(1,fm.horizontalAdvance('M'))));
-        const int wanted=int(std::min<std::size_t>(rows,12))*(fm.height()+6)+2*frameWidth()+2+(horizontal?horizontalScrollBar()->sizeHint().height():0);
+        const int wanted=int(std::min<std::size_t>(rows,6))*(fm.height()+6)+2*frameWidth()+2+(horizontal?horizontalScrollBar()->sizeHint().height():0);
         if(minimumHeight()!=wanted)setFixedHeight(wanted);
     }
     void resize_ranges(){
@@ -110,12 +110,12 @@ public:
         name_=new QLineEdit(text(defaultName),this);name_->setObjectName("mergeName");name_->setToolTip("Name for the merged sequence appended by Apply.");name_->setMaxLength(65535);form->addRow("Result name",name_);
         minimum_=new QSpinBox(this);minimum_->setObjectName("mergeMinimumOverlap");minimum_->setToolTip("Minimum informative matching positions required in an overlap.");minimum_->setRange(1,100000000);minimum_->setValue(20);minimum_->setVisible(mode==MergeMode::ExactOverlap);
         edits_=new QSpinBox(this);edits_->setObjectName("mergeMaximumEdits");edits_->setRange(0,100);edits_->setVisible(mode==MergeMode::ExactOverlap);edits_->setToolTip("Maximum substitutions and internal indel bases per overlap; 0 requires an exact match.");
-        if(mode==MergeMode::ExactOverlap){form->addRow("Minimum matching positions",minimum_);form->addRow("Maximum differences per overlap",edits_);}
+        if(mode==MergeMode::ExactOverlap){auto* limits=new QHBoxLayout;limits->addWidget(new QLabel("Minimum matching positions"));limits->addWidget(minimum_);limits->addSpacing(12);limits->addWidget(new QLabel("Maximum differences per overlap"));limits->addWidget(edits_);limits->addStretch();form->addRow(limits);}
         quality_=new QCheckBox("Resolve residue conflicts using original trace quality",this);quality_->setObjectName("mergeQuality");quality_->setVisible(true);quality_->setToolTip("Use original trace quality to resolve placed conflicts; missing or edited calls keep the consensus.");
         margin_=new QSpinBox(this);margin_->setObjectName("mergeQualityMargin");margin_->setToolTip("Required Q advantage over every different original call.");margin_->setRange(0,255);margin_->setValue(10);margin_->setSuffix(" Q");margin_->setVisible(true);
-        form->addRow(quality_);form->addRow("Required quality advantage",margin_);
+        auto* qualityRow=new QHBoxLayout;qualityRow->addWidget(quality_);qualityRow->addWidget(new QLabel("Required Q advantage"));qualityRow->addWidget(margin_);qualityRow->addStretch();form->addRow(qualityRow);
         contigs_=new QComboBox(this);contigs_->setObjectName("mergeContigChoice");contigs_->setToolTip("Choose the contig to append or save.");form->addRow("Result contig",contigs_);
-        notice_=new QFrame(this);notice_->setObjectName("mergeNotice");auto* noticeLayout=new QVBoxLayout(notice_);heading_=new QLabel(this);heading_->setObjectName("mergeHeading");heading_->setWordWrap(true);auto font=heading_->font();font.setBold(true);font.setPointSize(font.pointSize()+2);heading_->setFont(font);heading_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(heading_);
+        notice_=new QFrame(this);notice_->setObjectName("mergeNotice");auto* noticeLayout=new QVBoxLayout(notice_);noticeLayout->setContentsMargins(8,6,8,6);noticeLayout->setSpacing(3);heading_=new QLabel(this);heading_->setObjectName("mergeHeading");heading_->setWordWrap(true);auto font=heading_->font();font.setBold(true);font.setPointSize(font.pointSize()+1);heading_->setFont(font);heading_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(heading_);
         status_=new QLabel(this);status_->setObjectName("mergeStatus");status_->setWordWrap(true);status_->setTextFormat(Qt::PlainText);status_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);notice_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);noticeLayout->addWidget(status_);layout->addWidget(notice_);
         auto* detailsToggle=new QToolButton(this);detailsToggle->setObjectName("mergeRulesToggle");detailsToggle->setText("Merging rules and quality policy");detailsToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);detailsToggle->setArrowType(Qt::RightArrow);detailsToggle->setCheckable(true);layout->addWidget(detailsToggle,0,Qt::AlignLeft);
         auto* details=new QLabel(mode==MergeMode::Aligned?
@@ -137,7 +137,7 @@ public:
                 fasta+=">"+text(source_->sequence(row.id).name)+"\n"+text(aligned)+"\n";}
             QApplication::clipboard()->setText(fasta);
         });
-        placements_=new QTableWidget(this);placements_->setObjectName("mergePlacements");placements_->setColumnCount(4);placements_->setHorizontalHeaderLabels({"Source sequence","Result / exclusion reason","Start","End"});placements_->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Interactive);placements_->setColumnWidth(0,240);placements_->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);placements_->setColumnWidth(2,70);placements_->setColumnWidth(3,70);placements_->setEditTriggers(QAbstractItemView::NoEditTriggers);placements_->setAlternatingRowColors(true);layout->addWidget(placements_,1);
+        placements_=new QTableWidget(this);placements_->setObjectName("mergePlacements");placements_->setMaximumHeight(190);placements_->setColumnCount(4);placements_->setHorizontalHeaderLabels({"Source sequence","Result / exclusion reason","Start","End"});placements_->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Interactive);placements_->setColumnWidth(0,240);placements_->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);placements_->setColumnWidth(2,70);placements_->setColumnWidth(3,70);placements_->setEditTriggers(QAbstractItemView::NoEditTriggers);placements_->setAlternatingRowColors(true);layout->addWidget(placements_,1);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel,this);outer->addWidget(buttons);
         apply_=buttons->button(QDialogButtonBox::Apply);apply_->setObjectName("mergeApply");apply_->setToolTip("Append the reviewed merged sequence to the alignment.");preview_=buttons->addButton("Preview",QDialogButtonBox::ActionRole);preview_->setObjectName("mergePreview");save_=buttons->addButton("Save FASTA…",QDialogButtonBox::ActionRole);save_->setObjectName("mergeSaveFasta");cancel_=buttons->button(QDialogButtonBox::Cancel);
         connect(buttons,&QDialogButtonBox::rejected,this,&MergeDialog::reject);connect(preview_,&QPushButton::clicked,this,[this]{preview();});connect(apply_,&QPushButton::clicked,this,[this]{apply();});connect(save_,&QPushButton::clicked,this,[this]{save_fasta();});
@@ -159,7 +159,7 @@ private:
         const int headingHeight=std::max(heading_->fontMetrics().height(),heading_->heightForWidth(width));
         status_->setMinimumHeight(statusHeight);heading_->setMinimumHeight(headingHeight);
         const int height=margins.top()+margins.bottom()+notice_->layout()->spacing()+statusHeight+headingHeight+8;
-        if(notice_->minimumHeight()!=height){notice_->setMinimumHeight(height);QTimer::singleShot(0,this,[this]{fit_notice();});}
+        if(notice_->minimumHeight()!=height){notice_->setFixedHeight(height);QTimer::singleShot(0,this,[this]{fit_notice();});}
     }
     void notice(const char* state,const QString& heading,const QString& message){
         heading_->setText(heading);status_->setText(message);

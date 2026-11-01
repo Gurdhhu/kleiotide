@@ -75,13 +75,13 @@ void write_session(std::ostream& output,const Document& d,std::string_view view,
     w.number(d.rows().size());for(const auto& row:d.rows()){
         w.number(row.id);w.number(static_cast<unsigned>(row.kind),1);w.number(static_cast<unsigned>(row.representation),1);w.number(row.groupId);w.text(row.name,small);w.text(row.symbols.text(),1024ULL*1024*1024);
         w.number(row.trace?indices.at(row.trace->original.get())+1:0);
-        if(row.trace){w.number(row.trace->reversed?1:0,1);w.number(row.trace->originalCalls.size());for(auto a:row.trace->originalCalls)w.number(std::bit_cast<std::uint32_t>(a),4);}
+        if(row.trace){w.number(row.trace->reversed?1:0,1);w.number(row.trace->originalCalls.size());for(auto a:row.trace->originalCalls)w.number(std::bit_cast<std::uint32_t>(a),4);w.number(row.trace->inferredPeaks.size());for(auto peak:row.trace->inferredPeaks)w.number(std::bit_cast<std::uint32_t>(peak),4);}
     write_protein(w,row.protein);
     }w.finish();
 }
 Session read_session(std::istream& input){
     Reader r(input);std::array<char,8> magic{};r.bytes(magic.data(),magic.size());if(std::string_view(magic.data(),8)!=session_magic)throw std::runtime_error("Not a Kleiotide session.");
-    const auto version=r.number(4);if(version<1||version>session_version)throw std::runtime_error("Unsupported Kleiotide session version "+std::to_string(version)+". This application reads versions 1–4.");
+    const auto version=r.number(4);if(version<1||version>session_version)throw std::runtime_error("Unsupported Kleiotide session version "+std::to_string(version)+". This application reads versions 1–5.");
     const auto next=r.number();Session result;result.formatVersion=static_cast<unsigned>(version);result.viewState=r.text(small);result.alignmentReport=r.text(16*small);
     std::vector<SequenceGroup> groups;GroupId nextGroup=1;
     if(version>=3){const auto count=r.count(100000);nextGroup=r.number();for(std::size_t i=0;i<count;++i){SequenceGroup g;g.id=r.number();g.name=r.text(small);g.color=static_cast<std::uint32_t>(r.number(4));groups.push_back(std::move(g));}}
@@ -107,6 +107,7 @@ Session read_session(std::istream& input){
         if(index){auto link=std::make_shared<TraceLink>();link->original=originals[static_cast<std::size_t>(index-1)];const auto reverse=r.number(1);if(reverse>1)throw std::runtime_error("Invalid trace orientation.");link->reversed=reverse==1;
             auto n=r.count(row.symbols.size());const auto expected=static_cast<std::size_t>(std::count_if(row.symbols.begin(),row.symbols.end(),[](char c){return !is_gap(c);}));if(n!=expected)throw std::runtime_error("Invalid session residue mapping length.");
             for(std::size_t j=0;j<n;++j)link->originalCalls.push_back(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(r.number(4))));
+            if(version>=5){const auto hints=r.count(expected);if(hints&&hints!=expected)throw std::runtime_error("Invalid inferred peak count.");for(std::size_t j=0;j<hints;++j)link->inferredPeaks.push_back(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(r.number(4))));}
             row.trace=link;
         }if(version>=4)row.protein=read_protein(r);records.push_back(std::move(row));
     }r.finish();result.document.restore_session(std::move(records),ids,next,std::move(groups),nextGroup,settings);return result;

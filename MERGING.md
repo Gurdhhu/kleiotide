@@ -1,5 +1,11 @@
 # 0.29.1 merge UI
 
+## Current 0.29.2 behavior
+
+Merge windows start smaller, with overlap limits and Q controls paired on shared lines. The reads-to-contig view starts with at most six visible rows; the placements table starts shorter and remains scrollable. Every placements column is resizable, with horizontal scrolling. Copy table copies only the shown placement/result table as TSV; the alignment retains its separate FASTA copy command.
+
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions below.
+
 Preview recalculates automatically after parameter changes. Merge appends the
 reviewed sequence; Cancel leaves the alignment unchanged. Conflicts are red;
 Q-resolved conflicts are bright yellow. Read names have white backgrounds and

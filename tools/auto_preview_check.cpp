@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     TestPreferences prefs;
     (void)AppSettings::instance();
     QString error, mode;
-    int stage = 0;
+    int stage = 0; qint64 unchangedAt=0; qlonglong unchangedRevision=0;
     QElapsedTimer time;
     QTimer driver;
     driver.setInterval(20);
@@ -106,7 +106,12 @@ int main(int argc, char **argv) {
             need(table->model()->index(1, 2).data().toString() ==
                      "Not attempted",
                  "Unassigned stays unattempted");
-            stage = 2;
+            stage = 11;unchangedAt=time.elapsed();unchangedRevision=d->property("traceAssignmentsRevision").toLongLong();
+            table->model()->setData(table->model()->index(0, 1),0,Qt::EditRole);
+          } else if(stage==11){
+            need(d->property("traceAssignmentsRevision").toLongLong()==unchangedRevision&&child<QPushButton>(d,"traceLinkApply")->isEnabled(),"Unchanged assignment never invalidates or recalculates the preview");
+            if(time.elapsed()-unchangedAt<600)return;
+            stage=2;
             table->model()->setData(table->model()->index(1, 1), 0,
                                     Qt::EditRole);
           } else if (stage == 2 &&

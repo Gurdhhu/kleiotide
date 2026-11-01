@@ -363,7 +363,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     });
     auto* blast=menuBar()->addMenu("&BLAST");
     action(blast,"NCBI nucleotide BLAST…",{},[this]{search_blast(false);})->setObjectName("nucleotideBlast");
-    blast->addSeparator();action(blast,"Create a local nucleotide database file…",{},[this]{if(!busy_)create_local_database(false,this);})->setObjectName("createLocalNucleotideDatabase");action(blast,"Create a local protein database file…",{},[this]{if(!busy_)create_local_database(true,this);})->setObjectName("createLocalProteinDatabase");action(blast,"Local nucleotide BLAST…",{},[this]{if(busy_)return;set_busy(true,"Local BLAST…");local_blast_dialog(document_,view_->selected_ids(),false,this);set_busy(false);update_state();})->setObjectName("localNucleotideBlast");action(blast,"Local protein BLAST…",{},[this]{if(busy_)return;set_busy(true,"Local BLAST…");local_blast_dialog(document_,view_->selected_ids(),true,this);set_busy(false);update_state();})->setObjectName("localProteinBlast");
+    action(blast,"Local nucleotide BLAST…",{},[this]{if(!busy_)local_blast_dialog(document_,view_->selected_ids(),false,this,true);})->setObjectName("localNucleotideBlast");
+    action(blast,"Local protein BLAST…",{},[this]{if(!busy_)local_blast_dialog(document_,view_->selected_ids(),true,this,true);})->setObjectName("localProteinBlast");
+    blast->addSeparator();
+    action(blast,"Create a local nucleotide database file…",{},[this]{if(!busy_)create_local_database(false,this);})->setObjectName("createLocalNucleotideDatabase");
+    action(blast,"Create a local protein database file…",{},[this]{if(!busy_)create_local_database(true,this);})->setObjectName("createLocalProteinDatabase");
     auto* highlight=menuBar()->addMenu("&Highlight");highlighter_->add_menu(highlight,mutatingActions_);
     auto* statistics=menuBar()->addMenu("&Statistics");statistics->setObjectName("statisticsMenu");
     action(statistics,"Alignment statistics…",{},[this]{show_statistics();})->setObjectName("alignmentStatisticsAction");
@@ -844,7 +848,7 @@ void MainWindow::link_traces(){
     const auto scope=QInputDialog::getItem(this,"Link trace (AB1)","Sequences to include",{"Selected nucleotide sequences","All nucleotide sequences without traces"},selected.empty()?1:0,false,&ok);if(!ok)return;
     std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(row.kind==RowKind::Nucleotide&&(scope.startsWith("All")?!row.trace:std::find(selected.begin(),selected.end(),row.id)!=selected.end()))ids.push_back(row.id);
     if(ids.empty()){QMessageBox::information(this,"Link trace","No eligible nucleotide sequences in this scope.");return;}
-    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied)view_->refresh();set_busy(false);update_state();
+    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied){view_->refresh();traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}set_busy(false);update_state();
 }
 void MainWindow::delete_traces(){
     if(busy_)return;
@@ -853,7 +857,7 @@ void MainWindow::delete_traces(){
     if(QMessageBox::question(this,"Delete trace links?","Remove the selected session trace associations? Sequence letters and original AB1 files are retained. Undo restores the links.",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
     try{apply_trace_links(*document_,links);view_->refresh();update_state();}catch(const std::exception& e){QMessageBox::warning(this,"Delete trace",e.what());}
 }
-void MainWindow::search_blast(bool protein){if(busy_)return;if(protein){set_busy(true,"Local protein BLAST…");local_blast_dialog(document_,view_->selected_ids(),true,this);set_busy(false);update_state();return;}set_busy(true,"BLAST query/report window…");blast_dialog(document_,view_->selected_ids(),protein,this);set_busy(false);update_state();}
+void MainWindow::search_blast(bool protein){if(busy_)return;if(protein)local_blast_dialog(document_,view_->selected_ids(),true,this,true);else blast_dialog(document_,view_->selected_ids(),false,this,{},true);}
 void MainWindow::set_sequence_type(){
     if(busy_)return;
     const auto ids=view_->selected_ids();
@@ -919,59 +923,33 @@ void MainWindow::show_mafft_report(){
     QDialog dialog(this);dialog.setWindowTitle("MAFFT alignment report");dialog.resize(820,540);QVBoxLayout layout(&dialog);QPlainTextEdit text(mafftReport_);text.setReadOnly(true);layout.addWidget(&text);QDialogButtonBox buttons(QDialogButtonBox::Close);layout.addWidget(&buttons);connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.exec();
 }
 void MainWindow::show_statistics() {
-    if (busy_) return;
-    auto cancelled=std::make_shared<std::atomic_bool>(false);
-    auto* dialog=new QDialog(this); dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setObjectName("alignmentStatistics"); dialog->setWindowTitle("Alignment statistics"); dialog->resize(540,410);
-    auto* layout=new QVBoxLayout(dialog);
-    auto* status=new QLabel("Computing statistics for all nucleotide rows…",dialog);
-    status->setObjectName("statisticsStatus"); status->setWordWrap(true); layout->addWidget(status);
-    auto* form=new QFormLayout; layout->addLayout(form);
-    const char* labels[]={"Total sequences","Unique sequences","Columns","Distinct patterns","Parsimony-informative sites","Singleton sites","Constant sites","Gap-only sites","N-only sites"};
-    const char* descriptions[]={
-        "All nucleotide rows, including duplicates and empty rows. Proteins and masks are excluded.",
-        "Distinct aligned nucleotide state strings, ignoring titles and case. U = T; N, ? and gaps share IQ-TREE's missing state.",
-        "Longest nucleotide row; shorter rows are padded with missing data. Protein/mask-only extensions are excluded.",
-        "Distinct column state patterns across nucleotide rows, using the same normalization as unique sequences.",
-        "At least two definite nucleotide states each occur at least twice. Partial ambiguities do not count as definite observations.",
-        "Variable but not parsimony-informative, matching IQ-TREE's reported singleton count. Incompatible ambiguities can make a site variable.",
-        "All calls share at least one possible nucleotide. Includes compatible ambiguities, N-only and gap-only columns, as in IQ-TREE.",
-        "Every nucleotide row has a gap or missing trailing cell at this column.",
-        "Only N or ? and gaps/trailing cells, with at least one N or ?. No definite or partial nucleotide information."
+    if(busy_)return;
+    std::vector<SequenceId> ids;for(const auto& row:document_->rows())ids.push_back(row.id);
+    std::shared_ptr<Document> source;try{source=std::make_shared<Document>(document_->subset(ids));}catch(const std::exception& e){QMessageBox::warning(this,"Statistics snapshot",QString::fromUtf8(e.what()));return;}
+    auto* dialog=new QDialog(this);dialog->setAttribute(Qt::WA_DeleteOnClose);dialog->setObjectName("alignmentStatistics");dialog->setWindowTitle("Alignment statistics");dialog->resize(560,420);
+    auto* layout=new QVBoxLayout(dialog);auto* form=new QFormLayout;layout->addLayout(form);
+    auto* molecule=new QComboBox(dialog);molecule->setObjectName("statisticsMolecule");molecule->addItems({"Nucleotide","Protein"});molecule->setToolTip("Calculate statistics for rows of this molecule type; masks and other rows are excluded.");form->addRow("Molecule type",molecule);
+    auto* status=new QLabel(dialog);status->setObjectName("statisticsStatus");status->setWordWrap(true);layout->addWidget(status);
+    const QStringList labels{"Total sequences","Unique sequences","Columns","Distinct patterns","Parsimony-informative sites","Singleton sites","Constant sites","Gap-only sites","N-only sites"};
+    const QStringList tips{"All rows of the chosen molecule, including duplicates and empty sequences.","Distinct aligned state strings; case and missing-state variants are ignored.","Longest included row; ragged trailing cells are missing data.","Distinct column state patterns across included rows.","Two or more definite states each occur at least twice.","Variable sites that are not parsimony-informative.","The possible states of all calls have a nonempty intersection.","Only alignment gaps or trailing missing cells.","Only unknown calls and gaps; at least one unknown call."};
+    auto* valuesForm=new QFormLayout;layout->addLayout(valuesForm);std::vector<QLabel*> values;
+    for(int i=0;i<labels.size();++i){auto* value=new QLabel("…",dialog);value->setObjectName(QString("statisticsValue%1").arg(i));value->setToolTip(tips[i]);value->setTextInteractionFlags(Qt::TextSelectableByMouse);valuesForm->addRow(labels[i],value);valuesForm->labelForField(value)->setToolTip(tips[i]);values.push_back(value);}
+    auto* note=new QLabel(dialog);note->setWordWrap(true);layout->addWidget(note);
+    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Close,dialog);auto* copy=buttons->addButton("Copy",QDialogButtonBox::ActionRole);copy->setObjectName("statisticsCopy");copy->setEnabled(false);layout->addWidget(buttons);connect(buttons,&QDialogButtonBox::rejected,dialog,&QDialog::reject);
+    auto copied=std::make_shared<QString>();connect(copy,&QPushButton::clicked,dialog,[copied]{QApplication::clipboard()->setText(*copied);});
+    struct Result{AlignmentStatistics value;QString error;};auto generation=std::make_shared<int>(0);auto pending=std::make_shared<std::shared_ptr<std::atomic_bool>>();
+    connect(dialog,&QDialog::finished,dialog,[pending]{if(*pending)(*pending)->store(true);});
+    auto calculate=[source,dialog,molecule,status,values,valuesForm,note,copy,copied,generation,pending]{
+      const bool protein=molecule->currentIndex()==1;const int token=++*generation;if(*pending)(*pending)->store(true);*pending=std::make_shared<std::atomic_bool>(false);const auto cancelled=*pending;copy->setEnabled(false);for(auto* label:values)label->setText("…");
+      qobject_cast<QLabel*>(valuesForm->labelForField(values.back()))->setText(protein?"Unknown-only sites":"N-only sites");
+      status->setText(protein?"Computing protein statistics…":"Computing nucleotide statistics…");
+      note->setText(protein?"IQ-TREE protein conventions: 20 standard amino acids; B = D/N, Z = E/Q, J = I/L. X, ?, U, O, stops and gaps are unknown states. Gap-only and unknown-only sites are subsets of constant sites.":"IQ-TREE nucleotide conventions: U = T; ambiguities represent their possible bases; N, ? and gaps are missing. Gap-only and N-only sites are subsets of constant sites.");
+      auto* watcher=new QFutureWatcher<Result>(dialog);connect(watcher,&QFutureWatcher<Result>::finished,dialog,[watcher,token,generation,status,values,copy,copied,protein]{const auto result=watcher->result();watcher->deleteLater();if(token!=*generation)return;if(!result.error.isEmpty()){status->setText(result.error);return;}const auto& v=result.value;const std::size_t counts[]{v.sequences,v.uniqueSequences,v.columns,v.patterns,v.informative,v.singleton,v.constant,v.gapOnly,v.nOnly};for(std::size_t i=0;i<values.size();++i)values[i]->setText(QString::number(counts[i]));*copied=QString::fromStdString(statistics_text(v));copy->setEnabled(true);status->setText(protein?"All protein rows in the alignment snapshot.":"All nucleotide rows in the alignment snapshot.");});
+      watcher->setFuture(QtConcurrent::run([source,protein,cancelled]{Result result;try{result.value=alignment_statistics(*source,[cancelled]{return cancelled->load();},protein?RowKind::Protein:RowKind::Nucleotide);}catch(const std::exception& e){result.error=e.what();}return result;}));
     };
-    std::vector<QLabel*> values;
-    for (int i=0;i<9;++i) {
-        auto* value=new QLabel("…",dialog); value->setObjectName(QString("statisticsValue%1").arg(i));
-        value->setTextInteractionFlags(Qt::TextSelectableByMouse); value->setToolTip(QString::fromUtf8(descriptions[i]));
-        form->addRow(QString::fromUtf8(labels[i]),value);
-        form->labelForField(value)->setToolTip(value->toolTip()); values.push_back(value);
-    }
-    auto* note=new QLabel("IQ-TREE nucleotide conventions. Proteins and masks excluded. Gap-only and N-only counts are subsets of constant sites.",dialog);
-    note->setWordWrap(true); layout->addWidget(note);
-    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Close,dialog);
-    auto* copy=buttons->addButton("Copy",QDialogButtonBox::ActionRole); copy->setObjectName("statisticsCopy"); copy->setEnabled(false);
-    layout->addWidget(buttons); connect(buttons,&QDialogButtonBox::rejected,dialog,&QDialog::reject);
-    connect(dialog,&QDialog::finished,this,[cancelled]{cancelled->store(true);});
-    struct Result { AlignmentStatistics statistics; QString error; };
-    auto* watcher=new QFutureWatcher<Result>(this); QPointer<QDialog> guarded=dialog;
-    connect(watcher,&QFutureWatcher<Result>::finished,this,[this,watcher,guarded,status,values,copy,cancelled] {
-        const auto result=watcher->result(); watcher->deleteLater(); set_busy(false);
-        if (!guarded || cancelled->load()) return;
-        if (!result.error.isEmpty()) { status->setText(result.error); return; }
-        const auto& s=result.statistics;
-        const std::size_t numbers[]={s.sequences,s.uniqueSequences,s.columns,s.patterns,s.informative,s.singleton,s.constant,s.gapOnly,s.nOnly};
-        for (std::size_t i=0;i<values.size();++i) values[i]->setText(QString::number(static_cast<qulonglong>(numbers[i])));
-        status->setText("All nucleotide rows at the time this window was opened.");
-        const auto text=QString::fromStdString(statistics_text(s));
-        connect(copy,&QPushButton::clicked,guarded.data(),[text]{QApplication::clipboard()->setText(text);}); copy->setEnabled(true);
-    });
-    set_busy(true,"Computing alignment statistics…"); dialog->show();
-    watcher->setFuture(QtConcurrent::run([source=document_,cancelled] {
-        Result result;
-        try { result.statistics=alignment_statistics(*source,[cancelled]{return cancelled->load();}); }
-        catch (const std::exception& e) { result.error=QString::fromUtf8(e.what()); }
-        return result;
-    }));
+    connect(molecule,&QComboBox::currentIndexChanged,dialog,[calculate]{calculate();});
+    for(const auto& row:source->rows())if(row.kind!=RowKind::Mask){molecule->setCurrentIndex(row.kind==RowKind::Protein?1:0);break;}
+    dialog->show();calculate();
 }
 void MainWindow::sort_sequences(Document::Sort method){
     if(busy_)return;

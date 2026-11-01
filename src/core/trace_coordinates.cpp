@@ -6,10 +6,10 @@ namespace kleiotide {
 TraceCoordinates::TraceCoordinates(const Sequence& row){
     if(!row.trace)throw std::invalid_argument("Trace coordinates need linked evidence.");
     validate_trace(row);const auto& link=*row.trace;reversed_=link.reversed;lastSample_=static_cast<double>(link.original->channels[0].size()-1);
+    const auto positions=trace_sample_positions(link);
     std::size_t ordinal=0;std::vector<std::pair<double,double>> anchors;
     for(std::size_t c=0;c<row.symbols.size();++c)if(!is_gap(row.symbols.text()[c])){
-        const auto call=link.originalCalls[ordinal++];if(call<0)continue;
-        const auto raw=static_cast<double>(link.original->peaks[static_cast<std::size_t>(call)]);
+        const auto raw=positions[ordinal++];
         anchors.emplace_back(reversed_?lastSample_-raw:raw,static_cast<double>(c)+.5);
     }
     // Coincident imported peaks share the mean column of their surviving calls.

@@ -32,6 +32,7 @@ struct IdentityMember {
     std::string skipped;
 };
 struct IdentityGroupPlan {
+    IdentityGroupOptions options;
     const Document* source=nullptr;
     std::uint64_t revision=0,comparisons=0,shortlistedQueries=0;
     std::vector<SequenceGroup> groups; // Full catalog: retained nonempty old entries plus new clusters.

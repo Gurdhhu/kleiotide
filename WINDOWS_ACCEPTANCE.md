@@ -1,3 +1,12 @@
+# 0.29.2 native acceptance pending
+
+The tester reported all eleven 0.29.1_test2 focused manual checks passing on
+31 October 2026. The additional sixteen requests are addressed by 0.29.2; use
+RELEASE_0.29.2_TESTING.md for fresh acceptance. The new release suite registers
+47 tests. Native Qt 6.5.3/MSVC2022 x64, display scaling, installer deployment,
+clean-machine TLS and ARM MAFFT need their own results; Linux checks do not
+establish them. New session saves are format 5 (formats 1–4 remain readable).
+
 # Latest native report: 0.29.0
 
 The user reports all 41 automatic tests shown by their build and all twelve

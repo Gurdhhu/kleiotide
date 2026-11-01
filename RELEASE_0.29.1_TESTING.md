@@ -58,7 +58,7 @@ HTTPS and all five local BLAST programs. No protein NCBI search is restored.
 
 ## Pending NCBI job
 
-The supplied eight-query job (7,528 residues), RID E8T40K3T014, repeatedly received
+The supplied eight-query job (7,528 residues), RID [supplied test RID omitted], repeatedly received
 WAITING replies. It also encountered one two-minute transport timeout; Resume
 reused the RID. A read-only check of that same RID still returned WAITING.
 No query was resubmitted. This does not establish a client defect or a predictable

@@ -85,7 +85,7 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     // Explicit FASTA export must not mark changed metadata saved.
     w.findChild<QComboBox*>("translationFrame")->setCurrentIndex(2);const auto exportPath=dir.filePath("only_sequences.fasta");
     {Picker picker(exportPath);action(w,"Export FASTA…")->trigger();check_busy(w);until(app,[&]{return view(w)->isEnabled();});need(get(exportPath).startsWith(">row")&&w.windowTitle().contains('*'),"Explicit FASTA export leaves session changes dirty");}
-    action(w,"Alignment statistics…")->trigger();check_busy(w);until(app,[&]{return view(w)->isEnabled();});
+    action(w,"Alignment statistics…")->trigger();need(view(w)->isEnabled(),"Snapshot statistics leave the editor interactive");until(app,[&]{auto* statistics=w.findChild<QDialog*>("alignmentStatistics");return statistics&&statistics->findChild<QPushButton*>("statisticsCopy")->isEnabled();});
     if(auto* statistics=w.findChild<QDialog*>("alignmentStatistics"))statistics->reject();
     bool grouped=false;QTimer grouping;grouping.setInterval(2);QObject::connect(&grouping,&QTimer::timeout,[&]{
         if(auto* dialog=w.findChild<QDialog*>("identityGroupsDialog")){grouping.stop();

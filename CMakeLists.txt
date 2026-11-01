@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.29.1 LANGUAGES CXX)
+project(Kleiotide VERSION 0.29.2 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 option(KLEIOTIDE_BUILD_GUI "Build the Qt Widgets application" ON)
-add_library(kleiotide_core src/core/abif_export.cpp src/core/collapse.cpp src/core/distances.cpp src/core/translation.cpp src/core/genetic_codes.cpp src/core/site_summary.cpp src/core/composition.cpp src/core/trace_quality.cpp src/core/groups.cpp src/core/group_import.cpp src/core/motif_index.cpp src/core/row_selection.cpp src/core/trace_coordinates.cpp src/core/session.cpp src/core/abif.cpp src/core/chromatogram.cpp src/core/alignment.cpp src/core/fasta.cpp src/core/overview.cpp src/core/sorting.cpp src/core/mafft_alignment.cpp src/core/mafft_template.cpp src/core/statistics.cpp)
+add_library(kleiotide_core src/core/abif_export.cpp src/core/collapse.cpp src/core/distances.cpp src/core/translation.cpp src/core/genetic_codes.cpp src/core/site_summary.cpp src/core/composition.cpp src/core/trace_quality.cpp src/core/groups.cpp src/core/group_import.cpp src/core/motif_index.cpp src/core/row_selection.cpp src/core/trace_coordinates.cpp src/core/session.cpp src/core/abif.cpp src/core/chromatogram.cpp
+    src/core/trace_peak_mapping.cpp src/core/alignment.cpp src/core/fasta.cpp src/core/overview.cpp src/core/sorting.cpp src/core/mafft_alignment.cpp src/core/mafft_template.cpp src/core/statistics.cpp)
 configure_file(src/core/version.hpp.in generated/core/version.hpp @ONLY)
 target_include_directories(kleiotide_core PUBLIC src "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(MSVC)
@@ -110,6 +111,7 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/local_blast.cpp
     src/gui/spart.cpp
     src/gui/table_io.cpp
+    src/gui/table_export.cpp
     third_party/miniz/miniz_tinfl.cpp
     src/gui/open_requests.cpp
     src/gui/alignment_view.cpp
@@ -160,6 +162,7 @@ if(KLEIOTIDE_BUILD_GUI)
   install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
   install(FILES third_party/miniz/LICENSE third_party/miniz/README.md DESTINATION third-party/miniz)
   install(FILES
+    RELEASE_0.29.2_TESTING.md
     RELEASE_0.29.1_TESTING.md
     LOCAL_BLAST.md
     SPART_AND_TABLES.md
@@ -200,7 +203,7 @@ if(KLEIOTIDE_BUILD_GUI)
     TESTER_FEEDBACK.md
     DESTINATION .)
   if(BUILD_TESTING)
-    foreach(test motif_search rename file_output preferences recovery blast_data exchange)
+    foreach(test motif_search rename file_output preferences recovery blast_data exchange table_export)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)
       target_link_libraries(kleiotide_${test}_tests PRIVATE kleiotide_gui)
       add_test(NAME ${test} COMMAND kleiotide_${test}_tests)
@@ -268,7 +271,7 @@ if(KLEIOTIDE_BUILD_GUI)
     kleiotide_workflow(mafft_fixture)
     kleiotide_workflow(blast_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check auto_preview_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check auto_preview_check update0292_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")

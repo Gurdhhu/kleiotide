@@ -1,13 +1,10 @@
-# Kleiotide 0.29.1
-
-**Build fix 1:** corrected automatic-preview control declarations for MSVC.
-See [BUILD_FIX_1.md](BUILD_FIX_1.md); use the corrected source ZIP and installer revision 2.
+# Kleiotide 0.29.2
 
 Kleiotide is a C++20/Qt Widgets alignment and chromatogram editor. This testing
 release adds local BLAST databases/searches, SPART group exchange, CSV/XLSX table
 loading and merge/trace/dialog improvements. NCBI nucleotide searches use HTTPS;
 BLAST+ remote searches and NCBI protein searches have been removed. It is not RC1.
-See RELEASE_0.29.1_TESTING.md, LOCAL_BLAST.md and SPART_AND_TABLES.md.
+See RELEASE_0.29.2_TESTING.md, LOCAL_BLAST.md and SPART_AND_TABLES.md.
 
 Open FASTA, AB1 or native .kleio sessions. Save sessions to retain groups,
 translation metadata and embedded original trace evidence; FASTA export writes
@@ -24,19 +21,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/k
 cmake --build build --target release-check --parallel 2
 ```
 
-Expected: 45/45 registered tests (20 core, eight Qt unit, seventeen GUI workflows).
+Expected: 47/47 registered tests (20 core, nine Qt unit, eighteen GUI workflows).
 Automatic remote BLAST tests use loopback HTTP, never NCBI. Local UI checks do
 not require BLAST+; optional actual-tool validation is described in VALIDATION.md.
 Read [WINDOWS_TESTING.md](WINDOWS_TESTING.md), [VALIDATION.md](VALIDATION.md),
-[RELEASE_0.29.1_TESTING.md](RELEASE_0.29.1_TESTING.md) and
+[RELEASE_0.29.2_TESTING.md](RELEASE_0.29.2_TESTING.md) and
 [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md) for native tests and packaging.
 
-## 0.29.1 follow-up
+## 0.29.2 follow-up
 
-Automatic previews with explicit named confirmation buttons, unified output
-extensions, SPART-specific sanitation and matching, direct-submission BLAST
-metadata, visible workbook links, compact dialogs and Cancel on the right.
-See RELEASE_0.29.1_TESTING.md; it supersedes older UI instructions.
+Unified XLSX/TSV/CSV analysis tables, modeless snapshot-backed BLAST, visible
+search status, protein statistics, compact dialogs and resizable/copyable previews.
+Terminal trace additions can use inferred signal anchors without fabricated Q.
+Native sessions now use format 5, while formats 1–4 remain readable.
+SPART sanitation lowercases names and retains whitespace as underscores.
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions.
 
 ## New workflows
 

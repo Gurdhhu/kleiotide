@@ -187,7 +187,7 @@ IdentityPair sequence_identity(const Sequence& a,const Sequence& b,IdentityAlign
     return compare(Input(a,mode,stop),Input(b,mode,stop),mode,stop);
 }
 IdentityGroupPlan plan_identity_groups(const Document& d,const IdentityGroupOptions& o,IdentityCancel stop,IdentityProgress progress){
-    validate(o);check(stop);IdentityGroupPlan plan;plan.source=&d;plan.revision=d.state_id();
+    validate(o);check(stop);IdentityGroupPlan plan;plan.options=o;plan.source=&d;plan.revision=d.state_id();
     std::unordered_set<SequenceId> selected(o.selected.begin(),o.selected.end());
     std::vector<Input> input;std::vector<std::size_t> memberIndex;
     for(const auto& row:d.rows()){

@@ -1,3 +1,4 @@
+#include "gui/table_export.hpp"
 #include "gui/spart.hpp"
 #include "gui/file_output.hpp"
 #include <QDateTime>
@@ -255,7 +256,7 @@ std::vector<SpartPartition> parse_xml(const QByteArray &bytes) {
 } // namespace
 QString spart_sanitize(QString name) {
   name.replace(QRegularExpression("[^A-Za-z0-9_]"), "_");
-  return name.isEmpty() ? QString("_") : name;
+  return name.isEmpty() ? QString("_") : name.toLower();
 }
 std::vector<SpartPartition> parse_spart(const QByteArray &bytes) {
   if (bytes.size() > 16 * 1024 * 1024)
@@ -353,28 +354,25 @@ void export_sequence_groups(const Document &d, QWidget *parent) {
   auto path =
       choose_output_filename(parent, "Export sequence groups", {},
                              "Matricial SPART (*.spart);;SPART XML "
-                             "(*.spart.xml);;Tab-separated table (*.tsv)",
+                             "(*.spart.xml);;Excel workbook (*.xlsx);;Tab-separated table (*.tsv);;Comma-separated table (*.csv)",
                              &filter, QFileDialog::DontConfirmOverwrite);
   if (path.isEmpty())
     return;
   try {
     QByteArray bytes;
-    const bool tsv = filter.contains("*.tsv"),
+    const bool tsv = filter.contains("*.tsv")||filter.contains("*.csv")||filter.contains("*.xlsx"),
                xml = filter.contains("*.spart.xml");
-    if (!path.endsWith(tsv   ? ".tsv"
-                       : xml ? ".spart.xml"
-                             : ".spart",
-                       Qt::CaseInsensitive))
-      path += tsv ? ".tsv" : xml ? ".spart.xml" : ".spart";
     if (tsv) {
       TextTable table{{"Sequence name", "Group name"}};
       for (const auto &row : d.rows()) {
         auto *group = d.group(row.groupId);
         table.push_back(
-            {spart_sanitize(QString::fromStdString(row.name)),
+            {QString::fromStdString(row.name),
              group ? QString::fromStdString(group->name) : QString{}});
       }
-      bytes = table_text(table).toUtf8();
+      if(filter.contains("*.xlsx"))bytes=report_bytes(path,{{"Sequence groups",table}});
+      else if(filter.contains("*.csv")){QString text;for(const auto& row:table){QStringList cells;for(auto cell:row){cell.replace('"',"\"\"");cells<<'"'+cell+'"';}text+=cells.join(',')+'\n';}bytes=text.toUtf8();}
+      else bytes=table_text(table).toUtf8();
     } else {
       bool ok = false;
       auto label = QInputDialog::getText(parent, "Export sequence groups",

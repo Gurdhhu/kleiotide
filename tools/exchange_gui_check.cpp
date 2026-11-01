@@ -254,7 +254,7 @@ int main(int argc, char **argv) {
                                            : "alpha renamed alpha"),
            "Both rename operations map selected XLSX columns");
     }
-    source.rename({{1," alpha "}});
+    source.rename({{1," AlPhA "}});
     const auto spart = temp.filePath("partitions.spart");
     {
       QFile file(spart);
@@ -313,7 +313,7 @@ int main(int argc, char **argv) {
     need(import_spart_groups(source, nullptr) && stage == 2 &&
              failure.isEmpty(),
          qPrintable(failure));
-    need(source.sequence(1).name==" alpha " && source.sequence(1).groupId == source.sequence(2).groupId &&
+    need(source.sequence(1).name==" AlPhA " && source.sequence(1).groupId == source.sequence(2).groupId &&
              source.group(source.sequence(1).groupId)->name == "5",
          "Chosen SPART partition applied");
     std::cout << "PASS CSV/XLSX group import with worksheet/header/column "

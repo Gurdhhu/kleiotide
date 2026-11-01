@@ -1,5 +1,11 @@
 # SPART and table exchange — 0.29.1
 
+## Current 0.29.2 behavior
+
+SPART sanitation now lowercases names, replaces every disallowed character with an underscore, and preserves boundary whitespace as underscores. Sanitation-aware import compares canonical names without editing the alignment. SPART export sanitizes only exported names; ordinary XLSX/CSV/TSV group tables retain original names. File > Export sequence groups offers all five formats.
+
+See RELEASE_0.29.2_TESTING.md; it supersedes older UI instructions below.
+
 SPART export automatically converts each character outside ASCII letters,
 digits and underscores to an underscore, including leading/trailing whitespace.
 It changes only the exported names. A separate Rename → Sanitize names for SPART

@@ -263,7 +263,7 @@ void Document::replace_many(const std::vector<Replacement>& edits,std::optional<
         if (before == after && trace==row.trace && protein==row.protein) continue;
         command.cost += sizeof(TextPatch) + before.size() + after.size();
         if(protein!=row.protein)command.cost+=protein_storage_bytes(protein)+protein_storage_bytes(row.protein);
-        if(trace!=row.trace){if(trace)command.cost+=sizeof(TraceLink)+trace->originalCalls.size()*sizeof(std::int32_t);if(row.trace)command.cost+=sizeof(TraceLink)+row.trace->originalCalls.size()*sizeof(std::int32_t);}
+        if(trace!=row.trace){if(trace)command.cost+=sizeof(TraceLink)+(trace->originalCalls.size()+trace->inferredPeaks.size())*sizeof(std::int32_t);if(row.trace)command.cost+=sizeof(TraceLink)+(row.trace->originalCalls.size()+row.trace->inferredPeaks.size())*sizeof(std::int32_t);}
         command.edits.emplace_back(TextPatch{edit.id, edit.start, std::move(before), std::move(after),row.trace,std::move(trace),row.protein,std::move(protein)});
     }
     if(erasedColumns&&!translation_.regions.empty()){

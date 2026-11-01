@@ -1,4 +1,5 @@
 #include "gui/blast_data.hpp"
+#include "core/version.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -598,6 +599,18 @@ BlastTable blast_table(const std::vector<BlastQuery> &queries,
       row = std::move(projected);
     }
   return rows;
+}
+TableReport blast_report(const BlastTable& rows,const BlastOptions& options,const QString& time,const QString& backendVersion,const QString& arguments){
+ TableSheet settings{"BLAST settings",{{"Setting","Value"},{"Kleiotide version",version},{"Backend",options.local?"Local BLAST+":"NCBI HTTPS URL API"},{"BLAST version",backendVersion.isEmpty()?"Not reported by server / unavailable in saved job":backendVersion},{"Search started (UTC)",time.isEmpty()?"Unavailable in saved job":time},{"Result metrics","Identity: best-scoring HSP; query cover: union of all HSP spans; filters applied locally"}}};
+ const auto json=options.json();const QString program=options.local?options.program:(options.protein?"blastp":"blastn");
+ QSet<QString> included{"waitMinutes","database","maxHits","expect","identity","coverage","mask"};
+ if(options.local){included.unite({"program","threads","launcher","softMask","word","gapOpen","gapExtend"});if(program=="blastn")included.unite({"task","reward","penalty","strand"});else included.insert("matrix");if(program=="blastp")included.insert("task");if(program=="blastp"||program=="blastx"||program=="tblastn")included.insert("composition");if(program=="blastx"||program=="tblastx")included.unite({"queryCode","strand"});if(program=="tblastn"||program=="tblastx")included.insert("databaseCode");}
+ else included.unite({"task","email","entrez","word","reward","penalty","gapOpen","gapExtend","shortQuery","excludeEnvironmental"});
+ for(auto it=json.begin();it!=json.end();++it){if(!included.contains(it.key()))continue;QString value=it->isString()?it->toString():it->isBool()?(it->toBool()?"Yes":"No"):QString::number(it->toDouble(),'g',15);settings.rows.push_back({it.key(),value});}
+ if(options.local)settings.rows.push_back({"BLAST+ arguments",arguments});else{const auto parameters=blast_parameters(options,{});for(const auto& item:parameters.queryItems())if(item.first!="QUERY")settings.rows.push_back({"HTTPS "+item.first,item.second});}
+ TableSheet results{"BLAST results",{blast_columns(options.local)}};for(int col=0;col<blast_columns(options.local).size();++col)if(blast_numeric_column(col,options.local))results.numericColumns.insert(col);
+ for(const auto& row:rows){results.rows.push_back(row);if(!options.local&&!row.value(4).isEmpty())results.links.insert("E"+QString::number(results.rows.size()),QUrl("https://www.ncbi.nlm.nih.gov/"+QString(options.protein?"protein/":"nuccore/")+QString::fromLatin1(QUrl::toPercentEncoding(row[4]))));}
+ return {settings,results};
 }
 QByteArray blast_tsv(const BlastTable &rows, bool local) {
   QString out = blast_columns(local).join('\t') + '\n';
