@@ -7,6 +7,15 @@
 class QIODevice;
 class QWidget;
 namespace kleiotide {
+QString remembered_file_directory();
+QString file_dialog_initial(const QString& suggested = {});
+void remember_file_directory(const QString& directory);
+void remember_file_path(const QString& path);
+QString choose_open_file(QWidget* parent = nullptr, const QString& caption = {}, const QString& initial = {},
+                         const QString& filters = {}, QString* selectedFilter = nullptr, QFileDialog::Options options = {});
+QStringList choose_open_files(QWidget* parent = nullptr, const QString& caption = {}, const QString& initial = {},
+                              const QString& filters = {}, QString* selectedFilter = nullptr, QFileDialog::Options options = {});
+QString choose_directory(QWidget*, const QString& caption, const QString& initial = {}, QFileDialog::Options options = QFileDialog::ShowDirsOnly);
 enum class OutputFormat { Session, Fasta, Abif, Table };
 enum class OutputNameRules { Platform, Windows };
 QString output_filename_error(const QString& path,OutputNameRules rules=OutputNameRules::Platform);

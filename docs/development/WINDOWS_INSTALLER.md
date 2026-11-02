@@ -1,13 +1,13 @@
 # Windows installer preparation
 
-For Kleiotide **0.29.3**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.29.3_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 47-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
+For Kleiotide **0.29.4**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.29.4_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 48-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
 
 The selected kit must provide Qt Widgets, Concurrent, Network and windeployqt. Windows deployment verifies Qt6Network.dll and tls/qschannelbackend.dll, using Schannel rather than assuming OpenSSL is installed on a recipient's machine. Build scripts do not download packaging inputs automatically.
 
 ## What the installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.29.3-1`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.29.4-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -74,7 +74,7 @@ provide the source for the bundled Qt libraries.
    execution-policy change is needed. Organisation policy still applies.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt version is unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.29.3` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.29.4` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -82,7 +82,7 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.29.3_Source_For_Installer.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.29.4_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
@@ -99,7 +99,7 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.29.3_test1/
+test-installers/Kleiotide_0.29.4_test1/
 ```
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,

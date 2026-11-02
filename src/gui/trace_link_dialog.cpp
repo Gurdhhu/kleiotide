@@ -1,3 +1,4 @@
+#include "gui/file_output.hpp"
 #include "gui/trace_link_dialog.hpp"
 #include "core/abif.hpp"
 #include "core/trace_linking.hpp"
@@ -83,7 +84,7 @@ class Dialog final:public QDialog{public:
  }
  void reject()override{if(running){closing=true;if(cancel)cancel->store(true);status->setText("Cancelling…");return;}QDialog::reject();}
  void busy(bool value){running=value;table->setEnabled(!value);preview->setEnabled(!value);add->setEnabled(!value);apply->setEnabled(false);}
- void add_files(int row){QStringList paths;if(row<0)paths=QFileDialog::getOpenFileNames(this,"Add a batch of AB1 files",{},"Sanger chromatograms (*.ab1 *.abi);;All files (*)");else {auto path=QFileDialog::getOpenFileName(this,"Assign one AB1 file",{},"Sanger chromatograms (*.ab1 *.abi);;All files (*)");if(!path.isEmpty())paths<<path;}if(paths.isEmpty())return;cancel=std::make_shared<std::atomic_bool>(false);busy(true);auto* watcher=new QFutureWatcher<std::vector<File>>(this);
+ void add_files(int row){QStringList paths;if(row<0)paths=choose_open_files(this,"Add a batch of AB1 files",{},"Sanger chromatograms (*.ab1 *.abi);;All files (*)");else {auto path=choose_open_file(this,"Assign one AB1 file",{},"Sanger chromatograms (*.ab1 *.abi);;All files (*)");if(!path.isEmpty())paths<<path;}if(paths.isEmpty())return;cancel=std::make_shared<std::atomic_bool>(false);busy(true);auto* watcher=new QFutureWatcher<std::vector<File>>(this);
   connect(watcher,&QFutureWatcher<std::vector<File>>::finished,this,[this,watcher,row]{const auto added=watcher->result();watcher->deleteLater();busy(false);int first=-1;QStringList errors;
    for(const auto& f:added){if(!f.original){errors<<f.path+": "+f.note;continue;}auto found=std::find_if(model.files.begin(),model.files.end(),[&](const auto& old){return old.path==f.path;});int index=found==model.files.end()?int(model.files.size()):int(found-model.files.begin());if(found==model.files.end())model.files.push_back(f);if(first<0)first=index;}
    model.invalidate();

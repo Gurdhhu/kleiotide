@@ -2,7 +2,7 @@
 
 ## Automatic suite
 
-Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 47 tests (20 core, nine Qt unit, 18 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
+Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 48 tests (20 core, nine Qt unit, 19 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
 
 ```sh
 cmake --build build --config Release --target release-check --parallel 2
@@ -11,15 +11,14 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
-## 0.29.3 focused acceptance
+## 0.29.4 focused acceptance
 
-1. Pairwise distance preview: drag every column border, including Sequence; switch distance/count views and verify names and Copy table. Try wide names, horizontal scrolling and 100/125/150/200% scaling.
-2. Save every distance report as XLSX/CSV/TSV. Compare method descriptions, scope, formulas, exclusions, groups and every result block. Only worksheet arrangement should differ. Inspect numeric/literal cells in Excel or LibreOffice.
-3. Nucleotide composition: Calculation methods must put each setting in column A and its nonempty value in column B. Compare all three formats and fractional-IUPAC settings.
-4. Rename: Append true lengths, Append aligned lengths and Append row numbers retain the old title, use Separator and preview automatically. Test empty/custom separators, selected rows, zero length, Undo/Redo and save/reopen.
-5. Recovery: type in overwrite/insert mode and move the caret across a due checkpoint. Input must resume without a mouse click. The write uses a temporary safety gate, a status message and Cancel checkpoint, without a focus-stealing popup. Switching to another main window must not activate the old one on completion. Test cancellation/quota failure and recovery on disposable data.
-6. Settings and both local search types: Download BLAST+ must be a short clickable link to the requested NCBI directory. Browsing is a user action; no automatic download occurs.
-7. Review README, topic guides and local links; build the exact source archive and verify installation retains the documentation paths.
+1. In one window open a file from folder A, save/export in B and open a different file dialog: B should be suggested. Repeat with tables, AB1, executable browsing and directory selection, then restart or launch another instance. Suggested filenames and extension/protection checks must remain correct. Navigate elsewhere and Cancel: the previous folder should remain. Rename/remove a remembered folder and verify a safe fallback. Settings Restore defaults must not erase navigation history.
+2. BLAST Resume job must still start in the normal blast-jobs folder. Cancel or load a saved job and confirm the ordinary remembered folder is unchanged. Automatic jobs/recovery must not redirect subsequent dialogs.
+3. Select a single residue, a row fragment, a multirow block and ruler columns. Use Select to beginning/end in Edit and the selected-residue context menu. Keep the same rows; extend to alignment column 1 or the last alignment column. Check View/Overwrite/Insert, ragged rows, horizontal scrolling, Clear fragment selection and independent name selection. These commands must not change sequence letters, dirty state or history.
+4. Verify the new selection section is just above Rename, and the three existing motif commands have their own section. Existing shortcuts and right-click gap-edit modes retain their behavior.
+5. Start with a distant vertical scroll and use each Sequence → Select family: type/traces, all/invert, groups, one per group, names/regular expressions, duplicates, motif and random. The uppermost selected row must become visible; horizontal position and residue selection stay unchanged. No-match/cancel/unselect must not jump. Reopen a session and verify its saved scroll position still wins.
+6. Inspect Download MAFFT in whole/selected/column options, full/fragment template workflows and Settings. It opens the official platform-appropriate page without changing options or starting a download. Check compact layout at 100/125/150/200% scaling.
 
 ## General native and distribution checks
 

@@ -1,3 +1,4 @@
+#include "gui/file_output.hpp"
 #include "gui/groups_dialog.hpp"
 #include "core/group_import.hpp"
 #include "gui/table_io.hpp"
@@ -102,6 +103,6 @@ private:
     QCheckBox* sanitation_=nullptr;Document& source_;ImportModel* model_;QPlainTextEdit* input_;QCheckBox *header_,*duplicates_;QComboBox *sequenceColumn_,*groupColumn_;QLabel* summary_;QPushButton* apply_;QTimer* debounce_;std::shared_ptr<std::atomic_bool> cancelled_;std::uint64_t generation_=0;bool running_=false,requested_=false;
 };
 }
-bool import_spart_groups(Document& source,QWidget* parent){const auto path=QFileDialog::getOpenFileName(parent,"Import groups from SPART",{},"SPART (*.spart *.spart.xml *.xml);;All files (*)");if(path.isEmpty())return false;try{QFile file(path);if(!file.open(QIODevice::ReadOnly)||file.size()>16*1024*1024)throw std::runtime_error("Cannot read SPART file, or it exceeds 16 MiB.");auto partitions=parse_spart(file.readAll());ImportDialog dialog(source,parent,std::move(partitions));dialog.exec();return dialog.changed;}catch(const std::exception& e){QMessageBox::warning(parent,"Import SPART",QString::fromUtf8(e.what()));return false;}}
+bool import_spart_groups(Document& source,QWidget* parent){const auto path=choose_open_file(parent,"Import groups from SPART",{},"SPART (*.spart *.spart.xml *.xml);;All files (*)");if(path.isEmpty())return false;try{QFile file(path);if(!file.open(QIODevice::ReadOnly)||file.size()>16*1024*1024)throw std::runtime_error("Cannot read SPART file, or it exceeds 16 MiB.");auto partitions=parse_spart(file.readAll());ImportDialog dialog(source,parent,std::move(partitions));dialog.exec();return dialog.changed;}catch(const std::exception& e){QMessageBox::warning(parent,"Import SPART",QString::fromUtf8(e.what()));return false;}}
 bool import_groups(Document& source,QWidget* parent){ImportDialog dialog(source,parent);dialog.exec();return dialog.changed;}
 }

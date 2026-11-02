@@ -131,7 +131,7 @@ void MainWindow::group_action(int operation){
             if(dialog.exec()==QDialog::Accepted){const auto before=document_->state_id();document_->apply_groups(plan.groups,plan.assignments);changed=before!=document_->state_id();}
         }
         else if(operation==3)changed=import_groups(*document_,this);
-        else if(operation==4){if(auto selected=select_groups(*document_,this))view_->select_ids(*selected);return;}
+        else if(operation==4){if(auto selected=select_groups(*document_,this)){view_->select_ids(*selected);view_->reveal_first_selected();}return;}
         else if(ids.empty()){statusBar()->showMessage("Select sequence names first.",5000);return;}
         else if(operation==1)changed=assign_group(*document_,ids,this);
         else if(operation==2){std::vector<std::pair<SequenceId,GroupId>> members;for(auto id:ids)members.emplace_back(id,0);const auto before=document_->state_id();document_->apply_groups(document_->groups(),members);changed=before!=document_->state_id();}

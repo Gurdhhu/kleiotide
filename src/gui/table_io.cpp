@@ -1,3 +1,4 @@
+#include "gui/file_output.hpp"
 #include "gui/table_io.hpp"
 #include "core/group_import.hpp"
 #include "third_party/miniz/miniz_tinfl.h"
@@ -325,7 +326,7 @@ TextTable read_xlsx_table(const QString &path, int sheet,
   return result;
 }
 std::optional<QString> load_table_file(QWidget *parent, const QString &title) {
-  const auto path = QFileDialog::getOpenFileName(
+  const auto path = choose_open_file(
       parent, title, {}, "Tables (*.tsv *.csv *.xlsx *.txt);;All files (*)");
   if (path.isEmpty())
     return {};

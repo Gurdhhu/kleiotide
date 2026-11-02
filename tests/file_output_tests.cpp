@@ -1,4 +1,5 @@
 #include "gui/file_output.hpp"
+#include "../tools/test_preferences.hpp"
 #include "core/abif.hpp"
 #include "core/session.hpp"
 #include "abif_fixture.hpp"
@@ -25,7 +26,7 @@ public:ShortDevice(){open(QIODevice::WriteOnly);}
 protected:qint64 readData(char*,qint64)override{return -1;}qint64 writeData(const char*,qint64 n)override{return n>1?n-1:-1;}
 };
 }
-int main(int argc,char** argv){QApplication app(argc,argv);try{
+int main(int argc,char** argv){QApplication app(argc,argv);try{TestPreferences testPreferences;
     Document d;d.load({{"row","ATGAAA"}});need(!requires_session(d),"Plain nucleotide FASTA stays available");
     for(int kind=0;kind<4;++kind){auto settings=TranslationSettings{};if(kind==0)settings.frame=2;if(kind==1)settings.code=2;if(kind==2)settings.regions={{1,2,0}};if(kind==3){auto custom=std::make_shared<GeneticCode>(genetic_code(1));custom->id=0;custom->name="custom";settings.custom=custom;settings.code=0;}d.set_translation_settings(settings);need(requires_session(d),"Every translation metadata kind requires a session");}
     d.set_translation_settings({});need(!requires_session(d),"Resetting metadata restores plain FASTA eligibility");

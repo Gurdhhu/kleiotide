@@ -5,6 +5,7 @@ class QLabel;
 class QPlainTextEdit;
 class QPushButton;
 namespace kleiotide {
+QLabel* mafft_download_note(QWidget* parent = nullptr);
 std::optional<MafftConfiguration> choose_mafft(QWidget*,std::optional<Document::ColumnRange>,std::optional<MafftTemplateRequest> = {},bool selectedOnly=false,RowKind molecule=RowKind::Nucleotide);
 std::optional<MafftTemplateRequest> choose_mafft_templates(QWidget*,const Document&,const std::vector<SequenceId>&,bool fragments);
 class MafftProgress final:public QDialog {

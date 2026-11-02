@@ -1,9 +1,10 @@
 # Documentation
 
-These guides describe Kleiotide 0.29.3. Current manuals are organized by topic rather than by the release in which a feature was introduced.
+These guides describe Kleiotide 0.29.4. Current manuals are organized by topic rather than by the release in which a feature was introduced.
 
 ## User guides
 
+- [Editing and selection](user/EDITING_AND_SELECTION.md)
 - [Trace import, linking and quality](user/TRACES.md)
 - [Edited AB1 export](user/AB1_EXPORT.md)
 - [AB1 import compatibility](user/AB1_IMPORT_RECOVERY.md)

@@ -1,3 +1,4 @@
+#include "gui/file_output.hpp"
 #include "gui/settings_dialog.hpp"
 #include "gui/blast_data.hpp"
 #include "gui/mafft_dialog.hpp"
@@ -182,6 +183,7 @@ void show_settings(
       "Automatic resolves to a positive logical-thread count, at most 8. Align "
       "dialogs can override this for one job without changing the global "
       "default. Keep the full Windows MAFFT runtime beside its launcher.");
+  mafft->addRow(mafft_download_note(&dialog));
   QPushButton test("Test a small alignment");
   test.setObjectName("settingsMafftTest");
   mafft->addRow(&test);
@@ -248,7 +250,7 @@ void show_settings(
                       " executable; blank searches beside the other BLAST+ "
                       "tools and on PATH.");
     QObject::connect(button, &QPushButton::clicked, &dialog, [&, name, field] {
-      auto path = QFileDialog::getOpenFileName(
+      auto path = choose_open_file(
           &dialog, "Choose NCBI " + name, field->text(),
           "Executables (*.exe);;All files (*)");
       if (!path.isEmpty())
@@ -492,7 +494,7 @@ void show_settings(
     fill(p);
   });
   QObject::connect(&browse, &QPushButton::clicked, &dialog, [&] {
-    const auto path = QFileDialog::getOpenFileName(
+    const auto path = choose_open_file(
         &dialog, "Select MAFFT launcher", launcher.text(),
         "MAFFT launchers (mafft mafft.bat *.exe *.cmd);;All files (*)");
     if (!path.isEmpty())

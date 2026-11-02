@@ -8,7 +8,7 @@ cmake --build build --parallel 2
 cmake --build build --target release-check
 ```
 
-The full suite registers 47 tests: 20 core, nine Qt unit and 18 GUI workflows. See [TESTING.md](TESTING.md) for logs and optional real-tool checks. MAFFT and BLAST+ are not needed for the normal automated suite. Test fixtures use local fake tools and loopback HTTP.
+The full suite registers 48 tests: 20 core, nine Qt unit and 19 GUI workflows. See [TESTING.md](TESTING.md) for logs and optional real-tool checks. MAFFT and BLAST+ are not needed for the normal automated suite. Test fixtures use local fake tools and loopback HTTP.
 
 For core-only, Qt-free builds:
 

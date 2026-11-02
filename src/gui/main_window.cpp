@@ -196,12 +196,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     });
     auto* newWindow=file->addAction("New window");connect(newWindow,&QAction::triggered,this,[]{auto* window=new MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->show();});
     action(file, "&Open…", QKeySequence::Open, [this] {
-        const auto paths = QFileDialog::getOpenFileNames(this, "Open sequences, traces or session", {},
+        const auto paths = choose_open_files(this, "Open sequences, traces or session", {},
             "Sequences, traces and sessions (*.fasta *.fas *.fa *.fna *.faa *.txt *.ab1 *.abi *.kleio);;Kleiotide session (*.kleio);;Sanger chromatograms (*.ab1 *.abi);;FASTA (*.fasta *.fas *.fa *.fna *.faa *.txt);;All files (*)");
         if (!paths.isEmpty()) open_paths(paths);
     });
     action(file, "Add sequence from &file…", {}, [this] {
-        const auto paths = QFileDialog::getOpenFileNames(this, "Add sequences, linked traces or session sequences", {},
+        const auto paths = choose_open_files(this, "Add sequences, linked traces or session sequences", {},
             "Sequences, traces and sessions (*.fasta *.fas *.fa *.fna *.faa *.txt *.ab1 *.abi *.kleio);;Kleiotide session sequences (*.kleio);;Sanger chromatograms (*.ab1 *.abi);;FASTA (*.fasta *.fas *.fa *.fna *.faa *.txt);;All files (*)");
         if (!paths.isEmpty()) load_files(paths, true);
     });
@@ -267,6 +267,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* findMotif=action(edit,"Find motif…",QKeySequence(Qt::CTRL|Qt::SHIFT|Qt::Key_F),[this]{motifDock_->show();motif_->focus_query();});findMotif->setObjectName("findMotif");
     auto* nextMotif=action(edit,"Find next motif",QKeySequence(Qt::Key_F3),[this]{motifDock_->show();motif_->next();});nextMotif->setObjectName("findNextMotif");
     auto* previousMotif=action(edit,"Find previous motif",QKeySequence(Qt::SHIFT|Qt::Key_F3),[this]{motifDock_->show();motif_->next(true);});previousMotif->setObjectName("findPreviousMotif");
+    edit->addSeparator();
+    auto* selectBeginning=action(edit,"Select to beginning",{},[this]{view_->extend_fragment(false);});selectBeginning->setObjectName("selectFragmentBeginning");selectBeginning->setToolTip("Extend the current residue selection to alignment column 1, keeping the same rows.");
+    auto* selectEnd=action(edit,"Select to end",{},[this]{view_->extend_fragment(true);});selectEnd->setObjectName("selectFragmentEnd");selectEnd->setToolTip("Extend the current residue selection to the final alignment column, keeping the same rows.");
+    auto* clearSelection=action(edit,"Clear fragment selection",{},[this]{view_->clear_residue_selection();});clearSelection->setObjectName("clearFragmentSelection");clearSelection->setToolTip("Clear the residue selection while retaining selected sequence names.");
+    edit->addSeparator();
     auto* rename = edit->addMenu("&Rename");
     action(rename, "Rename selected sequence…", {}, [this] { rename_one(); });
     action(rename, "Using old name / new name table…", {}, [this] { rename_from_table(); });
@@ -319,11 +324,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* onePerGroup=action(sequenceSelection,"One sequence per group…",{},[this]{select_one_per_group();});onePerGroup->setObjectName("selectOnePerGroup");
     const char* typeLabels[]={"Nucleotide sequences","Protein sequences","Masks","Sequences with traces"};
     const char* typeIds[]={"selectNucleotide","selectProtein","selectMasks","selectTraces"};
-    for(int i=0;i<4;++i){auto* a=action(sequenceSelection,typeLabels[i],{},[this,i]{std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(i==3?bool(row.trace):row.kind==(i==0?RowKind::Nucleotide:i==1?RowKind::Protein:RowKind::Mask))ids.push_back(row.id);view_->select_ids(ids);});a->setObjectName(typeIds[i]);}
+    for(int i=0;i<4;++i){auto* a=action(sequenceSelection,typeLabels[i],{},[this,i]{std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(i==3?bool(row.trace):row.kind==(i==0?RowKind::Nucleotide:i==1?RowKind::Protein:RowKind::Mask))ids.push_back(row.id);view_->select_ids(ids);view_->reveal_first_selected();});a->setObjectName(typeIds[i]);}
     sequenceSelection->addSeparator();
-    action(sequenceSelection, "Select all", QKeySequence::SelectAll, [this] { view_->select_all(); });
+    action(sequenceSelection, "Select all", QKeySequence::SelectAll, [this] { view_->select_all();view_->reveal_first_selected(); });
     shortcut_hint(action(sequenceSelection, "Unselect all", {}, [this] { view_->unselect_all(); }),QKeySequence(Qt::Key_Escape));
-    action(sequenceSelection, "Invert selection", {}, [this] { view_->invert_selection(); });
+    action(sequenceSelection, "Invert selection", {}, [this] { view_->invert_selection();view_->reveal_first_selected(); });
     sequenceSelection->addSeparator();
     action(sequenceSelection, "Names matching regular expression…", QKeySequence::Find, [this] { select_regex(false); });
     action(sequenceSelection, "Sequences matching regular expression…", {}, [this] { select_regex(true); });
@@ -643,6 +648,7 @@ void MainWindow::update_selection_state() {
     }
     if (!busy_) {
         const auto& fragment=view_->fragment();const bool single=fragment&&fragment->ids.size()==1;
+        for(const auto* id:{"selectFragmentBeginning","selectFragmentEnd","clearFragmentSelection"})if(auto* a=findChild<QAction*>(id))a->setEnabled(fragment.has_value());
         const bool writable=view_->mode()==AlignmentView::Mode::Insert||view_->mode()==AlignmentView::Mode::Rewrite;
         const auto enable=[this](const char* id,bool enabled){if(auto* a=findChild<QAction*>(id))a->setEnabled(enabled);};
         const auto* fragmentRow=single?document_->find_sequence(fragment->ids.front()):nullptr;
@@ -768,6 +774,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             if(append){for(auto it=document_->rows().rbegin();it!=document_->rows().rend();++it)if(it->trace){traces_->choose_sequence(it->id);view_->navigate_to_cell(it->id,0);break;}}
             traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);
         }
+        if(!openingRecovery_)remember_file_path(paths.back());
         if(result->isSession)restore_view(result->viewState);
         if(openingRecovery_){
             path_.clear();nativePath_=false;savedState_=0;resultLabel_="Recovered session";openingRecovery_=false;
@@ -1067,6 +1074,7 @@ void MainWindow::run_row_selection(std::function<std::vector<SequenceId>(const D
         const auto result=watcher->result();watcher->deleteLater();
         if(result.error.isEmpty())view_->select_ids(result.ids);
         set_busy(false);
+        if(result.error.isEmpty())view_->reveal_first_selected();
         if(!result.error.isEmpty())QMessageBox::warning(this,"Sequence selection",result.error);
         else statusBar()->showMessage(QString("Selected %1 sequences").arg(static_cast<qulonglong>(result.ids.size())),5000);
     });
@@ -1147,6 +1155,7 @@ void MainWindow::save(bool saveAs, std::function<void()> onSuccess, bool exportF
             retire_recovery();clear_recovered_claim();
         }
         set_busy(false);
+        if(error.isEmpty())remember_file_path(destination);
         if (!error.isEmpty()) QMessageBox::warning(this, "Could not save file", error);
         else if (onSuccess) onSuccess();
     });

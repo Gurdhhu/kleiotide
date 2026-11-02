@@ -925,6 +925,23 @@ void AlignmentView::select_ids(const std::vector<SequenceId>& ids) {
     }
     notify_selection();
 }
+void AlignmentView::extend_fragment(bool toEnd) {
+    if(!document_||!fragment_)return;
+    auto next=*fragment_;
+    if(toEnd)next.width=document_->columns()-next.start;
+    else{next.width+=next.start;next.start=0;}
+    select_fragment(std::move(next));
+    horizontalScrollBar()->setValue(toEnd?horizontalScrollBar()->maximum():0);
+}
+void AlignmentView::reveal_first_selected() {
+    if(!document_||selected_.empty())return;
+    const auto& rows=document_->rows();
+    for(std::size_t i=0;i<rows.size();++i)if(selected_.contains(rows[i].id)){
+        const auto first=static_cast<std::size_t>(verticalScrollBar()->value());
+        if(i<first||i>=first+static_cast<std::size_t>(visible_rows()))verticalScrollBar()->setValue(static_cast<int>(std::min<std::size_t>(i,std::numeric_limits<int>::max())));
+        return;
+    }
+}
 void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     if (event->pos().x() >= nameWidth_) {
         if (rightClick_ != RightClick::Menu || !fragment_) return;
@@ -953,6 +970,8 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
             menu.addAction("Replace selected symbols with locked gaps (-)", [this] { fill_fragment('-'); });
             menu.addSeparator();
         }
+        menu.addAction("Select to beginning",[this]{extend_fragment(false);})->setToolTip("Extend the selected rows to alignment column 1.");
+        menu.addAction("Select to end",[this]{extend_fragment(true);})->setToolTip("Extend the selected rows to the final alignment column.");
         shortcut_hint(menu.addAction("Clear fragment selection", [this] { clear_fragment(); viewport()->update(); }),QKeySequence(Qt::Key_Escape));
         menu.exec(event->globalPos()); return;
     }

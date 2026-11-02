@@ -6,6 +6,8 @@
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSettings>
+#include <QStandardPaths>
 #include <algorithm>
 #include <filesystem>
 #include <stdexcept>
@@ -56,6 +58,44 @@ protected:
   }
 };
 } // namespace
+QString remembered_file_directory() {
+  QSettings settings(QSettings::defaultFormat(),QSettings::UserScope,"Kleiotide","Kleiotide");
+  settings.sync();
+  const auto path=settings.value("files/lastDirectory").toString();
+  return !path.isEmpty()&&QFileInfo(path).isDir()?QDir(path).absolutePath():QString{};
+}
+void remember_file_directory(const QString& path) {
+  if(path.isEmpty()||!QFileInfo(path).isDir())return;
+  QSettings settings(QSettings::defaultFormat(),QSettings::UserScope,"Kleiotide","Kleiotide");
+  settings.setValue("files/lastDirectory",QDir(path).absolutePath());settings.sync();
+}
+void remember_file_path(const QString& path) {
+  if(!path.isEmpty())remember_file_directory(QFileInfo(path).absolutePath());
+}
+QString file_dialog_initial(const QString& suggested) {
+  auto folder=remembered_file_directory();
+  if(folder.isEmpty()) {
+    if(!suggested.isEmpty())return suggested;
+    folder=QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if(folder.isEmpty()||!QFileInfo(folder).isDir())folder=QDir::homePath();
+  }
+  return suggested.isEmpty()||QFileInfo(suggested).isDir()?folder:QDir(folder).filePath(QFileInfo(suggested).fileName());
+}
+QString choose_open_file(QWidget* parent,const QString& caption,const QString& initial,const QString& filters,QString* selectedFilter,QFileDialog::Options options) {
+  const auto path=QFileDialog::getOpenFileName(parent,caption,file_dialog_initial(initial),filters,selectedFilter,options);
+  remember_file_path(path);return path;
+}
+QStringList choose_open_files(QWidget* parent,const QString& caption,const QString& initial,const QString& filters,QString* selectedFilter,QFileDialog::Options options) {
+  const auto paths=QFileDialog::getOpenFileNames(parent,caption,file_dialog_initial(initial),filters,selectedFilter,options);
+  if(!paths.isEmpty())remember_file_path(paths.back());
+  return paths;
+}
+QString choose_directory(QWidget* parent,const QString& caption,const QString& initial,QFileDialog::Options options) {
+  const auto remembered=remembered_file_directory();
+  const auto start=remembered.isEmpty()?(initial.isEmpty()?file_dialog_initial():initial):remembered;
+  const auto path=QFileDialog::getExistingDirectory(parent,caption,start,options);
+  remember_file_directory(path);return path;
+}
 QString output_filename_error(const QString &path, OutputNameRules rules) {
 #ifdef _WIN32
   rules = OutputNameRules::Windows;
@@ -111,13 +151,15 @@ QString choose_output_filename(QWidget *parent, const QString &caption,
                                OutputNameRules rules) {
   QString selected = selectedFilter ? *selectedFilter : QString{};
   auto path =
-      raw_output_filename(parent, caption, directory, filters, &selected,
+      raw_output_filename(parent, caption, file_dialog_initial(directory), filters, &selected,
                           options | QFileDialog::DontConfirmOverwrite, rules);
   if (selectedFilter)
     *selectedFilter = selected;
   if (path.isEmpty())
     return path;
-  return ensure_output_extension(path, selected);
+  path=ensure_output_extension(path, selected);
+  remember_file_path(path);
+  return path;
 }
 QString ensure_output_extension(QString path, const QString &filter) {
   if (path.isEmpty())

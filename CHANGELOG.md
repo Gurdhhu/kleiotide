@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.4 — 2026-11-02
+
+- Share and persist the last accepted open/save/export folder across windows and application launches, retaining suggested filenames. Cancel leaves it unchanged; BLAST Resume job keeps its default jobs folder and does not change this preference. Missing remembered folders fall back safely.
+- Add Select to beginning, Select to end and Clear fragment selection together above Rename in Edit and as a section in the residue context menu. Extension preserves selected rows and uses alignment boundaries without editing sequence data.
+- Keep the three motif commands in their own Edit-menu section.
+- Sequence selection commands reveal the uppermost matching row without changing horizontal scroll, residue selection or saved session scroll restoration.
+- Add official MAFFT download links to alignment options, template choosers and Settings.
+- Add one integrated GUI regression workflow; the full release suite now registers 48 tests.
+
+
 ## 0.29.3 — 2026-11-01
 
 - Distance matrix sequence names are a resizable first column. All distance exports share the same detailed methods and data blocks across XLSX, TSV and CSV.

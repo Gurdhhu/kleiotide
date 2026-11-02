@@ -1,6 +1,6 @@
 # MAFFT alignment
 
-Install MAFFT separately and set its launcher in Settings or the alignment dialog. MAFFT is optional; ordinary editing and trace inspection do not require it. Align whole alignment, Align selected sequences and Realign selected columns open their results in a separate main window. Existing gaps in the aligned region are removed; returned gaps are open (~). Alignment against templates preserves the original template column axis, including all-gap template columns, and inserts columns for target additions.
+Install MAFFT separately using the short Download MAFFT link in each options/template dialog or Settings → MAFFT, then set its launcher in Settings or the alignment dialog. MAFFT is optional; ordinary editing and trace inspection do not require it. Align whole alignment, Align selected sequences and Realign selected columns open their results in a separate main window. Existing gaps in the aligned region are removed; returned gaps are open (~). Alignment against templates preserves the original template column axis, including all-gap template columns, and inserts columns for target additions.
 
 Names, stable IDs, groups, exact sequence letters and trace associations are retained after validation. No original signal or original call is rewritten. Results can therefore still navigate to linked chromatograms. The source remains available. Cancel, process errors and invalid output do not replace it. The Last alignment report records the executable/version, options and preservation checks.
 
@@ -81,3 +81,5 @@ and process errors discard the result without modifying the source.
 MAFFT's primary documentation: [scoring parameters and molecule flags](https://mafft.cbrc.jp/alignment/software/manual/manual.html),
 [acceptable/unknown symbols](https://mafft.cbrc.jp/alignment/software/anysymbol.html),
 and [sequence/fragment addition](https://mafft.cbrc.jp/alignment/software/addsequences.html).
+
+Official downloads: [Windows all-in-one package](https://mafft.cbrc.jp/alignment/software/windows_without_cygwin.html) and [other platforms](https://mafft.cbrc.jp/alignment/software/). Links open the official page; Kleiotide does not download or install MAFFT automatically.

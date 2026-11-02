@@ -19,9 +19,11 @@ session's full custom code. Frames and coding-region coordinates remain
 session data and are not global defaults. A new blank document or fresh
 FASTA/AB1 import starts with this code without creating an Undo operation.
 
-Files: default FASTA import type initializes new windows. The existing File →
-FASTA import type command remains an explicit choice for imports in that window.
-Saved sessions and AB1 files retain their declared row types.
+Files: default FASTA import type initializes new windows. The per-window FASTA import type command remains an explicit choice for imports in that window. Sessions and AB1 retain declared types.
+
+Open, save, export, import, executable-browse and folder dialogs share the last accepted folder across windows and future launches. Suggested filenames are retained. Cancelled navigation leaves this preference unchanged. An unavailable remembered folder falls back to the supplied suggestion or the usual documents/home location. This navigation preference is separate from resettable Settings defaults and is not saved in portable sessions.
+
+BLAST Resume job always starts in the default saved-jobs folder and does not change the ordinary remembered folder. Automatic recovery checkpoints and automatic BLAST job persistence likewise do not change it.
 
 MAFFT: default launcher path and Automatic (safe) or an explicit thread count.
 Browse selects a launcher; Test a small alignment actually runs two short

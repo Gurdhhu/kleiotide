@@ -1,3 +1,4 @@
+#include "gui/file_output.hpp"
 #include "gui/mafft_dialog.hpp"
 #include "gui/app_settings.hpp"
 #include <QCheckBox>
@@ -21,6 +22,15 @@
 #include <QVBoxLayout>
 
 namespace kleiotide {
+QLabel* mafft_download_note(QWidget* parent) {
+#ifdef _WIN32
+    const QString url="https://mafft.cbrc.jp/alignment/software/windows_without_cygwin.html";
+#else
+    const QString url="https://mafft.cbrc.jp/alignment/software/";
+#endif
+    auto* note=new QLabel("Install MAFFT separately: <a href=\""+url+"\">Download MAFFT</a>.",parent);
+    note->setObjectName("mafftDownload");note->setWordWrap(true);note->setOpenExternalLinks(true);note->setToolTip("Open the official MAFFT download and installation page.");return note;
+}
 std::optional<MafftConfiguration> choose_mafft(QWidget* parent,std::optional<Document::ColumnRange> range,std::optional<MafftTemplateRequest> request,bool selectedOnly,RowKind molecule){
     const bool protein=molecule==RowKind::Protein;
     const auto defaults=AppSettings::instance().values();QDialog dialog(parent);dialog.setWindowTitle(request?"Align selected targets to templates with MAFFT":range?"Realign selected columns with MAFFT":selectedOnly?"Align selected sequences with MAFFT":"Align whole alignment with MAFFT");dialog.resize(760,650);dialog.setObjectName("mafftSettings");
@@ -28,7 +38,8 @@ std::optional<MafftConfiguration> choose_mafft(QWidget* parent,std::optional<Doc
     QLabel policy(request?"Target gaps are removed before alignment. Original columns and all non-target symbols are preserved; new insertion columns add open gaps to other rows. The result opens in a new window.":"Existing gaps in the aligned region are removed; new gaps are open (~). Mask rows are excluded; nucleotide and protein participants cannot be mixed. The result opens in a new window and the source stays available.");policy.setWordWrap(true);layout.addWidget(&policy);
     if(protein){auto* symbols=new QLabel("Protein scoring: B/Z/J/X and U/O/*/? are retained but scored as unknown (--anysymbol). Existing gaps are removed in the aligned scope; all resulting residues remain independently editable.",&dialog);symbols->setWordWrap(true);symbols->setObjectName("mafftProteinPolicy");layout.addWidget(symbols);}
     QWidget installation;QHBoxLayout installLayout(&installation);installLayout.setContentsMargins(0,0,0,0);QLineEdit launcher(defaults.mafftLauncher);launcher.setObjectName("mafftLauncher");launcher.setPlaceholderText("MAFFT launcher: mafft.bat on Windows, mafft on Linux/macOS");QPushButton browse("Browse…");installLayout.addWidget(&launcher,1);installLayout.addWidget(&browse);layout.addWidget(&installation);
-    QObject::connect(&browse,&QPushButton::clicked,&dialog,[&]{const auto path=QFileDialog::getOpenFileName(&dialog,"Select MAFFT launcher",launcher.text(),"MAFFT launchers (mafft mafft.bat *.exe *.cmd);;All files (*)");if(!path.isEmpty())launcher.setText(path);});
+    QObject::connect(&browse,&QPushButton::clicked,&dialog,[&]{const auto path=choose_open_file(&dialog,"Select MAFFT launcher",launcher.text(),"MAFFT launchers (mafft mafft.bat *.exe *.cmd);;All files (*)");if(!path.isEmpty())launcher.setText(path);});
+    layout.addWidget(mafft_download_note(&dialog));
     QFormLayout form;layout.addLayout(&form);QComboBox algorithm;algorithm.setObjectName("mafftAlgorithm");algorithm.addItems({"Automatic — choose for this dataset","FFT-NS-1 — very fast","FFT-NS-2 — fast","FFT-NS-i — iterative refinement","L-INS-i — local pairwise, accurate","G-INS-i — global pairwise, similar lengths","E-INS-i — large internal gaps","PartTree — many sequences"});form.addRow("Method",&algorithm);
     QSpinBox threads;threads.setObjectName("mafftThreads");threads.setRange(0,256);threads.setSpecialValueText("Automatic (safe)");threads.setValue(defaults.mafftThreads);form.addRow("Threads",&threads);
     QComboBox direction;direction.addItems({"Keep each input strand","Adjust strand — fast","Adjust strand — accurate"});direction.setObjectName("mafftDirection");direction.setToolTip("Reverse-complement oppositely oriented rows before alignment; accurate adjustment takes longer. Whole rows only.");if(range){direction.setEnabled(false);direction.setToolTip(request?"Templates and targets retain their input orientation to preserve the existing alignment.":"A fragment must retain the orientation of its surrounding sequence.");}if(request)direction.setToolTip("Adjust target strands against the fixed templates. Template strands and original column relationships must remain unchanged.");form.addRow("Nucleotide direction",&direction);
@@ -82,6 +93,7 @@ std::optional<MafftTemplateRequest> choose_mafft_templates(QWidget* parent,const
     for(const auto& row:source.rows())if(selection.contains(row.id)){if(row.kind==molecule&&row.symbols.residue_count())request.targets.push_back(row.id);else ++skipped;}
     QDialog dialog(parent);dialog.setObjectName("mafftTemplates");dialog.setWindowTitle(fragments?"Choose templates for fragment addition":"Choose templates for full-sequence addition");dialog.resize(760,510);QVBoxLayout layout(&dialog);
     QLabel scope(QString("Selected targets: %1. Masks and empty selected rows skipped: %2.").arg(request.targets.size()).arg(skipped));scope.setWordWrap(true);layout.addWidget(&scope);
+    layout.addWidget(mafft_download_note(&dialog));
     QLabel help("Check aligned rows of the same molecule type to use as templates. Targets and templates are separate. All other rows, including masks, retain their original column relationships.");help.setWordWrap(true);layout.addWidget(&help);
     QListWidget list;list.setObjectName("mafftTemplateRows");layout.addWidget(&list,1);
     for(std::size_t i=0;i<source.rows().size();++i){const auto& row=source.rows()[i];if(selection.contains(row.id)||row.kind!=molecule||!row.symbols.residue_count())continue;

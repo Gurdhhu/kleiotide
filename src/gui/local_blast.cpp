@@ -643,7 +643,7 @@ public:
     configure();
     connect(browseDb, &QPushButton::clicked, this, [this, refill] {
       auto path =
-          QFileDialog::getOpenFileName(this, "Open local BLAST database", {},
+          choose_open_file(this, "Open local BLAST database", {},
                                        "Kleiotide local database (*.kblast)");
       if (path.isEmpty())
         return;
@@ -659,7 +659,7 @@ public:
       }
     });
     connect(browseExe, &QPushButton::clicked, this, [this] {
-      auto path = QFileDialog::getOpenFileName(
+      auto path = choose_open_file(
           this, "Choose NCBI " + program->currentText(), launcher->text(),
           "Executables (*.exe);;All files (*)");
       if (!path.isEmpty())
@@ -952,7 +952,7 @@ public:
 };
 } // namespace
 void create_local_database(bool protein, QWidget *parent) {
-  const auto input = QFileDialog::getOpenFileName(
+  const auto input = choose_open_file(
       parent,
       "Choose source for local " + QString(protein ? "protein" : "nucleotide") +
           " database",
@@ -961,7 +961,7 @@ void create_local_database(bool protein, QWidget *parent) {
   if (input.isEmpty())
     return;
   auto target =
-      QFileDialog::getSaveFileName(parent, "Create a local BLAST database file",
+      choose_output_filename(parent, "Create a local BLAST database file",
                                    {}, "Kleiotide local database (*.kblast)",
                                    nullptr, QFileDialog::DontConfirmOverwrite);
   if (target.isEmpty())

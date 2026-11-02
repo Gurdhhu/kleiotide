@@ -31,6 +31,9 @@ public:
     const std::optional<Fragment>& fragment() const { return fragment_; }
     void select_fragment(Fragment fragment);
     void select_trace_fragment(SequenceId id,std::size_t start,std::size_t width){select_fragment({{id},start,width});}
+    void extend_fragment(bool toEnd);
+    void clear_residue_selection(){clear_fragment();viewport()->update();}
+    void reveal_first_selected();
     void slide_fragment(std::int64_t distance);
     void fill_fragment(char symbol);
     void unlock_fragment();
