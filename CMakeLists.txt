@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.29.2 LANGUAGES CXX)
+project(Kleiotide VERSION 0.29.3 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -161,47 +161,8 @@ if(KLEIOTIDE_BUILD_GUI)
   install(TARGETS kleiotide RUNTIME DESTINATION . BUNDLE DESTINATION .)
   install(FILES tools/windows/Register-Kleiotide.ps1 DESTINATION tools)
   install(FILES third_party/miniz/LICENSE third_party/miniz/README.md DESTINATION third-party/miniz)
-  install(FILES
-    RELEASE_0.29.2_TESTING.md
-    RELEASE_0.29.1_TESTING.md
-    LOCAL_BLAST.md
-    SPART_AND_TABLES.md
-    BLAST_AND_TRACE_LINKING.md
-    RELEASE_0.28.1_TESTING.md
-    AB1_EXPORT.md
-    AB1_IMPORT_RECOVERY.md
-    BRANDING.md
-    CHANGELOG.md
-    COLLAPSE.md
-    DEPENDENCIES.md
-    DISPLAY_COLORS.md
-    DISTANCES.md
-    IDENTITY_GROUPS.md
-    ICON_GUIDELINES.md
-    LICENSE-STATUS.md
-    LICENSE
-    MAFFT_PROTEINS.md
-    MERGING.md
-    NEXT_STEPS.md
-    IMPLEMENTATION_STATUS.md
-    PROTEIN_TRANSLATION_PLAN.md
-    README.md
-    RELEASE_CHECKLIST.md
-    RELEASE_PLAN_0.27.1_0.28.0.md
-    RELEASE_0.27.1_TESTING.md
-    RELEASE_0.27.2_TESTING.md
-    ROADMAP_1.0.md
-    SESSION_FORMAT.md
-    SETTINGS_AND_RECOVERY.md
-    SITE_ANALYSIS.md
-    TRANSLATION.md
-    VALIDATION.md
-    WINDOWS_TESTING.md
-    WINDOWS_ACCEPTANCE.md
-    WINDOWS_INSTALLER.md
-    ARM64_COMPATIBILITY.md
-    TESTER_FEEDBACK.md
-    DESTINATION .)
+  install(FILES README.md CHANGELOG.md CONTRIBUTING.md BRANDING.md LICENSE-STATUS.md LICENSE CITATION.cff DESTINATION .)
+  install(DIRECTORY docs/ DESTINATION docs FILES_MATCHING PATTERN "*.md")
   if(BUILD_TESTING)
     foreach(test motif_search rename file_output preferences recovery blast_data exchange table_export)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)

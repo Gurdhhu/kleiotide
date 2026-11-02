@@ -126,6 +126,15 @@ SimilarityOrder similarity_order(const Document& d,DistanceOptions options,const
     SimilarityOrder out;out.eligible=n;out.uncomparable=static_cast<std::size_t>(std::count(partner.begin(),partner.end(),0));std::unordered_set<SequenceId> eligible;for(auto r:in.rows)eligible.insert(r->id);std::size_t at=0;for(const auto& row:d.rows())out.order.push_back(eligible.contains(row.id)?in.rows[chain[at++]]->id:row.id);if(progress)progress(total,total);return out;
 }
 std::string distance_method_name(DistanceMethod m){switch(m){case DistanceMethod::Differences:return "Observed differences";case DistanceMethod::PDistance:return "p-distance";case DistanceMethod::JukesCantor:return "Jukes-Cantor";case DistanceMethod::Kimura2:return "Kimura 2-parameter";case DistanceMethod::Poisson:return "Poisson correction";}return {};}
+std::string distance_method_description(DistanceMethod m){
+    switch(m){
+    case DistanceMethod::Differences:return "Observed differences = D, the number of unequal definite residues among n comparable sites. No length normalization or multiple-hit correction. Short overlaps can give smaller counts; use Minimum comparable sites to require sufficient overlap.";
+    case DistanceMethod::PDistance:return "p-distance = D/n, where D is the observed difference count and n is the number of comparable sites. Units: fraction of differing sites (0 to 1), not a percentage. No correction for multiple substitutions at the same site.";
+    case DistanceMethod::JukesCantor:return "Jukes-Cantor distance = -3/4 ln(1 - 4p/3), where p = D/n. Assumes equal base frequencies, equal rates for all nucleotide substitutions and uniform rates among sites. Units: estimated substitutions per site. N/A when p >= 0.75 (model saturation).";
+    case DistanceMethod::Kimura2:return "Kimura 2-parameter distance = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q). P is the fraction of transitions (A-G or C-T); Q is the fraction of transversions among comparable sites. Assumes equal base frequencies and uniform rates among sites, allowing different transition/transversion rates. Units: estimated substitutions per site. N/A when either logarithm argument is <= 0.";
+    case DistanceMethod::Poisson:return "Poisson correction = -ln(1 - p), where p = D/n for definite amino acids. Assumes uniform substitution rates among sites and a Poisson process. Units: estimated substitutions per site. N/A at p = 1 (model saturation). No amino-acid exchangeability matrix or composition correction is used.";
+    }return {};
+}
 std::string distance_failure_name(DistanceFailure f){switch(f){case DistanceFailure::None:return {};case DistanceFailure::NoOverlap:return "No comparable sites";case DistanceFailure::BelowMinimum:return "Below minimum comparable sites";case DistanceFailure::Saturated:return "Model saturation (logarithm outside domain)";}return {};}
 std::string distance_number(double n){std::ostringstream out;out.imbue(std::locale::classic());out<<std::setprecision(12)<<n;return out.str();}
 void write_distance_tsv(const DistanceResult& r,const std::function<void(std::string_view)>& sink,const DistanceCancel& stop){

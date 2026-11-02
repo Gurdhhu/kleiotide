@@ -59,6 +59,10 @@ int main(int argc, char **argv) {
             child<QPushButton>(d, "renameApplyButton")->click();
           }
         }
+        if (mode == "numeric") {
+          if(stage==0){stage=1;need(child<QLineEdit>(d,"renameSeparator")->isVisible()&&!child<QLineEdit>(d,"renameText")->isVisible(),"Numeric append exposes Separator instead of a name prefix");child<QLineEdit>(d,"renameSeparator")->setText(" | ");}
+          else if(child<QPushButton>(d,"renameApplyButton")->isEnabled()){driver.stop();child<QPushButton>(d,"renameApplyButton")->click();}
+        }
         if (mode == "quality") {
           if (stage == 0) {
             stage = 1;
@@ -142,6 +146,10 @@ int main(int argc, char **argv) {
     auto patch =
         show_batch_rename(*d, {1, 2}, {}, RenameOperation::Append, nullptr);
     need(patch && patch->at(0).second == "alpha_new", qPrintable(error));
+    for(auto op:{RenameOperation::TrueLength,RenameOperation::Length,RenameOperation::RowNumber}){
+      start("numeric");auto names=show_batch_rename(*d,{1,2},{},op,nullptr);
+      need(names&&names->at(0).second==(op==RenameOperation::RowNumber?"alpha | 1":"alpha | 4"),"Numeric operations append to current names using the selected separator");
+    }
     start("merge");
     need(merge_sequences_dialog(d, {1, 2}, MergeMode::Aligned, nullptr)
              .has_value(),

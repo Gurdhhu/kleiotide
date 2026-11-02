@@ -1,5 +1,6 @@
 #pragma once
 #include "core/distances.hpp"
+#include "core/composition.hpp"
 #include "core/identity_groups.hpp"
 #include "gui/table_io.hpp"
 #include <QMap>
@@ -25,10 +26,12 @@ QString choose_table_path(QWidget *, const QString &initial = {},
                           const Document *source = nullptr);
 QByteArray report_xlsx(const TableReport &,
                        const std::function<bool()> &cancel = {});
-QByteArray report_delimited(const TableReport &, QChar delimiter = '\t');
+QByteArray report_delimited(const TableReport &, QChar delimiter = '\t',
+                            const std::function<bool()> &cancel = {});
 QByteArray report_bytes(const QString &path, const TableReport &,
                         const std::function<bool()> &cancel = {});
 QString copy_model_table(const QAbstractItemModel *, bool rowLabels = false);
-TableReport distance_workbook(const DistanceResult &);
+TableReport distance_workbook(const DistanceResult &, const std::function<bool()> &cancel = {});
+TableReport composition_workbook(const NucleotideComposition &);
 TableReport grouping_workbook(const Document &, const IdentityGroupPlan &);
 } // namespace kleiotide

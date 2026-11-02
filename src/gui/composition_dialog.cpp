@@ -44,6 +44,8 @@ public:
         if(cacheRow_!=i.row()){cache_.clear();const auto& r=i.row()==rowCount()-1?result_->pooled:result_->rows[static_cast<std::size_t>(i.row())];for(const auto& c:composition_cells(r))cache_.push_back(utf8(c));cacheRow_=i.row();}
         return cache_.value(i.column());
     }
+public:
+    std::shared_ptr<const NucleotideComposition> result()const{return result_;}
 private:
     QStringList headers_;std::shared_ptr<const NucleotideComposition> result_;
     mutable int cacheRow_=-1;mutable QStringList cache_;
@@ -61,7 +63,7 @@ public:
         status_=new QLabel("Choose scope and ambiguity handling, then Calculate. Changing a setting clears the previous results.",this);status_->setObjectName("compositionStatus");status_->setWordWrap(true);layout->addWidget(status_);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Close,this);layout->addWidget(buttons);calculate_=buttons->addButton("Calculate",QDialogButtonBox::ActionRole);calculate_->setObjectName("compositionCalculate");calculate_->setDefault(true);copy_=buttons->addButton("Copy",QDialogButtonBox::ActionRole);copy_->setObjectName("compositionCopy");export_=buttons->addButton("Save table…",QDialogButtonBox::ActionRole);export_->setObjectName("compositionExport");copy_->setEnabled(false);export_->setEnabled(false);close_=buttons->button(QDialogButtonBox::Close);
         connect(buttons,&QDialogButtonBox::rejected,this,&CompositionDialog::reject);connect(calculate_,&QPushButton::clicked,this,[this]{calculate();});connect(copy_,&QPushButton::clicked,this,[this]{QApplication::clipboard()->setText(utf8(tsv_));});
-        connect(export_,&QPushButton::clicked,this,[this]{const auto path=choose_table_path(this,"nucleotide_composition.xlsx",source_.get());if(path.isEmpty())return;const auto error=write_export_atomic(path,OutputFormat::Table,source_.get(),[&](auto& out){if(QFileInfo(path).suffix().compare("tsv",Qt::CaseInsensitive)==0)out.write(tsv_.data(),static_cast<std::streamsize>(tsv_.size()));else{TableSheet methods{"Calculation methods",{{"Calculation setting","Value"}}},table{"Nucleotide composition"};for(const auto& line:utf8(tsv_).split('\n')){if(line.startsWith("# "))methods.rows.push_back({line.mid(2),""});else if(!line.isEmpty())table.rows.push_back(line.split('\t'));}if(!table.rows.empty())for(int c=1;c<table.rows[0].size();++c)table.numericColumns.insert(c);const auto bytes=report_bytes(path,{methods,table});out.write(bytes.constData(),bytes.size());}});if(!error.isEmpty())QMessageBox::warning(this,"Export composition",error);});
+        connect(export_,&QPushButton::clicked,this,[this]{const auto path=choose_table_path(this,"nucleotide_composition.xlsx",source_.get());if(path.isEmpty())return;const auto error=write_export_atomic(path,OutputFormat::Table,source_.get(),[&](auto& out){const auto bytes=report_bytes(path,composition_workbook(*model_->result()));out.write(bytes.constData(),bytes.size());});if(!error.isEmpty())QMessageBox::warning(this,"Export composition",error);});
         connect(rows_,&QComboBox::currentIndexChanged,this,[this]{invalidate();});connect(columnsBox_,&QComboBox::currentIndexChanged,this,[this]{invalidate();});connect(fractional_,&QCheckBox::toggled,this,[this]{invalidate();});
     }
 protected:

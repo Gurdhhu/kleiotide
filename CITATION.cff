@@ -5,10 +5,10 @@ type: software
 authors:
   - family-names: Shchepin
     given-names: Oleg
-version: "0.29.2"
+version: "0.29.3"
 license: GPL-3.0-only
 abstract: >-
-  Kleiotide is a C++20 and Qt Widgets editor for nucleotide and protein
-  sequence alignments, chromatograms, and related sequence analysis workflows.
+  Kleiotide is a desktop nucleotide sequence and chromatogram editor for
+  molecular taxonomy and phylogenetics, with limited secondary protein support.
 repository-code: "https://github.com/Gurdhhu/kleiotide"
 url: "https://github.com/Gurdhhu/kleiotide"

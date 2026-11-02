@@ -212,4 +212,4 @@ Get-ChildItem -LiteralPath $releaseDir -File | Sort-Object Name | ForEach-Object
 } | Set-Content -LiteralPath (Join-Path $releaseDir 'SHA256SUMS.txt') -Encoding UTF8
 Write-Host "Created: $setup"
 Write-Host "Keep/share the entire release folder (including corresponding sources): $releaseDir"
-Write-Host 'Native installer acceptance remains pending. Follow WINDOWS_INSTALLER.md before inviting wider testing.'
+Write-Host 'Native installer acceptance remains pending. Follow docs/development/WINDOWS_INSTALLER.md before inviting wider testing.'

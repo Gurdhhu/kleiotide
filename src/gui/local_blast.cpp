@@ -426,6 +426,8 @@ public:
       fields->addWidget(box);
       return form;
     };
+    auto* download=new QLabel("Install the BLAST+ package matching your operating system: <a href=\"https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/\">Download BLAST+</a>.");
+    download->setObjectName("localBlastDownload");download->setWordWrap(true);download->setOpenExternalLinks(true);fields->addWidget(download);
     auto *form = section("Queries and local database");
     auto combo = [&](const char *id, const QString &title,
                      const QStringList &values) {

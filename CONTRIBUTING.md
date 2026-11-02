@@ -12,7 +12,7 @@ cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
 ```
 
-On Windows, prefer the project-tested MSVC/Qt kit. Run the release regression checks and the native GUI acceptance procedure in [WINDOWS_TESTING.md](WINDOWS_TESTING.md) before proposing a release. GUI check availability depends on the CMake options and local Qt installation. In particular, enabling `KLEIOTIDE_BUILD_RELEASE_CHECKS` makes the GUI release suites available.
+On Windows, prefer the project-tested MSVC/Qt kit. Run the release regression checks and the native GUI acceptance procedure in [testing guide](docs/development/TESTING.md) before proposing a release. GUI check availability depends on the CMake options and local Qt installation. In particular, enabling `KLEIOTIDE_BUILD_RELEASE_CHECKS` makes the GUI release suites available.
 
 For core-only, Qt-free testing:
 
@@ -26,4 +26,4 @@ Please keep changes focused and add or update automated tests for behavioral cha
 
 ## Licensing
 
-Contributions to the GPL-covered program are expected to be distributable under **GPL-3.0-only**, consistent with [LICENSE-STATUS.md](LICENSE-STATUS.md). Confirm that any added code or data is compatible and include copyright/attribution notices as needed. The Kleiotide name and official artwork are subject to the separate [BRANDING.md](BRANDING.md) policy; no new artwork is included in this snapshot.
+Contributions to the GPL-covered program are expected to be distributable under **GPL-3.0-only**, consistent with [LICENSE-STATUS.md](LICENSE-STATUS.md). Confirm that any added code or data is compatible and include copyright/attribution notices as needed. The Kleiotide name and official artwork are subject to the separate [BRANDING.md](BRANDING.md) policy; artwork contributions must respect its ownership and permissions.

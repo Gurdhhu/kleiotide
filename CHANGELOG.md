@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.3 — 2026-11-01
+
+- Distance matrix sequence names are a resizable first column. All distance exports share the same detailed methods and data blocks across XLSX, TSV and CSV.
+- Nucleotide composition exports use separate calculation-setting/value cells in every format.
+- Numeric batch rename operations append true/aligned lengths or row numbers to existing names with an editable separator.
+- Recovery checkpoints use status-bar progress/cancellation and restore the prior keyboard focus without activating a different window.
+- Local BLAST dialogs and Settings include an NCBI BLAST+ download link.
+- README adopts the project's nucleotide-centered description. Documentation is organized into current user/developer guides, BLAST and trace linking are separated, and obsolete task/testing notes are removed from the current tree while remaining in Git history. Session format and native acceptance records are current.
+
+
 ## 0.29.2
 
 - Unified XLSX/TSV/CSV table saving with settings and separate workbook data blocks; preserve remote accession links.

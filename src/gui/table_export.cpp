@@ -197,6 +197,12 @@ QByteArray report_xlsx(const TableReport &sheets,
     x.writeAttribute("state", "frozen");
     x.writeEndElement();
     x.writeEndElement();
+    const bool methods = sheet.name == "Calculation methods";
+    if(methods){
+      x.writeStartElement("cols");
+      for(int col=1;col<=2;++col){x.writeEmptyElement("col");x.writeAttribute("min",QString::number(col));x.writeAttribute("max",QString::number(col));x.writeAttribute("width",col==1?"38":"110");x.writeAttribute("customWidth","1");}
+      x.writeEndElement();
+    }
     x.writeStartElement("sheetData");
     for (qsizetype row = 0; row < qsizetype(sheet.rows.size()); ++row) {
       if (cancel && cancel())
@@ -207,6 +213,8 @@ QByteArray report_xlsx(const TableReport &sheets,
                                 "columns. Save TSV or CSV instead.");
       x.writeStartElement("row");
       x.writeAttribute("r", QString::number(row + 1));
+      if(methods&&row>0){int lines=1;for(int col=0;col<cells.size();++col)lines=std::max(lines,int((cells[col].size()+(col==0?31:96)-1)/(col==0?31:96)));x.writeAttribute("ht",QString::number(std::min(409,15*(lines+1))));x.writeAttribute("customHeight","1");}
+
       for (int col = 0; col < cells.size(); ++col) {
         if (cells[col].size() > 32767)
           throw std::length_error("An Excel cell exceeds 32,767 characters. "
@@ -218,6 +226,8 @@ QByteArray report_xlsx(const TableReport &sheets,
           x.writeAttribute("s", "1");
         else if (!row)
           x.writeAttribute("s", "2");
+        else if(methods)
+          x.writeAttribute("s", "3");
         if (numeric(sheet, row, col))
           x.writeTextElement("v", cells[col]);
         else {
@@ -280,10 +290,10 @@ QByteArray report_xlsx(const TableReport &sheets,
        R"(<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>)"});
   files.push_back(
       {"xl/styles.xml",
-       R"(<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/><u/></font><font><sz val="11"/><name val="Calibri"/><b/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf fontId="0" fillId="0" borderId="0"/><xf fontId="1" fillId="0" borderId="0" applyFont="1"/><xf fontId="2" fillId="0" borderId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>)"});
+       R"(<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/><u/></font><font><sz val="11"/><name val="Calibri"/><b/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="4"><xf fontId="0" fillId="0" borderId="0"/><xf fontId="1" fillId="0" borderId="0" applyFont="1"/><xf fontId="2" fillId="0" borderId="0" applyFont="1"/><xf fontId="0" fillId="0" borderId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>)"});
   return zip(files);
 }
-QByteArray report_delimited(const TableReport &sheets, QChar sep) {
+QByteArray report_delimited(const TableReport &sheets, QChar sep, const std::function<bool()> &cancel) {
   QString text;
   for (const auto &sheet : sheets) {
     if (!text.isEmpty())
@@ -291,6 +301,7 @@ QByteArray report_delimited(const TableReport &sheets, QChar sep) {
     if (sheets.size() > 1)
       text += "# " + sheet.name + '\n';
     for (qsizetype row = 0; row < qsizetype(sheet.rows.size()); ++row) {
+      if(cancel&&cancel())throw std::runtime_error("Export cancelled.");
       QStringList cells;
       const auto &values = sheet.rows[std::size_t(row)];
       for (int col = 0; col < values.size(); ++col)
@@ -307,7 +318,7 @@ QByteArray report_bytes(const QString &path, const TableReport &sheets,
                         const std::function<bool()> &cancel) {
   const auto ext = QFileInfo(path).suffix().toLower();
   return ext == "xlsx" ? report_xlsx(sheets, cancel)
-                       : report_delimited(sheets, ext == "csv" ? ',' : '\t');
+                       : report_delimited(sheets, ext == "csv" ? ',' : '\t', cancel);
 }
 QString copy_model_table(const QAbstractItemModel *model, bool rowLabels) {
   if (!model)
@@ -402,33 +413,32 @@ TableReport grouping_workbook(const Document &d,
          m.centroid ? QString::number(m.centroid) : QString{}});
   return {methods, result};
 }
-TableReport distance_workbook(const DistanceResult &r) {
+TableReport distance_workbook(const DistanceResult &r, const std::function<bool()> &cancel) {
+  auto check=[&]{if(cancel&&cancel())throw std::runtime_error("Export cancelled.");};check();
   TableSheet methods{
       "Calculation methods",
-      {{"Method / setting", "Value"},
+      {{"Calculation setting", "Value"},
        {"Kleiotide version", version},
-       {"Molecule", r.options.scope.molecule == RowKind::Protein
-                        ? "Protein"
-                        : "Nucleotide"},
-       {"Distance method",
-        QString::fromStdString(distance_method_name(r.options.method))},
-       {"Deletion", r.options.deletion == DistanceDeletion::Pairwise
-                        ? "Pairwise"
-                        : "Complete"},
+       {"Analysis", r.report == DistanceReport::Matrix ? "Pairwise distance matrix" : r.report == DistanceReport::Overall ? "Overall mean distance" : r.report == DistanceReport::WithinGroups ? "Within-group mean distance" : "Between-group mean distance"},
+       {"Molecule type", r.options.scope.molecule == RowKind::Protein ? "Protein" : "Nucleotide"},
+       {"Distance method", QString::fromStdString(distance_method_name(r.options.method))},
+       {"Method definition and assumptions", QString::fromStdString(distance_method_description(r.options.method))},
+       {"Sequence scope", r.options.scope.selectedRows ? "Selected sequence names at dialog opening; only rows of the chosen molecule type" : "All rows of the chosen molecule type"},
+       {"Eligible sequences", QString::number(r.rows.size())},
+       {"Column scope", r.options.scope.selectedColumns ? "Selected alignment columns at dialog opening" : "All columns of included sequences"},
+       {"Columns (1-based inclusive)", QString::number(r.begin + 1) + "-" + QString::number(r.end)},
+       {"Pair comparison", "Case-insensitive definite A/C/G/T (U=T), or the 20 standard amino acids. All ambiguities (including N and protein B/Z/J/X), ?, gaps, trailing missing cells, protein U/O and stops are excluded from both compared-site and difference counts. N-N is not a match. Masks and the other molecule type are excluded. Underlying sequence data are used, independent of translation display."},
+       {"Deletion policy", r.options.deletion == DistanceDeletion::Pairwise ? "Pairwise deletion: each pair uses columns with definite residues in both sequences; different pairs may use different columns." : "Complete deletion: a column is retained only if every included sequence has a definite residue there. The same retained columns are used for every pair across the entire analysis scope, including group analyses."},
        {"Minimum comparable sites", QString::number(r.options.minimumSites)},
-       {"Rows", r.options.scope.selectedRows ? "Selected sequence snapshot"
-                                             : "All matching rows"},
-       {"Columns (1-based inclusive)",
-        QString::number(r.begin + 1) + "–" + QString::number(r.end)},
-       {"Include ungrouped", r.options.includeUngrouped ? "Yes" : "No"},
-       {"Complete-deletion sites", QString::number(r.completeSites)},
-       {"Pair comparison", "Definite A/C/G/T (U=T), or 20 standard amino "
-                           "acids; other states and gaps excluded"},
-       {"Mean", "Unweighted mean of valid pair distances; N/A pairs excluded "
-                "and counted"},
-       {"Sample SD", "sqrt(sum((d-mean)^2)/(m-1)); unavailable for m < 2"},
-       {"Naive SE", "SD/sqrt(m); shared-sequence pairs are dependent; not "
-                    "bootstrap uncertainty"}}};
+       {"Include ungrouped sequences", r.options.includeUngrouped ? "Yes; Ungrouped is a separate group for group means" : "No; rows with no assigned group are excluded"},
+       {"Complete-deletion sites retained", r.options.deletion == DistanceDeletion::Complete ? QString::number(r.completeSites) : "Not applicable (pairwise deletion)"},
+       {"Unavailable estimates", "N/A means no comparable sites, fewer comparable sites than the required minimum, or model saturation. It is never replaced by zero. Available diagonal entries have distance 0; a diagonal can also be N/A if it fails the same rules."},
+       {"Pair sets", "Overall and within-group means use distinct unordered pairs (no self-pairs, no double counting). Between-group means use every cross-group pair once."},
+       {"Mean distance", "Unweighted arithmetic mean of m valid pair distances. Each pair has equal weight, regardless of comparable-site count. Unavailable pairs are excluded and counted by reason. No valid pairs gives N/A."},
+       {"Sample SD", "sqrt(sum((d_i - mean)^2)/(m - 1)), describing dispersion among valid pair distances. N/A for m < 2."},
+       {"Naive SE", "Sample SD/sqrt(m). N/A for m < 2. Assumes independent pairs, although pairs sharing a sequence are dependent. This is not a bootstrap or dependence-adjusted uncertainty estimate."},
+       {"Comparable-site summaries", "Mean, minimum and maximum comparable sites summarize valid pairs only. Observed difference counts are supplied separately for the matrix, including model-saturated pairs with comparable sites."},
+       {"Precision and limitations", "Distances use 12 significant digits. No bootstrap, among-site rate variation model or other correction beyond the selected method. These are MEGA-inspired workflows, not a claim of complete algorithmic equivalence."}}};
   TableReport report{methods};
   TableSheet main{r.report == DistanceReport::Matrix ? "Distance matrix"
                   : r.report == DistanceReport::Overall
@@ -451,6 +461,7 @@ TableReport distance_workbook(const DistanceResult &r) {
     counts.rows.push_back(header);
     diffs.rows.push_back(header);
     for (std::size_t i = 0; i < r.rows.size(); ++i) {
+      check();
       QStringList a{QString::fromStdString(r.rows[i].name)}, b = a, c = a;
       for (std::size_t j = 0; j < r.rows.size(); ++j) {
         const auto &pair = r.pair(i, j);
@@ -485,6 +496,7 @@ TableReport distance_workbook(const DistanceResult &r) {
     for (int c = 2; c < 13; ++c)
       main.numericColumns.insert(c);
     for (const auto &m : r.means) {
+      check();
       const bool overall = r.report == DistanceReport::Overall;
       main.rows.push_back(
           {overall ? "Overall" : QString::fromStdString(r.groups[m.first].name),
@@ -525,5 +537,28 @@ TableReport distance_workbook(const DistanceResult &r) {
       r.report == DistanceReport::BetweenGroups)
     report.push_back(groups);
   return report;
+}
+TableReport composition_workbook(const NucleotideComposition &r) {
+  TableSheet methods{"Calculation methods", {
+      {"Calculation setting", "Value"},
+      {"Analysis", "Nucleotide composition"},
+      {"Kleiotide version", version},
+      {"Sequence scope", r.scope.selectedRows ? "Selected sequence names at dialog opening; nucleotide rows only" : "All nucleotide rows; proteins and masks excluded"},
+      {"Eligible sequences", QString::number(r.rows.size())},
+      {"Column scope", r.scope.selectedColumns ? "Selected alignment columns at dialog opening" : "All nucleotide alignment columns"},
+      {"Columns (1-based inclusive)", r.begin == r.end ? "Empty" : QString::number(r.begin+1)+"-"+QString::number(r.end)},
+      {"Partial IUPAC calls", r.fractional ? "Equal fractional votes among possible bases (e.g. R = 1/2 A + 1/2 G; B = 1/3 C + 1/3 G + 1/3 T)" : "Excluded from scored calls and the frequency denominator"},
+      {"U handling", "U counts as T; comparisons are case-insensitive"},
+      {"Unknown and missing calls", "N, ?, open gaps (~), locked gaps (-) and trailing missing cells are counted separately and excluded from scored calls"},
+      {"Percentage denominator", "Scored calls = definite calls plus partial IUPAC votes when enabled. A/C/G/T and GC percentages divide by scored calls; GC uses C + G. A zero denominator gives N/A."},
+      {"Pooled row", "Sums counts across included rows, then computes percentages from pooled counts. It is not the mean of row percentages."},
+      {"Precision", "Counts and percentages are displayed to 3 decimal places; raw definite, ambiguous, unknown and gap counts are integers"}}};
+  TableSheet table{"Nucleotide composition"};
+  auto cells=[](const std::vector<std::string> &values){QStringList result;for(const auto &v:values)result<<QString::fromStdString(v);return result;};
+  table.rows.push_back(cells(composition_headers()));
+  for(const auto &row:r.rows)table.rows.push_back(cells(composition_cells(row)));
+  table.rows.push_back(cells(composition_cells(r.pooled)));
+  for(int c=1;c<table.rows[0].size();++c)table.numericColumns.insert(c);
+  return {methods,table};
 }
 } // namespace kleiotide

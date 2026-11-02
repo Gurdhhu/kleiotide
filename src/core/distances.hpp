@@ -54,6 +54,7 @@ DistanceResult calculate_distances(const Document&,DistanceOptions,DistanceRepor
 struct SimilarityOrder {std::vector<SequenceId> order;std::size_t eligible=0,uncomparable=0;};
 SimilarityOrder similarity_order(const Document&,DistanceOptions,const DistanceCancel& = {},const DistanceProgress& = {});
 std::string distance_method_name(DistanceMethod);
+std::string distance_method_description(DistanceMethod);
 std::string distance_failure_name(DistanceFailure);
 std::string distance_number(double);
 void write_distance_tsv(const DistanceResult&,const std::function<void(std::string_view)>&,const DistanceCancel& = {});

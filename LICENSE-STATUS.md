@@ -6,8 +6,7 @@ Kleiotide's application source, project-authored supporting documentation, build
 scripts and tests are licensed under the **GNU General Public License, version
 3 only** (`SPDX-License-Identifier: GPL-3.0-only`), except where a file or asset
 expressly states otherwise. The full, unmodified license text is in LICENSE.
-The choice was recorded on 22 October 2026 by Oleg Shchepin. No option to apply
-later GPL versions is added by this notice.
+No option to apply later GPL versions is added by this notice.
 
 Kleiotide is free software: you can redistribute it and/or modify it under the
 terms of version 3 of the GNU General Public License as published by the Free
@@ -28,4 +27,4 @@ itself will be added later. Branding rules do not restrict GPL-covered code.
 Qt, MAFFT and other third-party components retain their own licenses. The source
 archive does not bundle Qt, MAFFT or compiler runtime binaries. Before public
 binary distribution, review the exact dependency notices, corresponding-source
-arrangements and runtime package under RELEASE_CHECKLIST.md and DEPENDENCIES.md.
+arrangements and runtime package under [release testing](docs/development/TESTING.md) and [dependencies](docs/development/DEPENDENCIES.md).

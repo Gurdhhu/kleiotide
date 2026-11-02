@@ -56,7 +56,7 @@ permission. Do not distort the design or add an implication of endorsement.
 ## Unchanged builds, forks and accurate references
 
 An unchanged source build may retain the name and artwork. Label it accurately,
-for example: "Unofficial build of Kleiotide 0.26.9 from unchanged source." Do not
+for example: "Unofficial build of Kleiotide 0.29.3 from unchanged source." Do not
 imply that the project supplied, signed, tested or endorsed that binary.
 
 A modified fork or another application needs permission to use Kleiotide's name

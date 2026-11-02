@@ -39,4 +39,4 @@ Get-ChildItem $packageDir -Recurse -File | ForEach-Object {
 } | Set-Content (Join-Path $packageDir 'SHA256SUMS.txt') -Encoding UTF8
 Compress-Archive -Path $packageDir -DestinationPath $archive
 Write-Host "Internal test package: $archive"
-Write-Host 'Complete native/clean-machine acceptance and dependency/source distribution review in RELEASE_CHECKLIST.md before public release.'
+Write-Host 'Complete native/clean-machine acceptance and dependency/source distribution review in docs/development/TESTING.md before public release.'

@@ -512,19 +512,21 @@ void MainWindow::write_recovery(bool forced){
     const auto source=document_;const auto store=recovery_;const auto view=session_view();const auto report=mafftReport_.toUtf8().toStdString();
     const auto title=windowTitle();const auto path=path_;const auto quota=AppSettings::bytes(AppSettings::instance().values().recoveryQuotaMiB);
     const auto cancelled=std::make_shared<std::atomic_bool>(false);
-    auto* progress=new QProgressDialog("Writing a recovery checkpoint. Editing in this window is temporarily paused.","Cancel",0,0,this);
-    progress->setObjectName("recoveryProgress");progress->setWindowModality(Qt::WindowModal);progress->setMinimumDuration(500);
-    progress->setAutoClose(false);progress->setAutoReset(false);QTimer::singleShot(500,progress,[progress]{progress->show();});
-    connect(progress,&QProgressDialog::canceled,this,[cancelled]{*cancelled=true;});
+    const QPointer<QWidget> previousFocus=QApplication::focusWidget();
     connect(this,&QObject::destroyed,[cancelled]{*cancelled=true;});
+    auto* cancelButton=new QPushButton("Cancel checkpoint",this);cancelButton->setObjectName("recoveryCancel");cancelButton->setFocusPolicy(Qt::NoFocus);cancelButton->setToolTip("Stop this write; keep the previous completed checkpoint.");statusBar()->addPermanentWidget(cancelButton);
+    connect(cancelButton,&QPushButton::clicked,this,[cancelled,cancelButton]{cancelled->store(true);cancelButton->setEnabled(false);});
     set_busy(true,"Writing recovery checkpoint…");auto* watcher=new QFutureWatcher<QString>(this);
-    connect(watcher,&QFutureWatcher<QString>::finished,this,[this,watcher,progress]{
-        const auto error=watcher->result();watcher->deleteLater();progress->close();progress->deleteLater();
+    connect(watcher,&QFutureWatcher<QString>::finished,this,[this,watcher,previousFocus,cancelButton]{
+        const auto error=watcher->result();watcher->deleteLater();statusBar()->removeWidget(cancelButton);cancelButton->deleteLater();
         if(error.isEmpty()){
             checkpointElapsed_.start();recoveryStatus_="Recovery checkpoint saved at "+QDateTime::currentDateTime().toString(Qt::ISODate)+". The document is still unsaved.";
             clear_recovered_claim();
         }else recoveryStatus_="Recovery checkpoint not completed: "+error;
         set_busy(false);statusBar()->showMessage(recoveryStatus_,20000);
+        // Do not activate a window the user has left during the write.
+        if(isActiveWindow()&&previousFocus&&previousFocus->window()==this&&previousFocus->isEnabled())
+            previousFocus->setFocus(Qt::OtherFocusReason);
     });
     watcher->setFuture(QtConcurrent::run([store,source,view,report,title,path,quota,cancelled]{
         try{return store->write(*source,view,report,title,path,quota,[cancelled]{return cancelled->load();});}

@@ -57,6 +57,8 @@ int main(int argc, char **argv) {
              matrix[1].name == "Distance matrix",
          "All distance data blocks have separate sheets");
     save(out + "/distances.xlsx", report_xlsx(matrix));
+    save(out+"/distances.tsv",report_delimited(matrix));
+    save(out+"/distances.csv",report_delimited(matrix,','));
     for (const auto kind :
          {DistanceReport::Overall, DistanceReport::WithinGroups,
           DistanceReport::BetweenGroups}) {
@@ -64,6 +66,31 @@ int main(int argc, char **argv) {
       need(means[1].rows.front().size() == 13,
            "Mean report has full summary shape");
     }
+    for(auto reportKind:{DistanceReport::Matrix,DistanceReport::Overall,DistanceReport::WithinGroups,DistanceReport::BetweenGroups}) {
+      for(auto method:{DistanceMethod::Differences,DistanceMethod::PDistance,DistanceMethod::JukesCantor,DistanceMethod::Kimura2}) {
+        o.method=method;
+        const auto report=distance_workbook(calculate_distances(d,o,reportKind));
+        need(report[0].rows.size()>20,"Detailed distance methods");
+        const auto csvRows=parse_text_table(QString::fromUtf8(report_delimited(report,',')), ',');
+        const auto tsvRows=parse_text_table(QString::fromUtf8(report_delimited(report)));
+        need(csvRows==tsvRows,"CSV and TSV have identical distance blocks and methods");
+        save(out+"/distance-equivalence.xlsx",report_xlsx(report));
+        std::size_t position=0;
+        for(int sheet=0;sheet<int(report.size());++sheet){
+          need(csvRows.at(position++)==QStringList{"# "+report[sheet].name},"Flat section matches workbook sheet");
+          const auto fromXlsx=read_xlsx_table(out+"/distance-equivalence.xlsx",sheet);
+          need(fromXlsx==report[sheet].rows,"Workbook retains every report cell");
+          for(const auto& row:report[sheet].rows){auto actual=csvRows.at(position++);for(auto& v:actual)if(v.startsWith("'=one"))v.remove(0,1);need(actual==row,"All formats retain the same ordered cells");}
+        }
+      }
+    }
+    AnalysisScope compositionScope;auto composition=composition_workbook(nucleotide_composition(d,compositionScope,true));
+    need(composition.size()==2&&composition[0].rows.size()>10,"Composition has structured settings");
+    for(const auto& row:composition[0].rows)need(row.size()==2&&!row[0].isEmpty()&&!row[1].isEmpty(),"Composition setting and value occupy separate cells");
+    save(out+"/composition.xlsx",report_xlsx(composition));
+    save(out+"/composition.tsv",report_delimited(composition));
+    save(out+"/composition.csv",report_delimited(composition,','));
+    need(read_xlsx_table(out+"/composition.xlsx",0)==composition[0].rows,"Composition settings roundtrip in two columns");
     auto groupPlan = plan_identity_groups(d, IdentityGroupOptions{});
     auto groups = grouping_workbook(d, groupPlan);
     need(groups.size() == 2 && groups[0].rows.size() > 8 &&

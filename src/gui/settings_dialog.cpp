@@ -291,6 +291,8 @@ void show_settings(
   note(local, "Install NCBI BLAST+ separately. Create databases from FASTA or "
               ".kleio files in the BLAST menu. Local searches use these tools "
               "on this computer.");
+  auto* blastDownload=new QLabel("Get the package matching your operating system: <a href=\"https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/\">Download BLAST+</a>.");
+  blastDownload->setObjectName("settingsBlastDownload");blastDownload->setWordWrap(true);blastDownload->setOpenExternalLinks(true);local->addRow(blastDownload);
   auto *recovery = page("Recovery");
   auto *enabled = check(recovery, "settingsRecovery",
                         "Enable periodic recovery checkpoints");
