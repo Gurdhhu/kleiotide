@@ -35,7 +35,7 @@ template<class F>void wait(F done){QElapsedTimer timer;timer.start();while(!done
 QAction* action(MainWindow& window,const QString& title){for(auto* a:window.findChildren<QAction*>())if(a->text()==title)return a;throw std::runtime_error("Missing menu action");}
 void canvas_check(const QString& screenshot){
     auto bytes=test::synthetic_abif(std::string(100,'A')+"CGTRN");std::istringstream stream(bytes);Document d;d.load({read_abif(stream,"synthetic","synthetic.ab1"),{"other","ACGT"}});
-    ChromatogramPanel panel;panel.resize(1050,300);panel.set_document(&d);panel.show();QApplication::processEvents();
+    ChromatogramPanel panel;panel.resize(1050,300);panel.set_document(&d);panel.follow_selection({1},0);panel.show();QApplication::processEvents();
     auto* canvas=panel.canvas();require(panel.has_traces()&&canvas->sequence_id()==1,"Trace available");
     panel.follow_selection({1},80);auto range=canvas->visible_samples();require(range.first<1630&&range.second>1630,"Alignment selects trace anchor");
     auto* zoom=panel.findChild<QSpinBox*>("traceZoom");zoom->setValue(200);range=canvas->visible_samples();require(range.first<1630&&range.second>1630,"Zoom preserves center");

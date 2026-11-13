@@ -14,6 +14,7 @@ public:
     void refresh();
     void set_limits(std::size_t workspace,int delayMs);
     bool ready() const;
+    QSize sizeHint() const override { return {500,112}; }
     const std::vector<OverviewBin>& displayed_bins() const {return bins_;}
 protected:
     bool event(QEvent*) override;

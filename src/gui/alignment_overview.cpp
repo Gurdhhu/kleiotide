@@ -23,7 +23,7 @@ QColor color(const OverviewBin& bin){
 }
 AlignmentOverview::AlignmentOverview(AlignmentView* view,QWidget* parent):QWidget(parent),view_(view){
     setToolTip("Height = % non-gap symbols; "+colorExplanation+". Nucleotide rows only; proteins and masks are excluded.");
-    setObjectName("alignmentOverview");setFixedHeight(112);setMouseTracking(true);
+    setObjectName("alignmentOverview");setMinimumHeight(65);setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);setMouseTracking(true);
     debounce_.setSingleShot(true);debounce_.setInterval(150);work_.setInterval(4);
     connect(&debounce_,&QTimer::timeout,this,[this]{begin_scan();});
     connect(&work_,&QTimer::timeout,this,[this]{advance_scan();});
@@ -60,17 +60,18 @@ void AlignmentOverview::advance_scan(){
     }catch(const std::exception&e){work_.stop();error_=QString::fromUtf8(e.what());}
     update();
 }
-QRect AlignmentOverview::plot_rect()const{return QRect(10,26,std::max(1,width()-20),65);}
+QRect AlignmentOverview::plot_rect()const{return QRect(10,26,std::max(1,width()-20),std::max(1,height()-47));}
 void AlignmentOverview::rebuild_plot(){
     if(!ready())return;
     const auto rect=plot_rect();bins_=scan_->bins(static_cast<std::size_t>(rect.width()));dpr_=devicePixelRatioF();
     plot_=QPixmap(static_cast<int>(std::ceil(rect.width()*dpr_)),static_cast<int>(std::ceil(rect.height()*dpr_)));plot_.setDevicePixelRatio(dpr_);plot_.fill(QColor(246,247,249));
     QPainter p(&plot_);
+    const int barBottom=rect.height()-11;
     for(std::size_t i=0;i<bins_.size();++i){
         const int x=static_cast<int>(i*static_cast<std::size_t>(rect.width())/bins_.size()),end=static_cast<int>((i+1)*static_cast<std::size_t>(rect.width())/bins_.size());
-        const int height=qRound(bins_[i].residues*54);const auto c=color(bins_[i]);
-        if(height)p.fillRect(x,54-height,std::max(1,end-x),height,c);
-        p.fillRect(x,58,std::max(1,end-x),6,c); // Gray baseline also identifies empty columns.
+        const int height=qRound(bins_[i].residues*barBottom);const auto c=color(bins_[i]);
+        if(height)p.fillRect(x,barBottom-height,std::max(1,end-x),height,c);
+        p.fillRect(x,barBottom+4,std::max(1,end-x),6,c); // Gray baseline also identifies empty columns.
     }
 }
 void AlignmentOverview::resizeEvent(QResizeEvent*event){QWidget::resizeEvent(event);rebuild_plot();}
@@ -96,15 +97,16 @@ void AlignmentOverview::paintEvent(QPaintEvent*){
         if(const auto& fragment=view_->fragment())selected=std::pair{fragment->start,fragment->start+fragment->width};
         else if(const auto caret=view_->caret())selected=std::pair{caret->second,caret->second+1};
         if(selected){
-            const int left=area.left()+int(std::min(selected->first,document_->columns())*scale);
-            const int right=area.left()+int(std::ceil(std::min(selected->second,document_->columns())*scale));
-            const QRect mark(left,area.top(),std::max(3,right-left),area.height());
-            p.fillRect(mark,QColor(255,0,110,65));p.setPen(QPen(Qt::white,5));p.drawRect(mark.adjusted(0,1,0,-1));
-            p.setPen(QPen(QColor(220,0,95),2));p.drawRect(mark.adjusted(0,1,0,-1));
-            p.setBrush(QColor(220,0,95));p.drawPolygon(QPolygon{QPoint(left-5,area.top()-7),QPoint(left+5,area.top()-7),QPoint(left,area.top())});
+            const int left=std::clamp(area.left()+int(std::min(selected->first,document_->columns())*scale),
+                                      area.left(),std::max(area.left(),area.right()-4));
+            const int right=std::min(area.right(),std::max(left+4,area.left()+int(std::ceil(std::min(selected->second,document_->columns())*scale))));
+            const int y=area.top()+1;
+            const QPolygon bracket{QPoint(left,y+6),QPoint(left,y),QPoint(right,y),QPoint(right,y+6)};
+            p.setPen(QPen(Qt::white,6));p.drawPolyline(bracket);
+            p.setPen(QPen(QColor(220,0,95),4));p.drawPolyline(bracket);
         }
-        p.setPen(QColor(55,64,73));p.drawText(QRect(10,92,width()-20,18),Qt::AlignLeft|Qt::AlignVCenter,QString("1  ·  Click or drag to navigate  ·  Viewing %1–%2").arg(static_cast<qulonglong>(begin+1)).arg(static_cast<qulonglong>(end)));
-        p.drawText(QRect(10,92,width()-20,18),Qt::AlignRight|Qt::AlignVCenter,QString::number(static_cast<qulonglong>(document_->columns())));
+        p.setPen(QColor(55,64,73));p.drawText(QRect(10,area.bottom()+2,width()-20,18),Qt::AlignLeft|Qt::AlignVCenter,QString("1  ·  Click or drag to navigate  ·  Viewing %1–%2").arg(static_cast<qulonglong>(begin+1)).arg(static_cast<qulonglong>(end)));
+        p.drawText(QRect(10,area.bottom()+2,width()-20,18),Qt::AlignRight|Qt::AlignVCenter,QString::number(static_cast<qulonglong>(document_->columns())));
     }
 }
 void AlignmentOverview::navigate(const QPoint& point){

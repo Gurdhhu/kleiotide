@@ -41,6 +41,20 @@ but its fractional conservation is 75% (A gets 1.5 votes, G gets 0.5). R alone i
 excluded from conserved/conservation highlights; a coverage range including zero
 can intentionally highlight them. Threshold comparisons are inclusive.
 
+## Highlighting individual bases
+
+**Highlight low-quality calls** outlines bases whose measured original Phred Q
+is strictly below the threshold. Choose all linked traces or capture a
+selection of sequence names. Gaps, insertions, substituted calls and calls
+without measured quality are skipped. Clear the checkbox in the same dialog
+to turn the rule off. The rule and its scope can be saved in a native session.
+
+**Highlight selected bases** and **Unhighlight selected bases** are also
+available in the selected-residue context menu. Manual marks use alignment
+coordinates and last for the current window. Unhighlighting overrides the
+current low-quality rule at the selected bases until the rule changes. **Clear highlighting** removes the
+site rules, quality rule and manual marks.
+
 ## Alignment statistics
 
 Choose Nucleotide or Protein. Results use a snapshot taken when the statistics window opens; other row types are excluded. Width is the longest included row. Statistics follow IQ-TREE-style state intersections: constant sites share a possible state, and gap-only/unknown-only counts are subsets of constant sites. Unique sequences and patterns compare normalized states. Parsimony-informative sites require two definite states each observed at least twice; variable non-informative sites are counted as singleton sites.

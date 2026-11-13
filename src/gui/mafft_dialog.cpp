@@ -7,6 +7,7 @@
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -76,7 +77,7 @@ std::optional<MafftConfiguration> choose_mafft(QWidget* parent,std::optional<Doc
         const auto* item=f->itemAt(row,QFormLayout::FieldRole);
         if(item&&item->widget()){auto* label=f->labelForField(item->widget());if(label)label->setToolTip(item->widget()->toolTip());}
     }
-    QLabel error;error.setWordWrap(true);error.setStyleSheet("color: #A03020");layout.addWidget(&error);QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons.button(QDialogButtonBox::Ok)->setText("Align");layout.addWidget(&buttons);std::optional<MafftConfiguration> result;
+    QLabel error;error.setWordWrap(true);error.setMinimumHeight(error.fontMetrics().lineSpacing()*2);error.setStyleSheet("color: #A03020");layout.addWidget(&error);QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons.button(QDialogButtonBox::Ok)->setText("Align");layout.addWidget(&buttons);std::optional<MafftConfiguration> result;
     QObject::connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
     QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,[&]{
         MafftConfiguration config;config.templateRequest=request;config.launcher=QFileInfo(launcher.text().trimmed()).absoluteFilePath();
@@ -102,7 +103,7 @@ std::optional<MafftTemplateRequest> choose_mafft_templates(QWidget* parent,const
     QHBoxLayout controls;QPushButton all("Select all"),none("Clear");controls.addWidget(&all);controls.addWidget(&none);controls.addStretch();layout.addLayout(&controls);
     QObject::connect(&all,&QPushButton::clicked,&dialog,[&]{for(int i=0;i<list.count();++i)list.item(i)->setCheckState(Qt::Checked);});
     QObject::connect(&none,&QPushButton::clicked,&dialog,[&]{for(int i=0;i<list.count();++i)list.item(i)->setCheckState(Qt::Unchecked);});
-    QLabel error;error.setWordWrap(true);error.setStyleSheet("color: #A03020");layout.addWidget(&error);
+    QLabel error;error.setWordWrap(true);error.setMinimumHeight(error.fontMetrics().lineSpacing()*2);error.setStyleSheet("color: #A03020");layout.addWidget(&error);
     QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons.button(QDialogButtonBox::Ok)->setText("Continue…");layout.addWidget(&buttons);
     auto validate=[&]{bool checked=false;for(int i=0;i<list.count();++i)checked|=list.item(i)->checkState()==Qt::Checked;const auto message=request.targets.empty()?"Select at least one target containing residues by its sequence name, then run this command again.":!checked?"Choose at least one separate template of the same molecule type containing residues.":"";error.setText(message);buttons.button(QDialogButtonBox::Ok)->setEnabled(request.targets.size()&&checked);};
     QObject::connect(&list,&QListWidget::itemChanged,&dialog,[&]{validate();});validate();

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "core/trace_linking.hpp"
 #include "core/session.hpp"
 #include "core/abif_export.hpp"

@@ -11,20 +11,26 @@ if(WIN32 AND MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
   if(KLEIOTIDE_NSIS_COMPILER)
     list(APPEND nsis_arguments -NsisCompiler "${KLEIOTIDE_NSIS_COMPILER}")
   endif()
-  add_custom_target(test-installer
-    COMMAND "${KLEIOTIDE_POWERSHELL}" -NoProfile -ExecutionPolicy RemoteSigned
-        -File "${CMAKE_CURRENT_SOURCE_DIR}/tools/windows/make-installer.ps1"
-        -QtRoot "$<TARGET_FILE_DIR:Qt6::Core>/.."
-        -BuildDir "${CMAKE_CURRENT_BINARY_DIR}"
-        -SourceArchive "${KLEIOTIDE_SOURCE_ARCHIVE}"
-        -QtSourceArchive "${KLEIOTIDE_QT_SOURCE_ARCHIVE}"
-        -VcRedist "${KLEIOTIDE_VC_REDIST}"
-        -CmakeExecutable "${CMAKE_COMMAND}"
-        ${nsis_arguments}
-        -TestRevision "${KLEIOTIDE_INSTALLER_REVISION}"
-    DEPENDS kleiotide
-    USES_TERMINAL VERBATIM)
-  if(TARGET release-check)
-    add_dependencies(test-installer release-check)
-  endif()
+  foreach(channel IN ITEMS test release)
+    set(channel_arguments)
+    if(channel STREQUAL "release")
+      set(channel_arguments -ReleaseInstaller)
+    endif()
+    add_custom_target(${channel}-installer
+      COMMAND "${KLEIOTIDE_POWERSHELL}" -NoProfile -ExecutionPolicy RemoteSigned
+          -File "${CMAKE_CURRENT_SOURCE_DIR}/tools/windows/make-installer.ps1"
+          -QtRoot "$<TARGET_FILE_DIR:Qt6::Core>/.."
+          -BuildDir "${CMAKE_CURRENT_BINARY_DIR}"
+          -SourceArchive "${KLEIOTIDE_SOURCE_ARCHIVE}"
+          -QtSourceArchive "${KLEIOTIDE_QT_SOURCE_ARCHIVE}"
+          -VcRedist "${KLEIOTIDE_VC_REDIST}"
+          -CmakeExecutable "${CMAKE_COMMAND}"
+          ${nsis_arguments} ${channel_arguments}
+          -TestRevision "${KLEIOTIDE_INSTALLER_REVISION}"
+      DEPENDS kleiotide
+      USES_TERMINAL VERBATIM)
+    if(TARGET release-check)
+      add_dependencies(${channel}-installer release-check)
+    endif()
+  endforeach()
 endif()

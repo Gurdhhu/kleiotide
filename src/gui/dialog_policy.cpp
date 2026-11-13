@@ -128,7 +128,23 @@ class Policy final : public QObject {
             const bool merge=dialog->objectName()=="mergeDialog";
             const bool table=!dialog->findChildren<QTableView*>().isEmpty();
             const bool compact=!table&&!dialog->findChild<QScrollArea*>()&&!qobject_cast<QMessageBox*>(dialog)&&!qobject_cast<QFileDialog*>(dialog);
-            if(compact){
+            const auto name=dialog->objectName();
+            const bool mafftOptions=name=="mafftSettings"||name=="mafftTemplates"||name=="mafftProgress"||name=="mafftReport";
+            if(mafftOptions){
+              auto* layout=dialog->layout();
+              for(auto* form:dialog->findChildren<QFormLayout*>())
+                form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+              layout->activate();
+              const int width=std::min(area.width(),dialog->width());
+              const int minWidth=std::min(width,std::max(480,layout->minimumSize().width()));
+              const int height=name=="mafftSettings"
+                  ? std::max(layout->minimumSize().height(),layout->totalHeightForWidth(minWidth))
+                  : dialog->height();
+              dialog->setMinimumWidth(minWidth);
+              dialog->setMaximumWidth(area.width());
+              dialog->setFixedHeight(std::min(area.height(),height));
+              dialog->resize(width,dialog->height());
+            }else if(compact){
               for(auto* label:dialog->findChildren<QLabel*>())if(label->wordWrap())label->setMaximumWidth(std::max(160,area.width()-40));
               for(auto* form:dialog->findChildren<QFormLayout*>())form->setRowWrapPolicy(QFormLayout::WrapLongRows);
               dialog->layout()->setSizeConstraint(QLayout::SetFixedSize);

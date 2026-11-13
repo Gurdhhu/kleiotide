@@ -9,6 +9,7 @@ param(
     [string]$CmakeExecutable = 'cmake',
     [string]$NsisCompiler,
     [ValidatePattern('^[1-9][0-9]*$')][string]$TestRevision = '1',
+    [switch]$ReleaseInstaller,
     [string]$OutputRoot
 )
 $ErrorActionPreference = 'Stop'
@@ -41,10 +42,14 @@ $QtRoot = Existing-Path $QtRoot
 $SourceArchive = Existing-Path $SourceArchive
 $QtSourceArchive = Existing-Path $QtSourceArchive
 $VcRedist = Existing-Path $VcRedist
-if (!$OutputRoot) { $OutputRoot = Join-Path $BuildDir 'test-installers' }
+if (!$OutputRoot) {
+    $folder = if ($ReleaseInstaller) { 'release-installers' } else { 'test-installers' }
+    $OutputRoot = Join-Path $BuildDir $folder
+}
 $cmakeText = Get-Content -LiteralPath (Join-Path $sourceDir 'CMakeLists.txt') -Raw
 if ($cmakeText -notmatch 'project\(Kleiotide VERSION ([0-9.]+)') { throw 'Cannot read application version.' }
 $version = $Matches[1]
+$packageName = if ($ReleaseInstaller) { "Kleiotide_${version}_rc$TestRevision" } else { "Kleiotide_${version}_test$TestRevision" }
 $cache = Get-Content -LiteralPath (Join-Path $BuildDir 'CMakeCache.txt') -Raw
 if ($cache -notmatch '(?m)^CMAKE_BUILD_TYPE:STRING=Release\r?$') { throw 'Select the single-configuration MSVC x64 Release build used by Qt Creator.' }
 if ($cache -notmatch '(?m)^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)\r?$') { throw 'Missing CMake source directory.' }
@@ -103,7 +108,7 @@ try {
     if (!$qtArchive.GetEntry("${qtPrefix}qtbase/CMakeLists.txt")) { throw "Use the official qt-everywhere-src-$qtVersion.zip source archive for this stock Qt kit." }
     New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
     $OutputRoot = Existing-Path $OutputRoot
-    $releaseDir = Join-Path $OutputRoot "Kleiotide_${version}_test$TestRevision"
+    $releaseDir = Join-Path $OutputRoot $packageName
     if (Test-Path -LiteralPath $releaseDir) { throw 'This installer output exists. Increase KLEIOTIDE_INSTALLER_REVISION or choose a new output folder.' }
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
     $payload = Join-Path $releaseDir 'work/payload'
@@ -162,7 +167,7 @@ Copy-Item -LiteralPath $nsisLicense -Destination (Join-Path $payload 'third-part
 Copy-Item -LiteralPath $SourceArchive -Destination (Join-Path $releaseDir "Kleiotide_${version}_Source.zip")
 Copy-Item -LiteralPath $QtSourceArchive -Destination (Join-Path $releaseDir "qt-everywhere-src-$qtVersion.zip")
 $sourceNotice = @"
-Kleiotide $version test $TestRevision, copyright 2026 Oleg Shchepin, GPL-3.0-only.
+$packageName, copyright 2026 Oleg Shchepin, GPL-3.0-only.
 Exact application source: source/Kleiotide_Source.zip inside the installation.
 This application uses Qt $qtVersion, copyright The Qt Company Ltd. and contributors.
 This is an x64 application. ARM64 Windows 11 with x64 emulation is permitted
@@ -181,6 +186,7 @@ $sourceNotice | Set-Content -LiteralPath (Join-Path $payload 'THIRD_PARTY.txt') 
 $sourceNotice | Set-Content -LiteralPath (Join-Path $releaseDir 'READ-ME.txt') -Encoding UTF8
 $manifest = [ordered]@{
     applicationVersion = $version; installerRevision = $TestRevision
+    installerChannel = if ($ReleaseInstaller) { 'release-candidate' } else { 'test' }
     builtUtc = [DateTime]::UtcNow.ToString('o'); qtVersion = $qtVersion
     qtSourceSha256 = (Get-FileHash -LiteralPath $QtSourceArchive -Algorithm SHA256).Hash
     sourceSha256 = (Get-FileHash -LiteralPath $SourceArchive -Algorithm SHA256).Hash
@@ -202,8 +208,10 @@ foreach ($dir in Get-ChildItem -LiteralPath $payload -Directory -Recurse | Sort-
     $deleteCommands += 'RMDir "$INSTDIR\' + (Nsis-Literal $dir.FullName.Substring($payload.Length + 1)) + '"'
 }
 [IO.File]::WriteAllLines($deleteList, [string[]]$deleteCommands, [Text.UTF8Encoding]::new($true))
-$setup = Join-Path $releaseDir "Kleiotide_${version}_test${TestRevision}_Windows_x64_Setup.exe"
-Run-Native { & $NsisCompiler /V2 "/DAPP_VERSION=$version" "/DTEST_REVISION=$TestRevision" "/DPAYLOAD_DIR=$payload" "/DSETUP_FILE=$setup" "/DVC_REDIST_FILE=$VcRedist" "/DDELETE_LIST=$deleteList" (Join-Path $PSScriptRoot 'installer/Kleiotide.nsi') }
+$setup = Join-Path $releaseDir "${packageName}_Windows_x64_Setup.exe"
+$channelArguments = @()
+if ($ReleaseInstaller) { $channelArguments += '/DRELEASE_INSTALLER' }
+Run-Native { & $NsisCompiler /V2 @channelArguments "/DAPP_VERSION=$version" "/DTEST_REVISION=$TestRevision" "/DPAYLOAD_DIR=$payload" "/DSETUP_FILE=$setup" "/DVC_REDIST_FILE=$VcRedist" "/DDELETE_LIST=$deleteList" (Join-Path $PSScriptRoot 'installer/Kleiotide.nsi') }
 if (!(Test-Path -LiteralPath $setup)) { throw 'NSIS did not produce an installer.' }
 # Only this newly created staging directory is removed; installer/user paths are never recursive-deleted.
 Remove-Item -LiteralPath (Join-Path $releaseDir 'work') -Recurse

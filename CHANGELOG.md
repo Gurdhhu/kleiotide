@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.5 — testing
+
+- Allow horizontal resizing in MAFFT alignment dialogs. Add Prepend row numbers with a configurable separator.
+- Place the independently resizable chromatogram above the alignment overview. Use a top bracket for selected columns and clear the chromatogram when no traced residue is selected.
+- Highlight individual calls below a measured Phred Q threshold and add commands to highlight or unhighlight selected bases.
+- Add a Windows release-candidate setup target with a destination picker, upgrade path reuse and optional file type registration.
+- Add a Debian 13 amd64 test package recipe with desktop integration and experimental macOS source build instructions.
+
 ## 0.29.4 — 2026-11-02
 
 - Share and persist the last accepted open/save/export folder across windows and application launches, retaining suggested filenames. Cancel leaves it unchanged; BLAST Resume job keeps its default jobs folder and does not change this preference. Missing remembered folders fall back safely.

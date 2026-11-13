@@ -1,6 +1,6 @@
 # Documentation
 
-These guides describe Kleiotide 0.29.4. Current manuals are organized by topic rather than by the release in which a feature was introduced.
+These guides describe Kleiotide 0.29.5. Current manuals are organized by topic rather than by the release in which a feature was introduced.
 
 ## User guides
 
@@ -28,6 +28,7 @@ These guides describe Kleiotide 0.29.4. Current manuals are organized by topic r
 - [Testing and release checklist](development/TESTING.md)
 - [Windows acceptance record](development/WINDOWS_ACCEPTANCE.md)
 - [Windows installer](development/WINDOWS_INSTALLER.md)
+- [Debian 13 package](development/DEBIAN_PACKAGE.md)
 - [Windows on ARM](development/ARM64_COMPATIBILITY.md)
 - [Native session format](development/SESSION_FORMAT.md)
 - [Dependencies](development/DEPENDENCIES.md)

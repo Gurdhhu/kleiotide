@@ -4,9 +4,9 @@ Sequence → Groups → Import groups from table, Edit → Rename → Using old 
 
 Matching uses complete sequence names. Previews identify unmatched entries, duplicates and conflicting mappings; no partial or silently selected ambiguous match is applied. Preview updates after a short typing delay. Rename commits the reviewed name changes; group import retains its Apply action. Cancel leaves the document unchanged. The preview tables have resizable columns, horizontal scrolling and Copy table.
 
-## Appending numeric values
+## Adding numeric values
 
-Append true lengths, Append aligned lengths and Append row numbers retain the complete existing name and append the chosen Separator followed by the value. The separator defaults to a space and can be empty. True length excludes both open and locked gaps; aligned length counts every stored cell. Row number is the row's current one-based position in the whole alignment, even when only selected names are renamed. There is no optional replacement-name prefix in these operations.
+Append true lengths, Append aligned lengths and Append row numbers retain the complete existing name and append the chosen Separator followed by the value. Prepend row numbers places the one-based position and separator before the existing name. The separator defaults to a space and can be empty. True length excludes both open and locked gaps; aligned length counts every stored cell. Row number is the row's current one-based position in the whole alignment, even when only selected names are renamed. There is no optional replacement-name prefix in these operations.
 
 Append filename has the same separator convention and lets you edit the filename text. Other rename operations include literal prepend/append/replace, whitespace conversion, unique-name suffixes, group names and sanitation. [SPART sanitation](SPART.md) has its own lowercase conversion rules.
 

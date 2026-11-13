@@ -71,7 +71,10 @@ int main(int argc,char** argv){QApplication app(argc,argv);try{
         canvas->horizontalScrollBar()->setValue(canvas->horizontalScrollBar()->value()+37);check_cache(*canvas,150);canvas->focus_column(65,false);check_cache(*canvas,150);
     }
     view->select_fragment({{2},50,3});require(canvas->sequence_id()==2&&canvas->focused_column()==50,"Selection follows a different linked trace");view->select_fragment({{1,2},55,4});require(canvas->sequence_id()==2&&canvas->focused_column()==55,"Block retains current trace when included");
-    view->select_fragment({{3},55,4});require(canvas->sequence_id()==2,"Untraced row leaves current evidence available");check_cache(*canvas,150);
+    view->select_fragment({{3},55,4});require(canvas->sequence_id()==0,"An untraced row clears the trace");
+    view->clear_residue_selection();require(canvas->sequence_id()==0,"An empty residue selection stays blank");
+    view->select_fragment({{2},55,1});require(canvas->sequence_id()==2,"Selecting a traced residue restores the trace");
+    check_cache(*canvas,150);
     for(auto palette:{ResiduePalette::Chromas,ResiduePalette::Classic}){canvas->set_residue_palette(palette);check_cache(*canvas,150);}
     auto font=canvas->font();font.setPointSize(12);canvas->setFont(font);check_cache(*canvas,150);window.resize(2800,1200);app.processEvents();check_cache(*canvas,150);
     // Compare the cached index with the model after edits, gaps, deleted calls,

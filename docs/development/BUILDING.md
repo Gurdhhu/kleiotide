@@ -8,7 +8,7 @@ cmake --build build --parallel 2
 cmake --build build --target release-check
 ```
 
-The full suite registers 48 tests: 20 core, nine Qt unit and 19 GUI workflows. See [TESTING.md](TESTING.md) for logs and optional real-tool checks. MAFFT and BLAST+ are not needed for the normal automated suite. Test fixtures use local fake tools and loopback HTTP.
+The full suite registers 49 tests: 20 core, nine Qt unit and 20 GUI workflows. See [TESTING.md](TESTING.md) for logs and optional real-tool checks. MAFFT and BLAST+ are not needed for the normal automated suite. Test fixtures use local fake tools and loopback HTTP.
 
 For core-only, Qt-free builds:
 
@@ -21,3 +21,5 @@ ctest --test-dir build-core --output-on-failure
 On Windows, configure and build from Qt Creator with the intended Qt/MSVC kit or use an x64 Native Tools command environment with its Qt prefix. Test runtime paths are configured by CMake. If a test cannot start, inspect the selected Qt DLL/plugin paths before interpreting that as a calculation failure.
 
 Install with CMake into a clean staging folder. User documentation is installed under docs; core license/branding/README files remain at the installation root. Windows setup creation is described in [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
+
+For desktop integration and a test package on Debian 13, see [Debian packaging](DEBIAN_PACKAGE.md). The root [README](../../README.md#build-on-macos-experimental-and-untested) has experimental macOS build instructions.

@@ -15,6 +15,7 @@
 #include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <limits>
 #include <stdexcept>
 #include <unordered_set>
@@ -67,9 +68,10 @@ void AlignmentView::set_document(Document* document) {
     searchMatch_.reset();
     searchResults_.reset();
     siteHighlights_.reset();
+    clear_base_highlights();
     fragmentHistory_.clear();
     clear_render_cache();
-    clear_fragment();
+    clear_fragment(false);
     selected_.clear(); caretId_.reset(); caretColumn_ = 0; selectionAnchor_ = 0;
     horizontalScrollBar()->setValue(0); verticalScrollBar()->setValue(0);
     refresh();
@@ -99,6 +101,7 @@ void AlignmentView::refresh() {
     for (const auto& row : document_->rows()) live.insert(row.id);
     std::erase_if(selected_, [&](auto id) { return !live.contains(id); });
     if (caretId_ && !live.contains(*caretId_)) caretId_.reset();
+    std::erase_if(baseMarks_,[&](const auto& mark){return !live.contains(mark.first);});
     if(selectionAnchorId_){auto it=std::find_if(document_->rows().begin(),document_->rows().end(),[&](const auto& row){return row.id==*selectionAnchorId_;});
         if(it!=document_->rows().end())selectionAnchor_=static_cast<std::size_t>(it-document_->rows().begin());else selectionAnchorId_.reset();}
     if (fragment_) {
@@ -408,6 +411,23 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
             }
             p.restore();
         }
+        const auto baseDirty=bodyDirty.intersected(QRect(nameWidth_,y,viewport()->width()-nameWidth_,rowHeight_));
+        if(!baseDirty.isEmpty()&&((qualityThreshold_&&row.trace)||baseMarks_.contains(row.id))){
+            p.save();
+            p.setClipRect(baseDirty,Qt::IntersectClip);
+            p.setBrush(Qt::NoBrush);
+            const auto edge=baseHighlightColor_.darker(165);
+            const auto begin=firstCol+static_cast<std::size_t>((baseDirty.left()-nameWidth_)/cellWidth_);
+            const auto end=firstCol+static_cast<std::size_t>((baseDirty.right()-nameWidth_)/cellWidth_+1);
+            for(auto c=begin;c<std::min({end,columnEnd,row.symbols.size()});++c){
+                if(!base_highlighted(row,c))continue;
+                const QRect cell(nameWidth_+static_cast<int>(c-firstCol)*cellWidth_,y,cellWidth_,rowHeight_);
+                const auto mark=cell.adjusted(2,2,-3,-3);
+                p.setPen(QPen(Qt::white,3));p.drawRect(mark);
+                p.setPen(QPen(edge,2));p.drawRect(mark);
+            }
+            p.restore();
+        }
         if (!fragment_ && caretId_ && *caretId_ == row.id && caretColumn_ >= firstCol && caretColumn_ < columnEnd) {
             p.setPen(QPen(mode_ == Mode::View ? QColor(145, 155, 170) : QColor(25, 85, 200), 1));
             p.drawRect(QRect(nameWidth_ + static_cast<int>(caretColumn_ - firstCol) * cellWidth_,
@@ -478,11 +498,11 @@ void AlignmentView::notify_selection() {
     viewport()->update();
     if (selection_changed) selection_changed();
 }
-void AlignmentView::clear_fragment() {
+void AlignmentView::clear_fragment(bool notify) {
     if (dragScroll_) dragScroll_->stop();
     fragment_.reset(); dragAnchor_.reset(); selectionOrigin_.reset(); dragRows_.clear();
     draggingBlock_ = false; rulerDrag_ = false; dragOffset_ = 0;
-    if (selection_changed) selection_changed();
+    if (notify&&selection_changed) selection_changed();
 }
 void AlignmentView::set_mode(Mode mode) {
     if (dragScroll_) dragScroll_->stop();
@@ -613,7 +633,7 @@ bool AlignmentView::write_residues(std::string_view text) {
         std::min(fragment_ ? fragment_->width : text.size(), length-start) : 0;
     remember_fragment();
     document_->replace(id,start,count,text);
-    clear_fragment(); caretId_ = id; caretColumn_ = start + text.size() - (mode_ == Mode::Insert ? 1 : 0);
+    clear_fragment(false); caretId_ = id; caretColumn_ = start + text.size() - (mode_ == Mode::Insert ? 1 : 0);
     // Insert keeps the last inserted cell selected for continuous typing.
     // Overwrite advances to the next symbol, or the unambiguous row end.
     if (caretColumn_ < document_->sequence(id).symbols.size())
@@ -756,7 +776,7 @@ void AlignmentView::mousePressEvent(QMouseEvent* event) {
         const auto column = static_cast<std::size_t>((point.x() - nameWidth_) / cellWidth_ + horizontalScrollBar()->value());
         if (column >= document_->columns()) return;
         const auto anchor = event->modifiers().testFlag(Qt::ShiftModifier) && selectionOrigin_ ? selectionOrigin_->column : column;
-        clear_fragment();
+        clear_fragment(false);
         dragAnchor_ = Cell{static_cast<std::size_t>(verticalScrollBar()->value()), anchor};
         selectionOrigin_ = dragAnchor_;
         rulerDrag_ = true;
@@ -783,7 +803,7 @@ void AlignmentView::mousePressEvent(QMouseEvent* event) {
             if (mode_!=Mode::View && fragment_contains(*cell) && !event->modifiers().testFlag(Qt::ShiftModifier)) {
                 dragAnchor_ = cell; draggingBlock_ = true; dragOffset_ = 0;
             } else {
-                clear_fragment(); dragAnchor_ = cell; selectionOrigin_ = cell;
+                clear_fragment(false); dragAnchor_ = cell; selectionOrigin_ = cell;
                 const auto id = document_->rows()[cell->row].id;
                 dragRows_ = {id};
                 select_fragment({dragRows_, cell->column, 1});
@@ -791,10 +811,10 @@ void AlignmentView::mousePressEvent(QMouseEvent* event) {
             dragPoint_ = point; dragScroll_->start();
             viewport()->update(); return;
         }
-        clear_fragment();
+        clear_fragment(false);
         caretId_ = document_->rows()[cell->row].id;
         caretColumn_ = std::min(cell->column, document_->rows()[cell->row].symbols.size());
-        viewport()->update();
+        notify_selection();
     }
 }
 void AlignmentView::mouseDoubleClickEvent(QMouseEvent* event) {
@@ -942,12 +962,107 @@ void AlignmentView::reveal_first_selected() {
         return;
     }
 }
+bool AlignmentView::has_base_selection() const {
+    if(!document_)return false;
+    const auto selected_base=[this](SequenceId id,std::size_t start,std::size_t width){
+        const auto* row=document_->find_sequence(id);
+        if(!row||row->kind==RowKind::Mask||start>=row->symbols.size())return false;
+        const auto end=start+std::min(width,row->symbols.size()-start);
+        const auto text=std::string_view(row->symbols.text()).substr(start,end-start);
+        return std::any_of(text.begin(),text.end(),[](char symbol){return !is_gap(symbol);});
+    };
+    if(fragment_)return std::any_of(fragment_->ids.begin(),fragment_->ids.end(),[&](SequenceId id){
+        return selected_base(id,fragment_->start,fragment_->width);
+    });
+    return caretId_&&selected_base(*caretId_,caretColumn_,1);
+}
+
+void AlignmentView::highlight_selected_bases(bool highlight) {
+    if(!document_)return;
+    const auto mark_row=[&](SequenceId id,std::size_t start,std::size_t width){
+        const auto* row=document_->find_sequence(id);
+        if(!row||row->kind==RowKind::Mask||start>=row->symbols.size())return;
+        const auto end=start+std::min(width,row->symbols.size()-start);
+        const auto text=std::string_view(row->symbols.text()).substr(start,end-start);
+        if(std::all_of(text.begin(),text.end(),is_gap))return;
+        const bool retain=highlight||qualityThreshold_>0;
+        auto found=baseMarks_.find(id);
+        if(found==baseMarks_.end()&&!retain)return;
+        auto& marks=baseMarks_[id];
+        std::vector<BaseMark> next;
+        next.reserve(marks.size()+2);
+        for(const auto& mark:marks){
+            if(mark.end<=start||mark.start>=end)next.push_back(mark);
+            else{
+                if(mark.start<start)next.push_back({mark.start,start,mark.highlighted});
+                if(mark.end>end)next.push_back({end,mark.end,mark.highlighted});
+            }
+        }
+        if(retain)next.push_back({start,end,highlight});
+        std::sort(next.begin(),next.end(),[](const auto& a,const auto& b){return a.start<b.start;});
+        marks.clear();
+        for(const auto& mark:next){
+            if(!marks.empty()&&marks.back().end==mark.start&&marks.back().highlighted==mark.highlighted)
+                marks.back().end=mark.end;
+            else marks.push_back(mark);
+        }
+        if(marks.empty())baseMarks_.erase(id);
+    };
+    if(fragment_){
+        for(auto id:fragment_->ids)mark_row(id,fragment_->start,fragment_->width);
+    }else if(caretId_)mark_row(*caretId_,caretColumn_,1);
+    viewport()->update();
+}
+
+void AlignmentView::set_quality_highlight(unsigned threshold,
+    std::optional<std::unordered_set<SequenceId>> rows,const QColor& color) {
+    if(threshold!=qualityThreshold_||rows!=qualityRows_){
+        for(auto& entry:baseMarks_)std::erase_if(entry.second,[](const BaseMark& mark){return !mark.highlighted;});
+        std::erase_if(baseMarks_,[](const auto& entry){return entry.second.empty();});
+    }
+    qualityThreshold_=threshold;
+    qualityRows_=std::move(rows);
+    baseHighlightColor_=color;
+    viewport()->update();
+}
+
+void AlignmentView::clear_base_highlights() {
+    baseMarks_.clear();
+    set_quality_highlight(0,{},baseHighlightColor_);
+}
+
+bool AlignmentView::base_highlighted(const Sequence& row,std::size_t column) const {
+    if(row.kind==RowKind::Mask||column>=row.symbols.size())return false;
+    const auto symbol=static_cast<unsigned char>(row.symbols.text()[column]);
+    if(is_gap(static_cast<char>(symbol)))return false;
+    if(const auto found=baseMarks_.find(row.id);found!=baseMarks_.end()){
+        const auto& marks=found->second;
+        const auto mark=std::upper_bound(marks.begin(),marks.end(),column,
+            [](std::size_t position,const BaseMark& range){return position<range.start;});
+        if(mark!=marks.begin()&&column<std::prev(mark)->end)return std::prev(mark)->highlighted;
+    }
+    if(!qualityThreshold_||!row.trace||(qualityRows_&&!qualityRows_->contains(row.id)))return false;
+    const auto& link=*row.trace;
+    const auto& evidence=*link.original;
+    if(evidence.quality.empty())return false;
+    const auto ordinal=row.symbols.residue_rank(column);
+    if(ordinal>=link.originalCalls.size())return false;
+    const auto mapped=link.originalCalls[ordinal];
+    if(mapped<0)return false;
+    const auto index=static_cast<std::size_t>(mapped);
+    if(index>=evidence.quality.size()||index>=evidence.calls.size())return false;
+    const char original=link.reversed?trace_complement(evidence.calls[index]):evidence.calls[index];
+    return evidence.quality[index]<qualityThreshold_&&
+        std::toupper(symbol)==std::toupper(static_cast<unsigned char>(original));
+}
+
 void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     if (event->pos().x() >= nameWidth_) {
         if (rightClick_ != RightClick::Menu || !fragment_) return;
         const auto cell = cell_at(event->pos());
         if (cell && !fragment_contains(*cell)) return;
         QMenu menu(this);
+        menu.setToolTipsVisible(true);
         auto* copy=menu.addAction("Copy",[this]{if(copy_fragment_requested)copy_fragment_requested();});copy->setEnabled(selected_residue_text().has_value());shortcut_hint(copy,QKeySequence::Copy);
         if(mode_==Mode::Insert||mode_==Mode::Rewrite){
             auto* cut=menu.addAction("Cut",[this]{if(cut_fragment_requested)cut_fragment_requested();});cut->setEnabled(selected_residue_text().has_value()&&complete_selection());shortcut_hint(cut,QKeySequence::Cut);
@@ -970,9 +1085,15 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
             menu.addAction("Replace selected symbols with locked gaps (-)", [this] { fill_fragment('-'); });
             menu.addSeparator();
         }
+        auto* highlight=menu.addAction("Highlight selected bases",[this]{highlight_selected_bases(true);});
+        highlight->setToolTip("Highlight the residues in the current selection.");
+        auto* unhighlight=menu.addAction("Unhighlight selected bases",[this]{highlight_selected_bases(false);});
+        unhighlight->setToolTip("Remove base highlighting from the current selection.");
+        highlight->setEnabled(has_base_selection());unhighlight->setEnabled(highlight->isEnabled());
+        menu.addSeparator();
         menu.addAction("Select to beginning",[this]{extend_fragment(false);})->setToolTip("Extend the selected rows to alignment column 1.");
         menu.addAction("Select to end",[this]{extend_fragment(true);})->setToolTip("Extend the selected rows to the final alignment column.");
-        shortcut_hint(menu.addAction("Clear fragment selection", [this] { clear_fragment(); viewport()->update(); }),QKeySequence(Qt::Key_Escape));
+        shortcut_hint(menu.addAction("Clear fragment selection", [this] { clear_residue_selection(); }),QKeySequence(Qt::Key_Escape));
         menu.exec(event->globalPos()); return;
     }
     if(document_&&event->pos().y()>=rulerHeight_){

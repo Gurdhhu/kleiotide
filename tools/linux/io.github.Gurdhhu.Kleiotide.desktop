@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Kleiotide
+GenericName=Sequence and chromatogram editor
+Comment=Edit nucleotide alignments and inspect Sanger chromatograms
+Exec=kleiotide %F
+Terminal=false
+Categories=Science;Biology;
+MimeType=application/x-kleiotide-session;application/x-abif;application/x-fasta;
+Keywords=DNA;FASTA;AB1;chromatogram;alignment;

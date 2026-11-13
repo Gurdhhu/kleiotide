@@ -50,6 +50,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDockWidget>
+#include <QMouseEvent>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -139,6 +140,43 @@ struct ReadResult {
 };
 
 }
+namespace {
+class PanelResizeHandle final : public QWidget {
+public:
+    PanelResizeHandle(QDockWidget* dock,std::function<void(int)> resizePanel)
+        : QWidget(dock),dock_(dock),resizePanel_(std::move(resizePanel)) {
+        setFixedHeight(7);
+        setCursor(Qt::SizeVerCursor);
+        setToolTip("Drag to resize "+dock->windowTitle().toLower()+".");
+    }
+    QSize sizeHint() const override { return {40,7}; }
+    QSize minimumSizeHint() const override { return {0,7}; }
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);
+        painter.fillRect(rect(),palette().window());
+        painter.setPen(palette().mid().color());
+        const int center=width()/2;
+        painter.drawLine(center-18,2,center+18,2);
+        painter.drawLine(center-18,4,center+18,4);
+    }
+    void mousePressEvent(QMouseEvent* event) override {
+        if(event->button()!=Qt::LeftButton){event->ignore();return;}
+        startY_=qRound(event->globalPosition().y());
+        startHeight_=dock_->height();
+        event->accept();
+    }
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if(!event->buttons().testFlag(Qt::LeftButton)){event->ignore();return;}
+        resizePanel_(startHeight_+startY_-qRound(event->globalPosition().y()));
+        event->accept();
+    }
+private:
+    QDockWidget* dock_;
+    std::function<void(int)> resizePanel_;
+    int startY_=0,startHeight_=0;
+};
+}
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::make_shared<Document>()) {
     document_->load({},AppSettings::instance().values().translation());savedState_=document_->state_id();
     setWindowTitle("Kleiotide — alignment editor");
@@ -149,15 +187,30 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     setCentralWidget(view_);
     overview_=new AlignmentOverview(view_,this);
     auto* overviewDock=new QDockWidget("Alignment overview",this);
+    overviewDock->setObjectName("alignmentOverviewDock");
     overviewDock->setFeatures(QDockWidget::DockWidgetClosable);
-    auto* titleBar=new QWidget(overviewDock);titleBar->setFixedHeight(0);overviewDock->setTitleBarWidget(titleBar);
-    overviewDock->setWidget(overview_);addDockWidget(Qt::BottomDockWidgetArea,overviewDock);
+    overviewDock->setWidget(overview_);
     overview_->set_document(document_.get());
     traces_=new ChromatogramPanel(this);
     traceDock_=new QDockWidget("Chromatogram",this);traceDock_->setObjectName("chromatogramDock");
     traceDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    auto* traceTitle=new QWidget(traceDock_);traceTitle->setFixedHeight(0);traceDock_->setTitleBarWidget(traceTitle);traceDock_->setWidget(traces_);
-    addDockWidget(Qt::BottomDockWidgetArea,traceDock_);splitDockWidget(overviewDock,traceDock_,Qt::Vertical);traceDock_->hide();
+    traceDock_->setWidget(traces_);
+    addDockWidget(Qt::BottomDockWidgetArea,traceDock_);
+    splitDockWidget(traceDock_,overviewDock,Qt::Vertical);
+    const auto resizePanel=[this](QDockWidget* dock,QDockWidget* other,int height){
+        const int minimum=dock->minimumSizeHint().height();
+        const int maximum=dock->height()+std::max(0,view_->height()-90);
+        height=std::clamp(height,minimum,std::max(minimum,maximum));
+        if(other->isHidden())resizeDocks({dock},{height},Qt::Vertical);
+        else resizeDocks({other,dock},{other->height(),height},Qt::Vertical);
+    };
+    overviewDock->setTitleBarWidget(new PanelResizeHandle(overviewDock,[this,overviewDock,resizePanel](int height){
+        resizePanel(overviewDock,traceDock_,height);
+    }));
+    traceDock_->setTitleBarWidget(new PanelResizeHandle(traceDock_,[this,overviewDock,resizePanel](int height){
+        resizePanel(traceDock_,overviewDock,height);
+    }));
+    traceDock_->hide();
     traces_->cell_requested=[this](SequenceId id,std::size_t column){if(!busy_)view_->navigate_to_cell(id,column);};
     traces_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(busy_)return;view_->select_trace_fragment(id,start,width);view_->navigate_to(start);};
     traces_->key_requested=[this](QKeyEvent* event){if(!busy_&&prepare_trace_edit())QApplication::sendEvent(view_,event);};
@@ -463,8 +516,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         removeToolBar(toolbar);removeToolBar(sizeToolbar);
         addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
         if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
-        addDockWidget(Qt::BottomDockWidgetArea,overviewDock);addDockWidget(Qt::BottomDockWidgetArea,traceDock_);splitDockWidget(overviewDock,traceDock_,Qt::Vertical);
-        overviewDock->show();traceDock_->setVisible(traces_->has_traces());motifDock_->hide();update_toolbar_layout();
+        removeDockWidget(overviewDock);
+        removeDockWidget(traceDock_);
+        addDockWidget(Qt::BottomDockWidgetArea,traceDock_);
+        splitDockWidget(traceDock_,overviewDock,Qt::Vertical);
+        overviewDock->show();traceDock_->setVisible(traces_->has_traces());
+        resizeDocks({overviewDock,traceDock_},{112,260},Qt::Vertical);
+        motifDock_->hide();update_toolbar_layout();
     })->setObjectName("restoreDefaultLayout");
     auto* help = menuBar()->addMenu("&Help");
     auto* about = help->addAction("About Kleiotide");
@@ -643,7 +701,7 @@ void MainWindow::update_selection_state() {
         }else{
             traces_->canvas()->set_selection(0,0,false);
             if(const auto caret=view_->caret())traces_->follow_selection({caret->first},caret->second);
-            else traces_->follow_selection(selected,{});
+            else traces_->follow_selection({},{});
         }
     }
     if (!busy_) {
@@ -653,6 +711,10 @@ void MainWindow::update_selection_state() {
         const auto enable=[this](const char* id,bool enabled){if(auto* a=findChild<QAction*>(id))a->setEnabled(enabled);};
         const auto* fragmentRow=single?document_->find_sequence(fragment->ids.front()):nullptr;
         const bool copyable=fragmentRow&&fragment->start<fragmentRow->symbols.size();
+        const bool basesSelected=view_->has_base_selection();
+        enable("highlightSelectedBases",basesSelected);
+        enable("unhighlightSelectedBases",basesSelected);
+        enable("highlightLowQuality",traces_->has_traces());
         enable("copyFragment",copyable);
         enable("cutFragment",writable&&copyable&&view_->complete_selection());
         enable("pasteFragment",writable&&view_->complete_selection()&&view_->caret().has_value()&&(!fragment||(single&&(view_->mode()==AlignmentView::Mode::Rewrite||view_->insertable_selection()))));
@@ -737,7 +799,8 @@ void MainWindow::install_document(std::shared_ptr<Document> document, const QStr
     document_ = std::move(document); path_ = path;nativePath_=false;resultLabel_.clear();mafftReport_.clear();
     savedState_ = saved ? document_->state_id() : 0;
     view_->set_document(document_.get());apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
-    if(traces_->has_traces()&&AppSettings::instance().values().traceVisible){traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}
+    if(traces_->has_traces()&&AppSettings::instance().values().traceVisible)
+        resizeDocks({traceDock_},{260},Qt::Vertical);
 }
 void MainWindow::load_files(const QStringList& paths, bool append) {
     if (busy_ || paths.isEmpty()) return;
@@ -771,8 +834,16 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
         }
         set_busy(false);
         if(result->hasTrace&&traces_->has_traces()&&(result->isSession||append||cleanDefaults.traceVisible)){
-            if(append){for(auto it=document_->rows().rbegin();it!=document_->rows().rend();++it)if(it->trace){traces_->choose_sequence(it->id);view_->navigate_to_cell(it->id,0);break;}}
-            traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);
+            if(append){
+                for(auto it=document_->rows().rbegin();it!=document_->rows().rend();++it)
+                    if(it->trace&&!it->symbols.text().empty()){view_->navigate_to_cell(it->id,0);break;}
+            }else if(!result->isSession){
+                for(const auto& row:document_->rows())
+                    if(row.trace&&!row.symbols.text().empty()){view_->navigate_to_cell(row.id,0);break;}
+            }
+            const bool wasHidden=traceDock_->isHidden();
+            traceDock_->show();
+            if(wasHidden||!append)resizeDocks({traceDock_},{260},Qt::Vertical);
         }
         if(!openingRecovery_)remember_file_path(paths.back());
         if(result->isSession)restore_view(result->viewState);
@@ -857,7 +928,7 @@ void MainWindow::link_traces(){
     const auto scope=QInputDialog::getItem(this,"Link trace (AB1)","Sequences to include",{"Selected nucleotide sequences","All nucleotide sequences without traces"},selected.empty()?1:0,false,&ok);if(!ok)return;
     std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(row.kind==RowKind::Nucleotide&&(scope.startsWith("All")?!row.trace:std::find(selected.begin(),selected.end(),row.id)!=selected.end()))ids.push_back(row.id);
     if(ids.empty()){QMessageBox::information(this,"Link trace","No eligible nucleotide sequences in this scope.");return;}
-    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied){view_->refresh();traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}set_busy(false);update_state();
+    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied){view_->refresh();if(traceDock_->isHidden()){traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}}set_busy(false);update_state();
 }
 void MainWindow::delete_traces(){
     if(busy_)return;
@@ -929,7 +1000,7 @@ void MainWindow::start_mafft(MafftConfiguration configuration,std::optional<Docu
 }
 void MainWindow::show_mafft_report(){
     if(mafftReport_.isEmpty()){statusBar()->showMessage("No MAFFT job has run in this window yet.",5000);return;}
-    QDialog dialog(this);dialog.setWindowTitle("MAFFT alignment report");dialog.resize(820,540);QVBoxLayout layout(&dialog);QPlainTextEdit text(mafftReport_);text.setReadOnly(true);layout.addWidget(&text);QDialogButtonBox buttons(QDialogButtonBox::Close);layout.addWidget(&buttons);connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.exec();
+    QDialog dialog(this);dialog.setObjectName("mafftReport");dialog.setWindowTitle("MAFFT alignment report");dialog.resize(820,540);QVBoxLayout layout(&dialog);QPlainTextEdit text(mafftReport_);text.setReadOnly(true);layout.addWidget(&text);QDialogButtonBox buttons(QDialogButtonBox::Close);layout.addWidget(&buttons);connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.exec();
 }
 void MainWindow::show_statistics() {
     if(busy_)return;
@@ -1190,14 +1261,22 @@ void MainWindow::restore_view(const std::string& bytes){
     QFont font;if(!state["font"].toString().isEmpty()&&font.fromString(state["font"].toString())&&font.pointSize()>=6&&font.pointSize()<=48)view_->setFont(font);
     view_->set_name_area_width(state["names"].toInt(230));gapMode_=std::clamp(state["rightClick"].toInt(0),0,4);editMode_=state["editMode"].toInt(2)==1?1:2;const int storedMode=state["mode"].toInt(2);view_->set_mode(storedMode==0?AlignmentView::Mode::View:storedMode==1?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
     if(translation_)translation_->restore(state["translation"].toObject());
+    view_->clear_residue_selection();
     view_->select_ids(ids(state["selected"].toArray()));const auto f=state["fragment"].toObject();const auto start=f["start"].toString().toULongLong(),width=f["width"].toString().toULongLong();auto rows=ids(f["ids"].toArray());
     if(!rows.empty()&&width&&start<document_->columns()&&width<=document_->columns()-start)view_->select_fragment({rows,static_cast<std::size_t>(start),static_cast<std::size_t>(width),f["columns"].toBool(false)});
-    traces_->choose_sequence(state["trace"].toString().toULongLong());
+    if(const auto& selection=view_->fragment()){
+        const auto trace=state["trace"].toString().toULongLong();
+        if(std::find(selection->ids.begin(),selection->ids.end(),trace)!=selection->ids.end()){
+            traces_->choose_sequence(trace);
+            update_selection_state();
+        }
+    }
     traces_->findChild<QComboBox*>("traceSpacing")->setCurrentIndex(std::clamp(state["spacing"].toInt(),0,1));
     traces_->findChild<QSpinBox*>("traceZoom")->setValue(state["zoom"].toInt(100));traces_->findChild<QSpinBox*>("traceGain")->setValue(state["gain"].toInt(100));
     view_->horizontalScrollBar()->setValue(state["column"].toInt());view_->verticalScrollBar()->setValue(state["row"].toInt());
     if(state.contains("overviewVisible"))if(auto* overview=findChild<QWidget*>("alignmentOverview"))overview->parentWidget()->setVisible(state["overviewVisible"].toBool(true));
-    traceDock_->setVisible(traces_->has_traces()&&state["traceVisible"].toBool(true));traces_->canvas()->focus_column(static_cast<std::size_t>(std::min<qulonglong>(state["traceColumn"].toString().toULongLong(),document_->columns())));
+    traceDock_->setVisible(traces_->has_traces()&&state["traceVisible"].toBool(true));
+    if(traces_->canvas()->sequence_id())traces_->canvas()->focus_column(static_cast<std::size_t>(std::min<qulonglong>(state["traceColumn"].toString().toULongLong(),document_->columns())));
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (busy_) { statusBar()->showMessage("Wait for the current operation to finish."); event->ignore(); return; }

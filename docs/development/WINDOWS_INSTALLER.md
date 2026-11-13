@@ -1,13 +1,21 @@
 # Windows installer preparation
 
-For Kleiotide **0.29.4**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.29.4_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 48-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
+For Kleiotide **0.29.5**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.29.5_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 49-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
 
 The selected kit must provide Qt Widgets, Concurrent, Network and windeployqt. Windows deployment verifies Qt6Network.dll and tls/qschannelbackend.dll, using Schannel rather than assuming OpenSSL is installed on a recipient's machine. Build scripts do not download packaging inputs automatically.
 
-## What the installer does
+The **release-installer** target builds the release-candidate installer. It
+uses a stable Windows entry named Kleiotide and defaults to
+`C:\Program Files\Kleiotide`. Browse on a fresh install to choose a dedicated
+folder. An upgrade starts in that same folder. The file associations page offers
+Kleiotide sessions (selected on first install), Sanger chromatograms and FASTA
+files. The latter two are opt-in. Setup remembers these choices across upgrades.
+Use **Open Windows Default Apps** at the end to choose the double-click handler.
+
+## What the test installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.29.4-1`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.29.5-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -25,7 +33,7 @@ The selected kit must provide Qt Widgets, Concurrent, Network and windeployqt. W
 - Embeds matching Kleiotide source, GPL/branding documents and third-party
   notices. The full matching Qt source archive is beside the setup file.
 
-On native x64 Windows, the existing installation path is retained. On ARM64,
+On ARM64,
 Windows 11 (build 22000+) and reported x64 user-mode support are required. Windows
 10 on ARM and 32-bit Windows remain excluded. Microsoft documents that its
 current x64 Redistributable also includes ARM64 components; keep using the
@@ -74,7 +82,7 @@ provide the source for the bundled Qt libraries.
    execution-policy change is needed. Organisation policy still applies.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt version is unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.29.4` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.29.5` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -82,7 +90,7 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.29.4_Source_For_Installer.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.29.5_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
@@ -91,7 +99,7 @@ provide the source for the bundled Qt libraries.
    Set `KLEIOTIDE_INSTALLER_REVISION` to **1** for this new application version,
    including when copying CMake settings from the old version.
 5. Run CMake again. In Build Steps > CMake Build, select **`test-installer`**
-   as the only build target, then press **Ctrl+B**. This builds the app, reruns
+   as the only build target for a side-by-side test build, or select **`release-installer`** for an RC. Press **Ctrl+B**. This builds the app, reruns
    the enabled `release-check` suite and creates the installer. The script uses
    a process-local `RemoteSigned` policy; it does not alter Windows policy.
 
@@ -99,8 +107,10 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.29.4_test1/
+test-installers/Kleiotide_0.29.5_test1/
 ```
+
+For an RC, the equivalent folder is `release-installers/Kleiotide_0.29.5_rc1/`.
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,
 `READ-ME.txt`, `BUILD-MANIFEST.json` and `SHA256SUMS.txt`. The manifest records
@@ -138,6 +148,21 @@ successful launch on your developer laptop alone can conceal missing DLLs.
 After this passes, share the same package with testers using [TESTING.md](TESTING.md). Save their package SHA256 and reports. Repackage changed
 application binaries under a new application version; packaging-only attempts
 can increment the test revision. Retain exact package hashes and results for every distributed revision.
+
+## Release candidate installation and upgrade
+
+1. Install a test build and an RC side by side. Check their distinct Start menu
+   entries, install locations and Windows uninstall entries.
+2. On a fresh RC install, browse to a dedicated folder with spaces and Unicode.
+   Verify the default .kleio checkbox, opt in to AB1 and FASTA, and choose
+   Kleiotide in Windows Default apps for a disposable file of each type.
+3. Upgrade the RC. Check that setup uses the previous folder and restores the
+   association checkboxes. Check that files removed from the old package are
+   removed on upgrade and user-created files are preserved. Verify the selected
+   default apps, including after running the side-by-side test setup/uninstaller.
+4. Try upgrading with Kleiotide running and verify that setup asks you to close
+   it. Uninstall through Windows Settings, verify the shortcuts and registration
+   are gone, and check that saved sessions and settings remain.
 
 ## References
 

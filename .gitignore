@@ -48,11 +48,15 @@ CMakeUserPresets.json
 
 # Installer output and generated source archives
 *.msi
+*.deb
+/_CPack_Packages/
+/packages/
 *.7z
 *.zip
 *.nupkg
 *.sha256
 /test-installers/
+/release-installers/
 /dist/
 /release/
 /releases/

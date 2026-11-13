@@ -15,6 +15,8 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSpinBox>
+#include <algorithm>
 #include <QVBoxLayout>
 #include <cmath>
 namespace kleiotide {
@@ -34,11 +36,30 @@ void SiteHighlighter::add_menu(QMenu* menu,std::vector<QAction*>& guarded){
     for(int i=0;i<4;++i){auto* a=add(titles[i],ids[i]);a->setCheckable(true);a->setToolTip(tips[i]);categories_.push_back(a);connect(a,&QAction::toggled,this,[this,i](bool on){const std::array<bool*,4> values{&rules_.conserved,&rules_.variable,&rules_.informative,&rules_.singleton};*values[i]=on;publish();});}
     coverageAction_=add("% Coverage…","highlightCoverage");coverageAction_->setCheckable(true);coverageAction_->setToolTip("Choose an inclusive percentage range and non-gap or informative coverage. Clicking reopens its settings.");connect(coverageAction_,&QAction::triggered,this,[this]{choose_threshold(false);});
     conservationAction_=add("% Conservation…","highlightConservation");conservationAction_->setCheckable(true);conservationAction_->setToolTip("Inclusive range of the most frequent state fraction. Partial ambiguities vote equally; unknowns and gaps do not vote.");connect(conservationAction_,&QAction::triggered,this,[this]{choose_threshold(true);});
-    menu->addSeparator();auto* color=add("Highlight color…","highlightColor");connect(color,&QAction::triggered,this,[this]{const auto chosen=QColorDialog::getColor(color_,owner_,"Highlight color");if(chosen.isValid()){color_=chosen;publish();}});
-    auto* clear=add("Clear highlighting","highlightClear");connect(clear,&QAction::triggered,this,[this]{rules_=HighlightRules{};sync_actions();publish();});sync_actions();
+    menu->addSeparator();
+    auto* quality=add("Highlight low-quality calls…","highlightLowQuality");
+    quality->setToolTip("Highlight individual bases below a chosen original Phred Q score.");
+    connect(quality,&QAction::triggered,this,[this]{choose_quality();});
+    auto* mark=add("Highlight selected bases","highlightSelectedBases");
+    mark->setToolTip("Highlight the residues in the current selection.");
+    connect(mark,&QAction::triggered,this,[this]{view_->highlight_selected_bases(true);});
+    auto* unmark=add("Unhighlight selected bases","unhighlightSelectedBases");
+    unmark->setToolTip("Remove base highlighting from the current selection.");
+    connect(unmark,&QAction::triggered,this,[this]{view_->highlight_selected_bases(false);});
+    menu->addSeparator();auto* color=add("Highlight color…","highlightColor");connect(color,&QAction::triggered,this,[this]{const auto chosen=QColorDialog::getColor(color_,owner_,"Highlight color");if(chosen.isValid()){color_=chosen;publish();publish_quality();}});
+    auto* clear=add("Clear highlighting","highlightClear");
+    connect(clear,&QAction::triggered,this,[this]{
+        rules_=HighlightRules{};qualityThreshold_=0;qualityRows_.reset();
+        view_->clear_base_highlights();sync_actions();publish();publish_quality();
+    });
+    sync_actions();
 }
 void SiteHighlighter::set_document(const Document* source){
-    if(source_!=source){source_=source;scope_=AnalysisScope{};rules_=HighlightRules{};sync_actions();invalidate();}
+    if(source_!=source){
+        source_=source;scope_=AnalysisScope{};rules_=HighlightRules{};
+        qualityThreshold_=0;qualityRows_.reset();
+        view_->clear_base_highlights();publish_quality();sync_actions();invalidate();
+    }
     else if(source&&revision_!=source->content_id())invalidate();
 }
 void SiteHighlighter::invalidate(){
@@ -95,19 +116,87 @@ void SiteHighlighter::choose_threshold(bool conservation){
     connect(buttons,&QDialogButtonBox::accepted,&dialog,[&]{if(low->value()>high->value()){status->setText("Minimum must not exceed maximum.");return;}if(conservation){rules_.conservation=enabled->isChecked();rules_.conservationMin=low->value();rules_.conservationMax=high->value();}else{rules_.coverage=enabled->isChecked();rules_.coverageMin=low->value();rules_.coverageMax=high->value();rules_.informativeCoverage=basis->currentIndex()==1;}dialog.accept();});
     dialog.resize(560,340);dialog.exec();sync_actions();publish();
 }
+void SiteHighlighter::publish_quality(){
+    view_->set_quality_highlight(qualityThreshold_,qualityRows_,color_);
+}
+
+void SiteHighlighter::choose_quality(){
+    if(!source_)return;
+    QDialog dialog(owner_);
+    dialog.setObjectName("highlightQualityDialog");
+    dialog.setWindowTitle("Highlight low-quality calls");
+    QFormLayout layout(&dialog);
+    QCheckBox enabled("Highlight low-quality calls");
+    enabled.setChecked(true);
+    layout.addRow(&enabled);
+    QSpinBox threshold;
+    threshold.setObjectName("highlightQualityThreshold");
+    threshold.setRange(1,255);
+    threshold.setValue(qualityThreshold_?static_cast<int>(qualityThreshold_):20);
+    threshold.setToolTip("Highlight a call when its measured original Q is strictly below this value.");
+    layout.addRow("Q score below",&threshold);
+    QComboBox scope;
+    scope.setObjectName("highlightQualityScope");
+    scope.addItems({"All sequences with traces","Selected sequence names"});
+    scope.setCurrentIndex(qualityRows_?1:0);
+    scope.setToolTip("Choose all linked traces or capture the currently selected sequence names.");
+    layout.addRow("Scope",&scope);
+    QLabel note("This marks individual calls with measured Q. Inserted or substituted bases and calls with missing Q are skipped.");
+    note.setWordWrap(true);
+    layout.addRow(&note);
+    QLabel status;
+    status.setWordWrap(true);
+    layout.addRow(&status);
+    QDialogButtonBox buttons(QDialogButtonBox::Apply|QDialogButtonBox::Cancel);
+    layout.addRow(&buttons);
+    connect(&enabled,&QCheckBox::toggled,&threshold,&QWidget::setEnabled);
+    connect(&enabled,&QCheckBox::toggled,&scope,&QWidget::setEnabled);
+    connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+    connect(buttons.button(QDialogButtonBox::Apply),&QPushButton::clicked,&dialog,[&]{
+        std::optional<std::unordered_set<SequenceId>> rows;
+        if(enabled.isChecked()&&scope.currentIndex()==1){
+            const auto selected=view_->selected_ids();
+            rows.emplace();
+            for(auto id:selected)if(const auto* row=source_->find_sequence(id);row&&row->trace)rows->insert(id);
+            if(rows->empty()){
+                status.setText("Select sequence names with linked traces, or choose all sequences with traces.");
+                return;
+            }
+        }
+        qualityThreshold_=enabled.isChecked()?static_cast<unsigned>(threshold.value()):0;
+        qualityRows_=std::move(rows);
+        publish_quality();
+        dialog.accept();
+    });
+    dialog.exec();
+}
+
 QJsonObject SiteHighlighter::state()const{
     QJsonObject s;s["molecule"]=scope_.molecule==RowKind::Protein?"protein":"nucleotide";s["selectedRows"]=scope_.selectedRows;s["selectedColumns"]=scope_.selectedColumns;s["begin"]=QString::number(static_cast<qulonglong>(scope_.begin));s["end"]=QString::number(static_cast<qulonglong>(scope_.end));
     QJsonArray ids;for(auto id:scope_.ids)ids.append(QString::number(id));s["ids"]=ids;s["color"]=color_.name();
     s["conserved"]=rules_.conserved;s["variable"]=rules_.variable;s["informative"]=rules_.informative;s["singleton"]=rules_.singleton;s["coverage"]=rules_.coverage;s["conservation"]=rules_.conservation;s["informativeCoverage"]=rules_.informativeCoverage;
-    s["coverageMin"]=rules_.coverageMin;s["coverageMax"]=rules_.coverageMax;s["conservationMin"]=rules_.conservationMin;s["conservationMax"]=rules_.conservationMax;return s;
+    s["coverageMin"]=rules_.coverageMin;s["coverageMax"]=rules_.coverageMax;s["conservationMin"]=rules_.conservationMin;s["conservationMax"]=rules_.conservationMax;
+    s["qualityThreshold"]=static_cast<int>(qualityThreshold_);
+    if(qualityRows_&&source_){
+        QJsonArray selected;
+        for(const auto& row:source_->rows())if(qualityRows_->contains(row.id))selected.append(QString::number(row.id));
+        s["qualityRows"]=selected;
+    }
+    return s;
 }
 void SiteHighlighter::restore(const QJsonObject& s){
     scope_=AnalysisScope{};rules_=HighlightRules{};color_=QColor(198,173,242);
+    qualityThreshold_=static_cast<unsigned>(std::clamp(s["qualityThreshold"].toInt(),0,255));
+    qualityRows_.reset();
+    if(s["qualityRows"].isArray()){
+        qualityRows_.emplace();
+        for(const auto& id:s["qualityRows"].toArray())if(auto n=id.toString().toULongLong())qualityRows_->insert(n);
+    }
     scope_.molecule=s["molecule"].toString()=="protein"?RowKind::Protein:RowKind::Nucleotide;scope_.selectedRows=s["selectedRows"].toBool();scope_.selectedColumns=s["selectedColumns"].toBool();
     scope_.begin=static_cast<std::size_t>(std::min<qulonglong>(s["begin"].toString().toULongLong(),source_?source_->columns():0));scope_.end=static_cast<std::size_t>(std::clamp<qulonglong>(s["end"].toString().toULongLong(),scope_.begin,source_?source_->columns():0));
     for(const auto& id:s["ids"].toArray())if(auto n=id.toString().toULongLong())scope_.ids.push_back(n);
     const QColor color(s["color"].toString());if(color.isValid())color_=color;
     rules_.conserved=s["conserved"].toBool();rules_.variable=s["variable"].toBool();rules_.informative=s["informative"].toBool();rules_.singleton=s["singleton"].toBool();rules_.coverage=s["coverage"].toBool();rules_.conservation=s["conservation"].toBool();rules_.informativeCoverage=s["informativeCoverage"].toBool();
-    auto percent=[&](const char* key,double fallback){const auto n=s[key].toDouble(fallback);return std::isfinite(n)?std::clamp(n,0.0,100.0):fallback;};rules_.coverageMin=percent("coverageMin",0);rules_.coverageMax=std::max(rules_.coverageMin,percent("coverageMax",100));rules_.conservationMin=percent("conservationMin",80);rules_.conservationMax=std::max(rules_.conservationMin,percent("conservationMax",100));sync_actions();invalidate();
+    auto percent=[&](const char* key,double fallback){const auto n=s[key].toDouble(fallback);return std::isfinite(n)?std::clamp(n,0.0,100.0):fallback;};rules_.coverageMin=percent("coverageMin",0);rules_.coverageMax=std::max(rules_.coverageMin,percent("coverageMax",100));rules_.conservationMin=percent("conservationMin",80);rules_.conservationMax=std::max(rules_.conservationMin,percent("conservationMax",100));sync_actions();invalidate();publish_quality();
 }
 }

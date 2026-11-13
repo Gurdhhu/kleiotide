@@ -2,6 +2,11 @@
 
 Open AB1 files directly, or link them to nucleotide rows already in an alignment. Original files are never edited.
 
+Select a residue in a linked row to view its chromatogram. The view clears
+when the residue selection is empty or belongs to an unlinked row. To jump
+to a traced sequence, choose it in the trace dropdown. Drag the grips above
+the chromatogram and alignment overview to resize each panel.
+
 ## Trace assignment
 
 Sequence → Link trace (AB1) offers selected nucleotide names or all nucleotide

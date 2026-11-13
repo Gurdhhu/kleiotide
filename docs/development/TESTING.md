@@ -2,7 +2,7 @@
 
 ## Automatic suite
 
-Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 48 tests (20 core, nine Qt unit, 19 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
+Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 49 tests (20 core, nine Qt unit, 20 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
 
 ```sh
 cmake --build build --config Release --target release-check --parallel 2
@@ -10,6 +10,15 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
+
+## 0.29.5 focused acceptance
+
+1. Drag the sides and lower edge of the whole, selected, selected-column and template MAFFT dialogs. Width should change and height should remain fixed. Repeat with nucleotide and protein data at different display scales.
+2. Select nonadjacent sequence names and use Prepend row numbers with a custom or empty separator. Check one-based positions in the whole alignment, preview, Cancel, Rename and undo.
+3. Open an alignment with traced and untraced rows. Select a traced residue, then an untraced residue, and clear the residue selection. The chromatogram should clear in both cases. Choose a trace in its dropdown and verify it selects its row's first residue.
+4. Drag the grips above the chromatogram and overview independently. Verify that the overview stays at the bottom and the other panel keeps its height. Toggle the panels and restore the default layout. Select a single column and a broad range. The top bracket should mark the selection, while the blue viewport frame stays visible.
+5. In Highlight → Highlight low-quality calls, test all traces and a selected-name subset. Verify strict threshold, Q0, missing Q, gaps, inserted or edited calls, and reverse traces. Mark a block manually and unhighlight part of it from the right-click menu. Check that sequence data and undo history remain untouched.
+6. Run the [Windows RC installation and upgrade checks](WINDOWS_INSTALLER.md#release-candidate-installation-and-upgrade). Follow the [Debian desktop checks](DEBIAN_PACKAGE.md#install-and-test) on a Debian 13 machine.
 
 ## 0.29.4 focused acceptance
 

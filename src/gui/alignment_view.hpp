@@ -32,8 +32,13 @@ public:
     void select_fragment(Fragment fragment);
     void select_trace_fragment(SequenceId id,std::size_t start,std::size_t width){select_fragment({{id},start,width});}
     void extend_fragment(bool toEnd);
-    void clear_residue_selection(){clear_fragment();viewport()->update();}
+    void clear_residue_selection(){caretId_.reset();clear_fragment();viewport()->update();}
     void reveal_first_selected();
+    bool has_base_selection() const;
+    void highlight_selected_bases(bool highlight);
+    void set_quality_highlight(unsigned threshold, std::optional<std::unordered_set<SequenceId>> rows, const QColor& color);
+    void clear_base_highlights();
+    bool base_highlighted(const Sequence& row, std::size_t column) const;
     void slide_fragment(std::int64_t distance);
     void fill_fragment(char symbol);
     void unlock_fragment();
@@ -146,13 +151,18 @@ private:
     std::optional<std::unordered_set<SequenceId>> siteRows_;
     RowKind siteMolecule_=RowKind::Nucleotide;
     std::uint64_t siteRevision_=0;
+    struct BaseMark { std::size_t start, end; bool highlighted; };
+    std::map<SequenceId,std::vector<BaseMark>> baseMarks_;
+    unsigned qualityThreshold_=0;
+    std::optional<std::unordered_set<SequenceId>> qualityRows_;
+    QColor baseHighlightColor_{198,173,242};
     std::optional<Cell> dragAnchor_, selectionOrigin_;
     std::vector<SequenceId> dragRows_;
     bool draggingBlock_ = false, rulerDrag_ = false;
     std::int64_t dragOffset_ = 0;
     void update_fragment_drag(const QPoint& point);
     bool fragment_contains(const Cell& cell) const;
-    void clear_fragment();
+    void clear_fragment(bool notify=true);
     void notify_edit();
     void remember_fragment();
     void sync_fragment_caret();

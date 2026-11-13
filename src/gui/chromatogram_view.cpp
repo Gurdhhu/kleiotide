@@ -35,7 +35,7 @@ QString position_text(const TracePosition& position,std::size_t column) {
 }
 }
 TraceCanvas::TraceCanvas(QWidget* parent):QAbstractScrollArea(parent) {
-    setObjectName("traceCanvas");setMinimumHeight(145);
+    setObjectName("traceCanvas");setMinimumHeight(100);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     viewport()->setMouseTracking(true);setFocusPolicy(Qt::ClickFocus);
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
@@ -51,7 +51,7 @@ void TraceCanvas::set_alignment_spacing(bool enabled){if(aligned_==enabled)retur
 void TraceCanvas::set_alignment_columns(std::size_t columns){if(alignmentColumns_==columns)return;alignmentColumns_=columns;update_scrollbar();}
 void TraceCanvas::set_selection(std::size_t start,std::size_t width,bool blue){if(selectionStart_==start&&selectionWidth_==width&&blue_==blue)return;selectionStart_=start;selectionWidth_=width;blue_=blue;viewport()->update(QRect(0,0,viewport()->width(),18));}
 void TraceCanvas::set_sequence(const Sequence* row) {
-    if(!row||!row->trace){active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();anchorOrdinals_.clear();originalColumns_.clear();dragAnchor_.reset();pickedCall_.reset();update_scrollbar();invalidate_render_cache();return;}
+    if(!row||!row->trace){if(!active_)return;active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();anchorOrdinals_.clear();originalColumns_.clear();dragAnchor_.reset();pickedCall_.reset();update_scrollbar();invalidate_render_cache();return;}
     if(active_&&row_.id==row->id&&row_.trace==row->trace&&row_.symbols.text()==row->symbols.text())return;
     const bool newSignal=!active_||row_.trace->original!=row->trace->original;
     const bool newRow=!active_||row_.id!=row->id;
@@ -126,7 +126,7 @@ void TraceCanvas::render_trace_layers() {
     currentLayer_=QPixmap(qCeil(viewport()->width()*dpr),qCeil(18*dpr));currentLayer_.setDevicePixelRatio(dpr);currentLayer_.fill(Qt::transparent);
     renderDirty_=false;
     QPainter painter(&traceLayer_);painter.setFont(font());
-    if(!active_){painter.setPen(Qt::darkGray);painter.drawText(viewport()->rect(),Qt::AlignCenter,"Open or add an AB1 file to view its chromatogram.");return;}
+    if(!active_)return;
     painter.setRenderHint(QPainter::Antialiasing);
     const auto& traceData=*row_.trace->original;const bool reverse=row_.trace->reversed;
     const auto count=traceData.channels[0].size();const auto [first,last]=visible_samples();
@@ -283,6 +283,7 @@ void TraceCanvas::wheelEvent(QWheelEvent* event) {
 ChromatogramPanel::ChromatogramPanel(QWidget* parent):QWidget(parent) {
     setObjectName("chromatogramPanel");auto* layout=new QVBoxLayout(this);layout->setContentsMargins(5,3,5,3);layout->setSpacing(3);
     auto* controls=new QHBoxLayout;choices_=new QComboBox(this);choices_->setObjectName("traceSequence");choices_->setMinimumWidth(180);choices_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    choices_->setPlaceholderText("Select a residue or choose a trace");
     controls->addWidget(new QLabel("Trace:",this));controls->addWidget(choices_,1);
     for(const auto& [label,delta]:std::array<std::pair<const char*,int>,2>{{{"‹",-1},{"›",1}}}){
         auto* button=new QPushButton(label,this);button->setMaximumWidth(30);button->setToolTip(delta<0?"Previous imported call":"Next imported call");connect(button,&QPushButton::clicked,this,[this,delta]{canvas_->step_call(delta);});controls->addWidget(button);
@@ -329,11 +330,11 @@ void ChromatogramPanel::set_document(Document* document) {
         traceChoices_.insert(row.id,index);
         if(same&&row.id==previous)selected=index;
     }
-    choices_->setCurrentIndex(selected>=0?selected:choices_->count()?0:-1);update_row();
+    choices_->setCurrentIndex(selected);update_row();
 }
 void ChromatogramPanel::update_row() {
     const auto* row=current_row();canvas_->set_sequence(row);
-    if(!row){source_->setText("No linked chromatograms in this alignment.");position_->clear();return;}
+    if(!row){source_->clear();source_->setToolTip({});position_->clear();return;}
     const auto& traceData=*row->trace->original;
     source_->setText(QString("%1 · %2 base calls · %3 signal samples/channel · %4 · original signal")
         .arg(QFileInfo(QString::fromUtf8(traceData.sourcePath.c_str())).fileName()).arg(static_cast<qulonglong>(traceData.calls.size()))
@@ -345,19 +346,28 @@ void ChromatogramPanel::update_position(std::size_t column) {
     if(current_row()){canvas_->focus_column(column,false);position_->setText(position_text(canvas_->position(column),column));}
 }
 void ChromatogramPanel::choose_sequence(SequenceId id) {
-    const auto found=traceChoices_.constFind(id);if(found==traceChoices_.cend())return;
-    QSignalBlocker block(choices_);choices_->setCurrentIndex(*found);update_row();
+    QSignalBlocker block(choices_);
+    choices_->setCurrentIndex(traceChoices_.value(id,-1));
+    update_row();
 }
 void ChromatogramPanel::follow_selection(const std::vector<SequenceId>& ids,std::optional<std::size_t> column) {
-    if(ids.empty())return;
     const auto current=canvas_->sequence_id();
-    if(std::find(ids.begin(),ids.end(),current)==ids.end())for(auto id:ids){choose_sequence(id);if(canvas_->sequence_id()==id)break;}
-    if(column&&std::find(ids.begin(),ids.end(),canvas_->sequence_id())!=ids.end()){
-        update_position(*column);if(!canvas_->interaction_active())canvas_->center_column(*column);
+    const auto eligible=[&](SequenceId id){
+        if(!column||!traceChoices_.contains(id))return false;
+        const auto* row=document_->find_sequence(id);
+        return row&&*column<row->symbols.size();
+    };
+    SequenceId next=0;
+    if(std::find(ids.begin(),ids.end(),current)!=ids.end()&&eligible(current))next=current;
+    else for(auto id:ids)if(eligible(id)){next=id;break;}
+    if(next!=current)choose_sequence(next);
+    if(next){
+        update_position(*column);
+        if(!canvas_->interaction_active())canvas_->center_column(*column);
     }
 }
 void ChromatogramPanel::follow_viewport(std::size_t begin,std::size_t end) {
-    if(!has_traces()||begin>=end||canvas_->interaction_active())return;
+    if(!canvas_->sequence_id()||begin>=end||canvas_->interaction_active())return;
     const auto focus=canvas_->focused_column();canvas_->center_column(focus>=begin&&focus<end?focus:begin+(end-begin)/2);
 }
 }

@@ -2,11 +2,16 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
-## Latest accepted baseline: 0.29.3 test 1
+## Latest accepted baseline: 0.29.4 test 1
+
+All 48 automatic and six focused manual checks passed on the Windows x64
+testing laptop. A colleague also reported successful installation, MAFFT safe
+thread selection and the main workflows on a Windows 11 ARM Snapdragon laptop
+under x64 emulation. Version 0.29.5 and its RC installer need separate acceptance.
+
+## Previous baseline: 0.29.3 test 1
 
 Reported on 2 November 2026: all **47 automatic tests passed** on the native Windows laptop. All seven focused manual checks passed: draggable distance names/columns and result-only copies, identical detailed table content across formats, separate composition setting/value cells, numeric append renaming and separators/history, recovery keyboard focus in both editing modes and across windows, BLAST+ links and compact layout, and documentation/link/installation paths.
-
-0.29.4 adds shared remembered file folders, boundary-extension selection commands, grouped motif commands, navigation to selected rows and MAFFT download links. Its full suite registers 48 tests. Native 0.29.4 build and focused acceptance remain pending; the previous pass is not proof of changed code. See [focused checks](TESTING.md#0294-focused-acceptance).
 
 ## Previous baseline: 0.29.2 test 1
 
@@ -26,7 +31,7 @@ The report identified follow-up defects addressed in 0.29.3: distance names were
 | 0.29.0 | 41/41 | Local databases/searches, SPART/tables, merge/quality UI; remote protein removed |
 | 0.29.1 test 2 | 41/41 | Suffixes, GenBank metadata/links, automatic previews, sanitation and compact dialogs |
 | 0.29.2 test 1 | 47/47 | Full focused report summarized above |
-| 0.29.3 test 1 | 47/47 | All seven focused checks passed; latest accepted baseline |
+| 0.29.3 test 1 | 47/47 | All seven focused checks passed |
 
 These are user-reported passes, not a claim that every historic package was independently reproduced by the current maintainer environment. Earlier detailed reports remain in Git history.
 
@@ -36,4 +41,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. Native 0.29.4 build, compiler-warning review and focused checks are pending at source-package preparation. No Windows installer binary is produced by Linux validation.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. Native 0.29.5 build, compiler-warning review and focused checks are pending. No Windows installer binary is produced by Linux validation.

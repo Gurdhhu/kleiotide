@@ -18,13 +18,17 @@ def main():
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     files = []
+    allowed_dotfiles = {".github", ".gitattributes", ".gitignore"}
+    generated_dirs = {"__pycache__", "_CPack_Packages", "packages",
+                      "test-installers", "release-installers"}
     for path in sorted(source.rglob("*")):
         relative = path.relative_to(source)
-        if any(part.startswith(".") or part.startswith("build")
-               or part == "__pycache__" for part in relative.parts):
+        if any((part.startswith(".") and part not in allowed_dotfiles)
+               or part.startswith("build") or part in generated_dirs
+               for part in relative.parts):
             continue
         if (not path.is_file() or path.is_symlink() or path.resolve() == output
-                or path.name.endswith((".user", ".pyc", ".zip"))):
+                or path.name.endswith((".user", ".pyc", ".zip", ".deb", ".exe"))):
             continue
         files.append((path, relative))
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED,

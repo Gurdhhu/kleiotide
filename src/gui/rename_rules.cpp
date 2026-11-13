@@ -60,6 +60,7 @@ RenamePlan make_rename_plan(const Document& document,const RenameOptions& option
         case RenameOperation::StripSuffix:after.remove(suffix);break;
         case RenameOperation::Unique:{if(assigned.contains(before)){auto& next=suffixes[before];if(!next)next=2;do{after=before+options.separator+QString::number(next++);}while(reserved.contains(after)||assigned.contains(after));}assigned.insert(after);reserved.insert(after);break;}
         case RenameOperation::RowNumber:after=before+options.separator+QString::number(static_cast<qulonglong>(ordinal));break;
+        case RenameOperation::PrependRowNumber:after=QString::number(static_cast<qulonglong>(ordinal))+options.separator+before;break;
         case RenameOperation::Length:after=before+options.separator+QString::number(static_cast<qulonglong>(row.symbols.size()));break;
         case RenameOperation::TrueLength:after=before+options.separator+QString::number(static_cast<qulonglong>(row.symbols.residue_count()));break;
         case RenameOperation::SanitizeSpart:after=spart_sanitize(before);break;

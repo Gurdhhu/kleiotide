@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-kleiotide-session">
+    <comment>Kleiotide session</comment>
+    <glob pattern="*.kleio"/>
+  </mime-type>
+  <mime-type type="application/x-abif">
+    <comment>ABIF chromatogram</comment>
+    <glob pattern="*.ab1"/>
+    <glob pattern="*.abi"/>
+    <magic><match type="string" offset="0" value="ABIF"/></magic>
+  </mime-type>
+  <mime-type type="application/x-fasta">
+    <comment>FASTA sequence file</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.fasta"/>
+    <glob pattern="*.fas"/>
+    <glob pattern="*.fa"/>
+    <glob pattern="*.fna"/>
+    <glob pattern="*.ffn"/>
+    <glob pattern="*.faa"/>
+    <glob pattern="*.frn"/>
+    <glob pattern="*.fsa"/>
+    <glob pattern="*.mpfa"/>
+    <glob pattern="*.fnt"/>
+    <glob pattern="*.fsa_nt"/>
+    <glob pattern="*.fsa_aa"/>
+  </mime-type>
+</mime-info>
