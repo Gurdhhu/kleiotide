@@ -21,14 +21,14 @@ cmake --build build-debian --target release-check --parallel 2
 cpack --config build-debian/CPackConfig.cmake -B packages
 ```
 
-The package is `packages/kleiotide_0.29.5-1~deb13_amd64.deb`. The workflow
+The package is `packages/kleiotide_0.29.6-1~deb13_amd64.deb`. The workflow
 also installs it in its Debian build container to verify the dependencies and
 desktop registration. A native desktop test is still needed.
 
 ## Install and test
 
 ```sh
-sudo apt install ./kleiotide_0.29.5-1~deb13_amd64.deb
+sudo apt install ./kleiotide_0.29.6-1~deb13_amd64.deb
 ```
 
 1. Launch Kleiotide from the desktop menu and from a terminal with `kleiotide`.

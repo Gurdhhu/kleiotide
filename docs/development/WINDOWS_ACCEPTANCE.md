@@ -2,12 +2,21 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
+## 0.29.5 RC 1 testing
+
+The Windows x64 laptop passed all 49 automatic tests. The tester confirmed
+MAFFT dialog resizing, prepending row numbers, trace selection and clearing,
+and the low-quality and manual highlight commands. Hiding a bottom panel
+changed the other panel's height. The default install folder was rejected
+until the tester created it, and per-residue highlight borders obscured
+letters. The full Windows upgrade and Debian desktop checks are pending.
+
 ## Latest accepted baseline: 0.29.4 test 1
 
 All 48 automatic and six focused manual checks passed on the Windows x64
 testing laptop. A colleague also reported successful installation, MAFFT safe
 thread selection and the main workflows on a Windows 11 ARM Snapdragon laptop
-under x64 emulation. Version 0.29.5 and its RC installer need separate acceptance.
+under x64 emulation.
 
 ## Previous baseline: 0.29.3 test 1
 
@@ -41,4 +50,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. Native 0.29.5 build, compiler-warning review and focused checks are pending. No Windows installer binary is produced by Linux validation.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The native 0.29.6 build and focused checks are pending.

@@ -151,7 +151,13 @@ void AlignmentView::clear_render_cache() {
 }
 void AlignmentView::update_metrics() {
     const QFontMetrics metrics(font(), viewport());
-    cellWidth_ = std::max(4, metrics.horizontalAdvance(QLatin1Char('M')) + 2);
+    // Leave room for the highlight outline, including glyphs with overhang.
+    cellWidth_ = 4;
+    for (int code = 32; code < 127; ++code) {
+        const auto symbol = QChar::fromLatin1(static_cast<char>(code));
+        const int overhang = std::max({0, -metrics.leftBearing(symbol), -metrics.rightBearing(symbol)});
+        cellWidth_ = std::max(cellWidth_, metrics.horizontalAdvance(symbol) + 2 * overhang + 4);
+    }
     rowHeight_ = std::max(12, metrics.height() + 4);
     auto rulerFont=font();rulerFont.setPointSize(std::max(6,font().pointSize()-2));
     rulerHeight_=std::max(rowHeight_,QFontMetrics(rulerFont,viewport()).height()+11)+(codonRuler_?16:0);
@@ -416,15 +422,13 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
             p.save();
             p.setClipRect(baseDirty,Qt::IntersectClip);
             p.setBrush(Qt::NoBrush);
-            const auto edge=baseHighlightColor_.darker(165);
+            p.setPen(baseHighlightColor_.darker(165));
             const auto begin=firstCol+static_cast<std::size_t>((baseDirty.left()-nameWidth_)/cellWidth_);
             const auto end=firstCol+static_cast<std::size_t>((baseDirty.right()-nameWidth_)/cellWidth_+1);
             for(auto c=begin;c<std::min({end,columnEnd,row.symbols.size()});++c){
                 if(!base_highlighted(row,c))continue;
                 const QRect cell(nameWidth_+static_cast<int>(c-firstCol)*cellWidth_,y,cellWidth_,rowHeight_);
-                const auto mark=cell.adjusted(2,2,-3,-3);
-                p.setPen(QPen(Qt::white,3));p.drawRect(mark);
-                p.setPen(QPen(edge,2));p.drawRect(mark);
+                p.drawRect(cell.adjusted(0,0,-1,-1));
             }
             p.restore();
         }

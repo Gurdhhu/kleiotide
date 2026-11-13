@@ -13,6 +13,7 @@
 #include <QDockWidget>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QImage>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSpinBox>
@@ -130,7 +131,6 @@ int main(int argc,char** argv) {
 
         traceDock->show();
         overviewDock->show();
-        window.resizeDocks({traceDock,overviewDock},{230,105},Qt::Vertical);
         app.processEvents();
         require(traceDock->geometry().bottom()<overviewDock->geometry().top(),"Overview below trace");
         const int previousTrace=traceDock->height(),previousOverview=overviewDock->height();
@@ -139,6 +139,29 @@ int main(int argc,char** argv) {
         const int changedOverview=overviewDock->height();
         drag_grip(*traceDock,24);
         require(traceDock->height()>previousTrace&&overviewDock->height()==changedOverview,"Trace grip changes only trace height");
+        const int changedTrace=traceDock->height();
+        const int alignmentHeight=view->height();
+        trigger("chromatogramView");
+        app.processEvents();
+        require(traceDock->isHidden()&&overviewDock->height()==changedOverview&&view->height()>alignmentHeight,
+                "Hiding trace returns its space to the alignment");
+        trigger("chromatogramView");
+        app.processEvents();
+        require(traceDock->isVisible()&&traceDock->height()==changedTrace&&overviewDock->height()==changedOverview,
+                "Reopening trace restores its own height");
+        trigger("alignmentOverviewView");
+        app.processEvents();
+        require(overviewDock->isHidden()&&traceDock->height()==changedTrace&&view->height()>alignmentHeight,
+                "Hiding overview returns its space to the alignment");
+        trigger("alignmentOverviewView");
+        app.processEvents();
+        require(overviewDock->isVisible()&&overviewDock->height()==changedOverview&&traceDock->height()==changedTrace,
+                "Reopening overview restores its own height");
+        trigger("restoreDefaultLayout");
+        app.processEvents();
+        require(traceDock->isVisible()&&overviewDock->isVisible()&&
+                traceDock->height()==previousTrace&&overviewDock->height()==previousOverview&&
+                traceDock->geometry().bottom()<overviewDock->geometry().top(),"Restore default panel sizes and order");
 
         const auto quality=[&](int scope){
             modal([&]{trigger("highlightLowQuality");},[&](QDialog& dialog){
@@ -159,9 +182,31 @@ int main(int argc,char** argv) {
         view->select_fragment({{1},2,2});
         trigger("unhighlightSelectedBases");
         require(marked(1,0)&&!marked(1,2),"Unhighlight suppresses only selected low-Q calls");
+        view->set_residue_display(ResidueDisplay::Letters);
+        view->clear_residue_selection();
+        const auto grabMarkedCells=[&] {
+            const QRect cells(view->name_area_width()+view->cell_width(),
+                              view->ruler_height()+3*view->row_height(),
+                              2*view->cell_width(),view->row_height());
+            return view->viewport()->grab(cells).toImage();
+        };
+        const QImage before=grabMarkedCells();
+        require(!before.isNull(),"Capture the two unmarked residues");
         view->select_fragment({{4},1,2});
         trigger("highlightSelectedBases");
         require(marked(4,1)&&marked(4,2)&&!marked(4,0),"Manual marks apply to selected cells in an untraced row");
+        view->clear_residue_selection();
+        const QImage after=grabMarkedCells();
+        require(before.size()==after.size()&&before!=after,"Manual highlight draws a visible border");
+        int glyphPixels=0;
+        for(int y=0;y<before.height();++y) {
+            for(int x=0;x<before.width();++x) {
+                if(before.pixelColor(x,y)==Qt::white)continue;
+                ++glyphPixels;
+                require(before.pixel(x,y)==after.pixel(x,y),"Highlight border preserves every residue glyph pixel");
+            }
+        }
+        require(glyphPixels>0,"Captured cells contain visible residue letters");
         view->select_fragment({{4},2,1});
         trigger("unhighlightSelectedBases");
         require(marked(4,1)&&!marked(4,2),"Partial unhighlight retains adjacent manual mark");
@@ -180,7 +225,7 @@ int main(int argc,char** argv) {
         modal([&]{choose_mafft(&window,{});},widthOnly);
         modal([&]{choose_mafft_templates(&window,document,{1},false);},widthOnly);
         window.close();
-        std::cout<<"PASS 0.29.5 trace selection, independent panel sizing, per-base highlights and MAFFT dialog sizing\n";
+        std::cout<<"PASS trace selection, independent panel heights and visibility, readable per-base highlights and MAFFT dialog sizing\n";
         return 0;
     } catch(const std::exception& error) {
         std::cerr<<"FAIL "<<error.what()<<'\n';

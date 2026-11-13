@@ -111,7 +111,12 @@ Function .onInit
 FunctionEnd
 
 Function VerifyDestination
-  GetFullPathName $INSTDIR "$INSTDIR"
+  ; The NSIS path instruction requires the final component to exist.
+  StrCmp $INSTDIR "" destination_invalid
+  System::Call 'kernel32::GetFullPathNameW(w "$INSTDIR", i ${NSIS_MAX_STRLEN}, w .r0, p 0) i .r1'
+  IntCmp $1 0 destination_invalid
+  IntCmp $1 ${NSIS_MAX_STRLEN} destination_invalid +1 destination_invalid
+  StrCpy $INSTDIR $0
 !ifdef RELEASE_INSTALLER
   ${If} $ExistingDir != ""
     ${If} $INSTDIR != $ExistingDir
@@ -131,11 +136,15 @@ Function VerifyDestination
   StrCmp $1 "${UNINSTALL_HOME}\" destination_invalid
 !endif
   ; A fresh installation must not overwrite another package or a user's files.
-  IfFileExists "$INSTDIR\*.*" 0 check_path
-  Goto enumerate_folder
-  check_path:
-  IfFileExists "$INSTDIR" destination_invalid destination_ok
-  enumerate_folder:
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR") i .r0 ?e'
+  Pop $1
+  ${If} $0 == -1
+    ; ERROR_FILE_NOT_FOUND or ERROR_PATH_NOT_FOUND means setup can create it.
+    StrCmp $1 2 destination_ok
+    StrCmp $1 3 destination_ok destination_invalid
+  ${EndIf}
+  IntOp $0 $0 & 0x10 ; FILE_ATTRIBUTE_DIRECTORY
+  IntCmp $0 0 destination_invalid
   ClearErrors
   FindFirst $0 $1 "$INSTDIR\*"
   IfErrors destination_invalid
@@ -155,6 +164,7 @@ Function VerifyDestination
   SetErrorLevel 1
   Abort
   destination_ok:
+  ClearErrors
   SetErrorLevel 0
 FunctionEnd
 

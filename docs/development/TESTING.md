@@ -11,6 +11,12 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.29.6 focused acceptance
+
+1. Open an alignment with a linked trace. Drag each bottom panel's grip and check that the other panel keeps its height. Hide and reopen each panel in turn. The alignment should gain the freed space, and the reopened panel should return at its prior height. Restore the default layout and verify that the overview is below the chromatogram.
+2. Highlight one residue and a block of adjacent residues, then clear the selection to inspect the highlights. Verify that each letter remains legible within its border. Repeat with low-quality highlights, small and large alignment fonts, and Windows display scaling.
+3. Run the [Windows RC installation and upgrade checks](WINDOWS_INSTALLER.md#release-candidate-installation-and-upgrade), starting with a fresh install into the default folder before it exists. Follow the [Debian desktop checks](DEBIAN_PACKAGE.md#install-and-test) on a Debian 13 machine.
+
 ## 0.29.5 focused acceptance
 
 1. Drag the sides and lower edge of the whole, selected, selected-column and template MAFFT dialogs. Width should change and height should remain fixed. Repeat with nucleotide and protein data at different display scales.

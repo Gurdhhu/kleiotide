@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.6 — testing
+
+- Keep the chromatogram and alignment overview at their own heights when either panel is resized, hidden or shown. Return the space from a hidden panel to the alignment.
+- Accept a new install folder, including the default Program Files destination on a fresh Windows installation.
+- Draw per-residue highlight borders around the whole cell and leave room for the letter.
+- Thank Martin Schnittler, Dmytro Leontyev and Kristina Kuprina in the README.
+
 ## 0.29.5 — testing
 
 - Allow horizontal resizing in MAFFT alignment dialogs. Add Prepend row numbers with a configurable separator.

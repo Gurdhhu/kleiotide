@@ -77,7 +77,7 @@ void clipboard_checks(QApplication& app,const QString& path) {
     v->select_ids({ids[0]});v->select_fragment({{ids[0]},1,2});action(w,"Copy selected sequences")->trigger();require(clipboard->text()==">Alpha full header\nACGT\n","Explicit whole-sequence copy");
     v->unselect_all();v->set_mode(AlignmentView::Mode::Insert);clipboard->setText("AA");paste->trigger();
     require(!w.windowTitle().contains('*'),"No caret does not paste");
-    const QFontMetrics metrics(v->font(),v->viewport());const int cw=std::max(4,metrics.horizontalAdvance('M')+2),rh=std::max(12,metrics.height()+4);
+    const int cw=v->cell_width(),rh=v->row_height();
     auto click=[&](int row,int col){QPointF p(230+(col+.5)*cw,v->ruler_height()+(row+.5)*rh);for(auto type:{QEvent::MouseButtonPress,QEvent::MouseButtonRelease}){QMouseEvent event(type,p,QPointF(v->viewport()->mapToGlobal(p.toPoint())),Qt::LeftButton,type==QEvent::MouseButtonPress?Qt::LeftButton:Qt::NoButton,Qt::NoModifier);QApplication::sendEvent(v->viewport(),&event);}app.processEvents();};
     auto expect=[&](const QString& expected){v->select_ids({ids[0]});action(w,"Copy selected sequences")->trigger();require(clipboard->text()==expected,"Expected clipboard after paste/undo");v->unselect_all();};
     click(0,2);clipboard->setText("aU\r\n R? .-~\t");shortcut(Qt::Key_V);expect(">Alpha full header\nACGaUR?~-~T\n");

@@ -3,7 +3,6 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
-#include <QFontMetrics>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QThread>
@@ -32,7 +31,7 @@ int main(int argc,char**argv){
         AlignmentView view;AlignmentOverview overview(&view);layout.addWidget(&view);layout.addWidget(&overview);
         window.resize(1180,720);view.set_document(&d);overview.set_document(&d);view.viewport_changed=[&]{overview.update();};window.show();
         wait_ready(app,overview);const auto& bins=overview.displayed_bins();require(!bins.empty(),"Overview bins");
-        const QFontMetrics metrics(view.font(),view.viewport());const int cw=std::max(4,metrics.horizontalAdvance('M')+2),rh=view.ruler_height();
+        const int cw=view.cell_width(),rh=view.ruler_height();
         const auto ruler=view.viewport()->grab().toImage();const auto dpr=ruler.devicePixelRatio();
         for(int col=0;col<10;++col){const int length=(col+1)%10==0?8:(col+1)%5==0?5:3;const auto x=230+col*cw+cw/2;
             const auto at=[&](int y){return ruler.pixelColor(qRound(x*dpr),qRound(y*dpr));};

@@ -141,10 +141,14 @@ struct ReadResult {
 
 }
 namespace {
+constexpr int overviewPanelHeight = 105;
+constexpr int tracePanelHeight = 253;
+
 class PanelResizeHandle final : public QWidget {
 public:
-    PanelResizeHandle(QDockWidget* dock,std::function<void(int)> resizePanel)
-        : QWidget(dock),dock_(dock),resizePanel_(std::move(resizePanel)) {
+    PanelResizeHandle(QDockWidget* dock, QWidget* alignment)
+        : QWidget(dock), panel_(dock->widget()), alignment_(alignment),
+          minimumHeight_(panel_->minimumHeight()) {
         setFixedHeight(7);
         setCursor(Qt::SizeVerCursor);
         setToolTip("Drag to resize "+dock->windowTitle().toLower()+".");
@@ -163,17 +167,21 @@ protected:
     void mousePressEvent(QMouseEvent* event) override {
         if(event->button()!=Qt::LeftButton){event->ignore();return;}
         startY_=qRound(event->globalPosition().y());
-        startHeight_=dock_->height();
+        startHeight_=panel_->height();
         event->accept();
     }
     void mouseMoveEvent(QMouseEvent* event) override {
         if(!event->buttons().testFlag(Qt::LeftButton)){event->ignore();return;}
-        resizePanel_(startHeight_+startY_-qRound(event->globalPosition().y()));
+        const int minimum = std::max(minimumHeight_, panel_->minimumSizeHint().height());
+        const int maximum = panel_->height() + std::max(0, alignment_->height() - 90);
+        const int requested = startHeight_ + startY_ - qRound(event->globalPosition().y());
+        panel_->setFixedHeight(std::clamp(requested, minimum, std::max(minimum, maximum)));
         event->accept();
     }
 private:
-    QDockWidget* dock_;
-    std::function<void(int)> resizePanel_;
+    QWidget* panel_;
+    QWidget* alignment_;
+    int minimumHeight_;
     int startY_=0,startHeight_=0;
 };
 }
@@ -197,19 +205,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     traceDock_->setWidget(traces_);
     addDockWidget(Qt::BottomDockWidgetArea,traceDock_);
     splitDockWidget(traceDock_,overviewDock,Qt::Vertical);
-    const auto resizePanel=[this](QDockWidget* dock,QDockWidget* other,int height){
-        const int minimum=dock->minimumSizeHint().height();
-        const int maximum=dock->height()+std::max(0,view_->height()-90);
-        height=std::clamp(height,minimum,std::max(minimum,maximum));
-        if(other->isHidden())resizeDocks({dock},{height},Qt::Vertical);
-        else resizeDocks({other,dock},{other->height(),height},Qt::Vertical);
-    };
-    overviewDock->setTitleBarWidget(new PanelResizeHandle(overviewDock,[this,overviewDock,resizePanel](int height){
-        resizePanel(overviewDock,traceDock_,height);
-    }));
-    traceDock_->setTitleBarWidget(new PanelResizeHandle(traceDock_,[this,overviewDock,resizePanel](int height){
-        resizePanel(traceDock_,overviewDock,height);
-    }));
+    // Fix the content heights so Qt returns space from a hidden dock to the alignment.
+    overviewDock->setTitleBarWidget(new PanelResizeHandle(overviewDock, view_));
+    traceDock_->setTitleBarWidget(new PanelResizeHandle(traceDock_, view_));
+    overview_->setFixedHeight(overviewPanelHeight);
+    traces_->setFixedHeight(tracePanelHeight);
     traceDock_->hide();
     traces_->cell_requested=[this](SequenceId id,std::size_t column){if(!busy_)view_->navigate_to_cell(id,column);};
     traces_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(busy_)return;view_->select_trace_fragment(id,start,width);view_->navigate_to(start);};
@@ -516,12 +516,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         removeToolBar(toolbar);removeToolBar(sizeToolbar);
         addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
         if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
-        removeDockWidget(overviewDock);
-        removeDockWidget(traceDock_);
-        addDockWidget(Qt::BottomDockWidgetArea,traceDock_);
-        splitDockWidget(traceDock_,overviewDock,Qt::Vertical);
+        overview_->setFixedHeight(overviewPanelHeight);
+        traces_->setFixedHeight(tracePanelHeight);
         overviewDock->show();traceDock_->setVisible(traces_->has_traces());
-        resizeDocks({overviewDock,traceDock_},{112,260},Qt::Vertical);
         motifDock_->hide();update_toolbar_layout();
     })->setObjectName("restoreDefaultLayout");
     auto* help = menuBar()->addMenu("&Help");
@@ -799,8 +796,6 @@ void MainWindow::install_document(std::shared_ptr<Document> document, const QStr
     document_ = std::move(document); path_ = path;nativePath_=false;resultLabel_.clear();mafftReport_.clear();
     savedState_ = saved ? document_->state_id() : 0;
     view_->set_document(document_.get());apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
-    if(traces_->has_traces()&&AppSettings::instance().values().traceVisible)
-        resizeDocks({traceDock_},{260},Qt::Vertical);
 }
 void MainWindow::load_files(const QStringList& paths, bool append) {
     if (busy_ || paths.isEmpty()) return;
@@ -841,9 +836,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
                 for(const auto& row:document_->rows())
                     if(row.trace&&!row.symbols.text().empty()){view_->navigate_to_cell(row.id,0);break;}
             }
-            const bool wasHidden=traceDock_->isHidden();
             traceDock_->show();
-            if(wasHidden||!append)resizeDocks({traceDock_},{260},Qt::Vertical);
         }
         if(!openingRecovery_)remember_file_path(paths.back());
         if(result->isSession)restore_view(result->viewState);
@@ -928,7 +921,12 @@ void MainWindow::link_traces(){
     const auto scope=QInputDialog::getItem(this,"Link trace (AB1)","Sequences to include",{"Selected nucleotide sequences","All nucleotide sequences without traces"},selected.empty()?1:0,false,&ok);if(!ok)return;
     std::vector<SequenceId> ids;for(const auto& row:document_->rows())if(row.kind==RowKind::Nucleotide&&(scope.startsWith("All")?!row.trace:std::find(selected.begin(),selected.end(),row.id)!=selected.end()))ids.push_back(row.id);
     if(ids.empty()){QMessageBox::information(this,"Link trace","No eligible nucleotide sequences in this scope.");return;}
-    set_busy(true,"Linking traces…");const bool applied=link_trace_dialog(document_,ids,this);if(applied){view_->refresh();if(traceDock_->isHidden()){traceDock_->show();resizeDocks({traceDock_},{260},Qt::Vertical);}}set_busy(false);update_state();
+    set_busy(true,"Linking traces…");
+    if(link_trace_dialog(document_,ids,this)){
+        view_->refresh();
+        traceDock_->show();
+    }
+    set_busy(false);update_state();
 }
 void MainWindow::delete_traces(){
     if(busy_)return;

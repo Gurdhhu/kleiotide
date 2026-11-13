@@ -2,7 +2,6 @@
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QMenu>
-#include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
@@ -17,7 +16,7 @@ int main(int argc,char**argv){
  try {
   Document d;d.load({{"one","A~~CG~~~T"},{"two","A~~CG~T~~"},{"three","A~"}});
   AlignmentView v;v.resize(900,280);v.set_document(&d);v.set_mode(AlignmentView::Mode::Rewrite);v.show();app.processEvents();
-  const QFontMetrics metrics(v.font(),v.viewport());const int cw=std::max(4,metrics.horizontalAdvance('M')+2),rh=std::max(12,metrics.height()+4);
+  const int cw=v.cell_width(),rh=v.row_height();
   auto point=[&](int row,int col){return QPointF(230+(col+0.5)*cw,v.ruler_height()+(row+.5)*rh);};
   auto mouse=[&](QEvent::Type type,QPointF p,Qt::MouseButton button,Qt::MouseButtons buttons, Qt::KeyboardModifiers mods=Qt::NoModifier){
    QMouseEvent event(type,p,QPointF(v.viewport()->mapToGlobal(p.toPoint())),button,buttons,mods);
