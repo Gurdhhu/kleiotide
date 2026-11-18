@@ -65,7 +65,20 @@ Linked evidence is embedded and deduplicated in native sessions. Confirming Link
 
 When linking an edited sequence, supported concrete terminal residues can receive inferred signal positions. A bounded sequence/spacing/dominance search preserves monotone peak order; homopolymers require distinct signal maxima. Unsupported or ambiguous additions remain unassigned. This heuristic does not create an original call index or a measured Phred score.
 
-The viewer and AB1 exporter use these positions consistently. Unsupported terminal runs use local spacing rather than being stretched across the entire remaining signal. Undo, edits, reverse complement and native sessions preserve the distinction between original-call anchors and inferred sample positions. New sessions use format 5. Relink the original AB1 to recalculate an older mapping; opening a previously exported AB1 does not silently rewrite its stored peak positions.
+The viewer and AB1 exporter use these positions consistently. Unsupported terminal runs use local spacing. Undo, edits, reverse complement and native sessions preserve the distinction between original-call anchors and inferred sample positions. Relink the original AB1 to recalculate an older mapping.
+
+## Manually positioning calls
+
+In Edit mode, drag a letter in the **Current** line to position it between its
+neighboring calls. Sample spacing shows the adjusted position directly over the
+original trace. The alignment letters and gaps stay in place. Select a range
+in the alignment to highlight it in the chromatogram.
+
+Click a trace flank beyond the first or last current call and type a nucleotide
+to insert it at the indicated sample. The alignment caret shows the matching
+insertion boundary. The new call can be dragged afterwards. Its position is
+saved independently of the imported calls and original Q. Undo/Redo, format-6
+sessions, and edited AB1 exports retain the adjusted positions.
 
 ## Quality editing
 

@@ -35,6 +35,8 @@ double spacing(const TraceLink &link, std::size_t ordinal) {
 } // namespace
 std::optional<std::uint32_t> trace_sample_anchor(const TraceLink &link,
                                                  std::size_t ordinal) {
+  if (!link.adjustedPeaks.empty() && link.adjustedPeaks[ordinal] >= 0)
+    return std::uint32_t(link.adjustedPeaks[ordinal]);
   const auto call = link.originalCalls[ordinal];
   if (call >= 0)
     return link.original->peaks[std::size_t(call)];

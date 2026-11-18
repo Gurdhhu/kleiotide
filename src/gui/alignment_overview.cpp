@@ -137,7 +137,6 @@ void AlignmentOverview::mouseReleaseEvent(QMouseEvent* event){
 void AlignmentOverview::finish_navigation(){
     if(!navigationDrag_)return;
     navigationDrag_=false;
-    if(navigation_finished)navigation_finished();
 }
 bool AlignmentOverview::event(QEvent* event){
     if(event->type()==QEvent::UngrabMouse||event->type()==QEvent::Hide)finish_navigation();

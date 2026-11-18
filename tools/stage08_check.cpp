@@ -41,7 +41,7 @@ void canvas_check(const QString& screenshot){
     auto* zoom=panel.findChild<QSpinBox*>("traceZoom");zoom->setValue(200);range=canvas->visible_samples();require(range.first<1630&&range.second>1630,"Zoom preserves center");
     zoom->setValue(25);require(!canvas->grab().isNull(),"Decimated envelope render");zoom->setValue(100);
     canvas->focus_column(20);SequenceId clicked=0;std::size_t column=0;panel.cell_requested=[&](SequenceId id,std::size_t c){clicked=id;column=c;};
-    const int px=430+80-canvas->horizontalScrollBar()->value();QMouseEvent click(QEvent::MouseButtonPress,QPointF(px,90),QPointF(px,90),Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+    const double px=canvas->column_x(20);QMouseEvent click(QEvent::MouseButtonPress,QPointF(px,90),QPointF(px,90),Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
     QApplication::sendEvent(canvas->viewport(),&click);require(clicked==1&&column==20,"Signal peak selects alignment column");
     d.replace(1,20,1,"T");panel.set_document(&d);panel.follow_selection({1},20);require(panel.findChild<QLabel*>("tracePosition")->text().contains("substituted"),"Edited evidence label");
     d.replace(1,21,0,"CC");panel.set_document(&d);panel.follow_selection({1},21);require(panel.findChild<QLabel*>("tracePosition")->text().contains("no original peak"),"Synthetic anchor label");

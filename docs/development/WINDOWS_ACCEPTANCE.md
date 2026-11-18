@@ -2,13 +2,14 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
-## 0.29.7 initial build
+## 0.29.7 RC 2 testing
 
-The Windows x64 Qt 6.5.3/MSVC2022 Release build compiled. The initial release
-check passed 48 of 49 tests. The last test failed while checking a fixed pixel
-in the manual highlight fill. The updated source checks the fill, glyph and
-border over regions scaled to the device pixel ratio. The updated Windows
-release check is pending.
+All 49 automatic tests passed on the Windows x64 testing laptop. The tester
+confirmed the merge warning was resolved and highlighting rendered as intended.
+The tester requested a return to simultaneous overview and chromatogram scrolling,
+and reported jumps during panel resizing. Layout and highlight persistence
+checks were partially accepted. Windows fresh-install/upgrade and Debian desktop
+checks are pending.
 
 ## 0.29.6 RC 1 testing
 
@@ -69,4 +70,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The native 0.29.7 build and focused checks are pending.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. Native 0.29.8 build and focused checks are pending.

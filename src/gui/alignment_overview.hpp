@@ -3,7 +3,6 @@
 #include <QWidget>
 #include <QPixmap>
 #include <QTimer>
-#include <functional>
 #include <memory>
 namespace kleiotide {
 class AlignmentView;
@@ -14,8 +13,6 @@ public:
     void refresh();
     void set_limits(std::size_t workspace,int delayMs);
     bool ready() const;
-    bool navigation_drag_active() const { return navigationDrag_; }
-    std::function<void()> navigation_finished;
     QSize sizeHint() const override { return {500,112}; }
     const std::vector<OverviewBin>& displayed_bins() const {return bins_;}
 protected:

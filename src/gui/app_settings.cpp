@@ -16,6 +16,10 @@ AppPreferences AppPreferences::defaults() {
   p.font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
   p.font.setPointSize(11);
   p.mafftLauncher = QStandardPaths::findExecutable("mafft");
+#ifdef Q_OS_MACOS
+  if (p.mafftLauncher.isEmpty())
+    p.mafftLauncher = QStandardPaths::findExecutable("mafft", {"/opt/homebrew/bin", "/usr/local/bin"});
+#endif
   return p;
 }
 TranslationSettings AppPreferences::translation() const {
@@ -28,7 +32,7 @@ TranslationSettings AppPreferences::translation() const {
 QString AppPreferences::error() const {
   if (font.family().isEmpty() || font.pointSize() < 6 || font.pointSize() > 48)
     return "Choose an alignment font size from 6 to 48 points.";
-  if (int(palette) < 0 || int(palette) >= residue_palette_count ||
+  if (int(palette) < 0 || int(palette) > residue_palette_count ||
       int(display) < 0 || int(display) > 2)
     return "Unknown alignment color choice.";
   if (rightClick < 0 || rightClick > 4 || fastaImport < 0 || fastaImport > 2)
@@ -38,6 +42,8 @@ QString AppPreferences::error() const {
     return "Memory limits are outside the supported ranges.";
   if (scanDelayMs < 50 || scanDelayMs > 5000)
     return "Background scan delay must be 50–5000 milliseconds.";
+  if(wheelRows<1||wheelRows>100||wheelColumns<1||wheelColumns>100)
+    return "Choose 1–100 rows and columns per wheel step.";
   if (mafftThreads < 0 || mafftThreads > 256 || mafftLauncher.contains('\n') ||
       mafftLauncher.contains('\r') || mafftLauncher.contains('"'))
     return "Invalid MAFFT path or thread count.";
@@ -100,6 +106,7 @@ QJsonObject encode(const AppPreferences &p) {
   QJsonObject j{{"version", 1},
                 {"font", p.font.toString()},
                 {"palette", palette_id(p.palette)},
+                {"customResidueColors", encode_residue_colors(p.customResidueColors)},
                 {"display", display_id(p.display)},
                 {"dots", p.identityDots},
                 {"view", p.viewOnly},
@@ -107,6 +114,8 @@ QJsonObject encode(const AppPreferences &p) {
                 {"overview", p.overviewVisible},
                 {"trace", p.traceVisible},
                 {"rightClick", p.rightClick},
+                {"wheelRows", p.wheelRows},
+                {"wheelColumns", p.wheelColumns},
                 {"import", p.fastaImport},
                 {"code", int(p.code)},
                 {"bulkMiB", p.bulkMiB},
@@ -165,6 +174,7 @@ AppPreferences decode(const QJsonObject &j) {
     p.font = f;
   }
   p.palette = palette_from_id(j["palette"].toString());
+  p.customResidueColors=decode_residue_colors(j["customResidueColors"].toObject());
   p.display = display_from_id(j["display"].toString());
   p.identityDots = j["dots"].toBool();
   p.viewOnly = j["view"].toBool();
@@ -172,13 +182,19 @@ AppPreferences decode(const QJsonObject &j) {
   p.overviewVisible = j["overview"].toBool(true);
   p.traceVisible = j["trace"].toBool(true);
   p.rightClick = j["rightClick"].toInt();
+  p.wheelRows=std::clamp(j["wheelRows"].toInt(3),1,100);
+  p.wheelColumns=std::clamp(j["wheelColumns"].toInt(6),1,100);
   p.fastaImport = j["import"].toInt();
   p.code = unsigned(j["code"].toInt(1));
   p.bulkMiB = j["bulkMiB"].toInt(2048);
   p.undoMiB = j["undoMiB"].toInt(64);
   p.overviewMiB = j["overviewMiB"].toInt(16);
   p.scanDelayMs = j["scanDelay"].toInt(150);
-  p.mafftLauncher = j["mafft"].toString(p.mafftLauncher);
+  const auto savedLauncher=j["mafft"].toString(p.mafftLauncher);
+#ifdef Q_OS_MACOS
+  if(!savedLauncher.isEmpty())
+#endif
+    p.mafftLauncher=savedLauncher;
   p.mafftThreads = j["threads"].toInt();
   p.blastxLauncher = j["blastx"].toString();
   p.tblastnLauncher = j["tblastn"].toString();
@@ -245,8 +261,11 @@ void AppSettings::reload() {
             .object());
   else {
     values_ = AppPreferences::defaults();
-    values_.mafftLauncher =
-        settings.value("mafft/launcher", values_.mafftLauncher).toString();
+    const auto savedLauncher=settings.value("mafft/launcher", values_.mafftLauncher).toString();
+#ifdef Q_OS_MACOS
+    if(!savedLauncher.isEmpty())
+#endif
+      values_.mafftLauncher=savedLauncher;
     values_.mafftThreads =
         std::max(0, settings.value("mafft/threads", -1).toInt());
     if (!values_.error().isEmpty())

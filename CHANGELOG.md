@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.8 — testing
+
+- Drag current chromatogram calls between adjacent calls and insert at a chosen signal sample in either flank. Native sessions and edited AB1 exports retain these positions.
+- Keep leading trace samples accessible when the chromatogram labels need a wider gutter.
+- Restore live chromatogram scrolling with the alignment overview. Stabilize the two bottom-panel resize grips and prevent vertical autoscroll during selections within visible rows.
+- Use one set of base marks for gap, residue and low-quality highlighting. Rerunning the low-quality command adds all calls that currently qualify.
+- Add custom nucleotide and IUPAC palettes, opposite colors for selected cells in Colored residue backgrounds, and separate wheel steps for rows and columns.
+- Add the Motif search toolbar toggle and update the Flush alignment label and colored-background tooltip.
+- Fix two type-deduction errors on macOS and look for Homebrew MAFFT when Finder's search path omits it.
+
 ## 0.29.7 — testing
 
 - Give manually highlighted residues a pale fill and a border. Use shading alone for column highlights in every residue display mode.

@@ -28,7 +28,6 @@ private:
     void choose_scope();
     void choose_threshold(bool conservation);
     void choose_quality();
-    void publish_quality();
     AlignmentView* view_;
     QWidget* owner_;
     const Document* source_=nullptr;
@@ -36,8 +35,8 @@ private:
     std::uint64_t revision_=std::numeric_limits<std::uint64_t>::max();
     AnalysisScope scope_;
     HighlightRules rules_;
-    unsigned qualityThreshold_=0;
-    std::optional<std::unordered_set<SequenceId>> qualityRows_;
+    unsigned qualityThreshold_=20;
+    bool selectedQualityScope_=false;
     QColor color_{198,173,242};
     QTimer work_,debounce_;
     std::vector<QAction*> categories_;

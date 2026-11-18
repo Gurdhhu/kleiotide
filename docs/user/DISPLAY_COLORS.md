@@ -4,6 +4,10 @@ Choose View → Residue palette or the toolbar swatch dropdown. Kleio preserves
 the previously accepted colors. Alternative palettes keep letters as redundant
 base identifiers; colors alone are not required to distinguish residues.
 
+Choose **Custom…** in View → Residue palette to set the current alignment's
+colors, or open **Settings → Residue palette** to set defaults for new
+alignments. A, C, G, T, U and each IUPAC ambiguity symbol can be set separately.
+
 | Palette | A | C | G | T / U |
 | --- | --- | --- | --- | --- |
 | Kleio | #B47D00 | #0000FF | #000000 | #FF0000 |
@@ -34,8 +38,10 @@ Kleio colored letters retain the existing ambiguity purple and light gap
 colors. Other palettes give ambiguities, N and ? neutral gray styling;
 gaps use neutral gray backgrounds in background mode. Monochrome uses near-black
 letters and darker gray gaps. Masks remain dark gray with no residue cell fill.
-Selections override cell backgrounds with the established blue/yellow editing
-cues and dark symbols. Identity dots keep each actual residue's cell color.
+In Colored residue backgrounds, selection uses opposite colors for both the
+cell and its symbol. For example, black becomes white, green becomes red,
+and blue becomes yellow. Colored letters and Monochrome use blue/yellow
+selection cues. Identity dots keep each actual residue's colors.
 
 Display choices alter rendering only. The selected palette also colors the four
 trace channels and their legend. Monochrome and colored backgrounds apply to the

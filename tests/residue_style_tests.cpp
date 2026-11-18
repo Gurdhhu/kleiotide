@@ -11,4 +11,15 @@ run("Kleio label preserves old sessions and Chromas uses exact requested colors"
 run("Alternative palette inks have at least 4.5 to one contrast on white",[]{for(int i=1;i<4;++i)for(char c:std::string("ACGTUacgtuRYSWKMBDHVN?-~"))require(color_contrast(residue_ink(c,static_cast<ResiduePalette>(i)),Qt::white)>=4.5,"Alternative ink contrast");require(std::abs(relative_luminance(Qt::white)-1.)<1e-8&&relative_luminance(Qt::black)==0.&&std::abs(color_contrast(Qt::black,Qt::white)-21.)<1e-8,"Luminance endpoints and contrast reference");});
 run("All colored-cell symbols choose maximum-contrast black or white",[]{for(int i=0;i<residue_palette_count;++i)for(char c:std::string("ACGTUacgtuRYSWKMBDHVN?-~")){const auto paint=residue_paint(c,static_cast<ResiduePalette>(i),ResidueDisplay::Backgrounds);require(paint.foreground==Qt::black||paint.foreground==Qt::white,"Only black/white symbols");const auto contrast=color_contrast(paint.foreground,paint.background);require(contrast>=4.5&&contrast+1e-9>=color_contrast(paint.foreground==Qt::black?QColor(Qt::white):QColor(Qt::black),paint.background),"Best foreground contrast");}});
 run("Monochrome/masks stay neutral and metadata IDs have safe defaults",[]{for(int i=0;i<residue_palette_count;++i)for(int j=0;j<3;++j){const auto p=static_cast<ResiduePalette>(i);const auto s=static_cast<ResidueDisplay>(j);require(palette_from_id(palette_id(p))==p&&display_from_id(display_id(s))==s,"Metadata roundtrip");const auto mask=residue_paint('A',p,s,true);require(mask.foreground==QColor(65,70,75)&&mask.background.alpha()==0,"Masks never get nucleotide styling");const auto mono=residue_paint('C',p,ResidueDisplay::Monochrome);require(mono.foreground==QColor(32,32,32)&&mono.background.alpha()==0,"Monochrome independent of palette");}require(palette_from_id("unknown")==ResiduePalette::Classic&&display_from_id("unknown")==ResidueDisplay::Letters,"Unknown/absent IDs use legacy defaults");});
+run("Custom colors apply to ambiguous symbols and selected backgrounds use opposite colors",[]{
+    auto colors=default_residue_colors();
+    colors[4]=Qt::yellow;colors[5]=Qt::green;
+    const auto p=ResiduePalette::Custom;
+    require(palette_from_id("custom")==p&&residue_ink('u',p,&colors)==Qt::yellow,"Custom RNA color is independent of T");
+    const auto paint=residue_paint('r',p,ResidueDisplay::Backgrounds,false,&colors);
+    require(paint.background==Qt::green&&opposite_color(paint.background)==Qt::red&&
+            opposite_color(paint.foreground)==Qt::white,"Custom IUPAC color and opposing selection ink");
+    require(opposite_color(Qt::white)==Qt::black&&opposite_color(Qt::black)==Qt::white&&
+            opposite_color(Qt::blue)==Qt::yellow,"Requested selection color pairs");
+});
 std::cout<<passed<<" passed; "<<failed<<" failed\n";return failed?1:0;}

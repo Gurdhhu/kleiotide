@@ -22,4 +22,4 @@ On Windows, configure and build from Qt Creator with the intended Qt/MSVC kit or
 
 Install with CMake into a clean staging folder. User documentation is installed under docs; core license/branding/README files remain at the installation root. Windows setup creation is described in [WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
 
-For desktop integration and a test package on Debian 13, see [Debian packaging](DEBIAN_PACKAGE.md). The root [README](../../README.md#build-on-macos-experimental-and-untested) has experimental macOS build instructions.
+For desktop integration and a test package on Debian 13, see [Debian packaging](DEBIAN_PACKAGE.md). The root [README](../../README.md#build-on-macos-experimental) has experimental macOS build instructions.

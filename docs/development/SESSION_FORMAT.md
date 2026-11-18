@@ -1,6 +1,6 @@
 # Native session format (.kleio)
 
-The current writer emits **format 5**. The reader accepts **formats 1–5**. Kleiotide 0.29.2 introduced format 5; versions through 0.29.1 cannot open these new saves. Loading older formats preserves their recorded mappings and migrates missing metadata; it does not automatically relink traces. Undo/Redo history is not serialized: reopening creates a new editing baseline.
+The writer emits **format 6** starting in Kleiotide 0.29.8. The reader accepts **formats 1–6**. Format 6 stores manual trace positions and requires Kleiotide 0.29.8 or later. Loading older formats preserves their recorded mappings and migrates missing metadata; it does not automatically relink traces. Undo/Redo history is not serialized: reopening creates a new editing baseline.
 
 Sessions embed names, typed rows, aligned symbols, stable IDs/order, groups, translation metadata, analyzed chromatogram channels, original calls/positions/quality and current sequence-to-trace mappings. Original AB1 paths are provenance labels: the files are not required on reopening. Raw instrument channels and unrelated vendor tags are not embedded. Source AB1 files are never modified.
 
@@ -8,12 +8,12 @@ Sessions embed names, typed rows, aligned symbols, stable IDs/order, groups, tra
 
 Integers use little-endian byte order; signed i32 values use two's complement. `T` is a u64 byte length followed by exactly that many bytes, without a terminator. Names, paths and text metadata are UTF-8; sequence/call symbols are ASCII. There is no implicit padding or compression. This encoding is independent of Qt serialization and host byte order.
 
-## Format-5 file layout
+## Format-6 file layout
 
 | Order | Field | Encoding |
 | --- | --- | --- |
 | 1 | Signature | Eight bytes: `KLEIO` + CR + LF + `0x1A` |
-| 2 | Format version | u32 = 5 |
+| 2 | Format version | u32 = 6 |
 | 3 | Next sequence ID | u64 |
 | 4 | View state | T: optional JSON object, view schema version 1 |
 | 5 | Last alignment report | T |
@@ -45,6 +45,8 @@ If the trace reference is nonzero, continue with:
 2. Original-call anchor count u64 and that many signed i32 call indices. Count equals current non-gap residue count. -1 denotes a current residue without an original call; other values are zero-based imported call indices. Surviving indices increase strictly on the forward strand and decrease strictly on the reverse strand.
 3. Inferred-peak count u64 and that many signed i32 raw sample positions. Count is zero or equals current non-gap residue count. -1 means no inferred sample anchor. Nonnegative values are positions in the immutable original trace's sample coordinates, also on reversed rows. Anchors must satisfy range and oriented-order validation. Original-call anchors remain authoritative.
 
+4. Adjusted-peak count u64 and that many signed i32 original sample positions (format 6). Count is zero or equals the current non-gap residue count. -1 uses the default. A manual adjustment takes precedence over imported or inferred positions for that current call, while the original call index, original peak and measured Q remain stored independently. Effective anchors must retain strand order.
+
 Every row then has a protein-presence u8 and, if present, the protein metadata record below. Trace links are nucleotide-only; protein metadata requires a protein row without a trace.
 
 An inferred peak does not change an original-call index of -1 or create measured quality. This distinction is retained through edits, reverse complement, Undo/Redo and serialization. Unsupported original/inferred anchors remain absent. Ordinary import preserves older exported AB1 PLOC values; explicit relinking performs a new mapping.
@@ -75,7 +77,7 @@ View schema version 1 stores font, name-area width, scroll positions, name/resid
 
 Editing mode values are 0 View, 1 Insert, 2 Overwrite (previously named Rewrite); a legacy 3 Slide maps to Overwrite. `editMode` remembers the editing submode while viewing. Highlight scopes use stable row-ID snapshots and fixed selected-column coordinates. Genetic codes, coding annotations and protein provenance belong to binary semantic metadata, not only display JSON.
 
-The `highlight` object stores column rules and their scope, the display color, the low-quality threshold and any selected trace rows. Kleiotide 0.29.7 adds an optional `baseMarks` array. Each entry is `[rowId, ranges]` and each range is `[start, end, marked]`. The start and end are zero-based alignment columns with an exclusive end. Ranges are sorted and nonoverlapping. A true mark applies a manual highlight, and false suppresses the current low-quality rule for that range. Older sessions without the array open with no manual marks or exclusions. Column highlights are recomputed from their saved rules and scope.
+The `highlight` object stores column rules and scope, the display color, and the optional `baseMarks` array. Each entry is `[rowId, ranges]` and each range is `[start, end, true]`. Start and end are zero-based alignment columns with an exclusive end. Ranges are sorted and nonoverlapping. Low-quality snapshots and manual marks share these ranges. On loading older view state, a saved low-quality rule is evaluated once and any saved `false` exclusions are removed. Column highlights are recomputed from their saved rules and scope. `customResidueColors` holds an optional symbol-to-RGB mapping for the current view.
 
 ## Migration by format
 
@@ -86,8 +88,9 @@ The `highlight` object stores column rules and their scope, the display color, t
 | 3 | Group catalog, next group ID and row memberships | Validates catalog and references |
 | 4 | Translation settings and protein provenance/layout | Validates and normalizes legacy translated layouts |
 | 5 | Separate inferred sample anchors on trace-linked rows | Preserves inferred positions without original-call/Q fabrication |
+| 6 | Separate manually positioned current calls | Preserves independent display/export positions and original evidence |
 
-Old formats have no inferred-peak field and load with an empty inference array. Unknown future format numbers reject before interpreting the remainder. Saving always writes current format 5; keep an earlier copy when compatibility with an old application is needed.
+Formats 1–4 load with an empty inference array. Formats 1–5 load with an empty manual-position array. Unsupported version numbers are rejected before applying the file. Saving writes format 6. Keep an earlier copy if you need to open it in an older release.
 
 ## Limits and validation
 

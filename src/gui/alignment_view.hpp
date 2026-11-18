@@ -31,13 +31,13 @@ public:
     void set_right_click(RightClick mode) { rightClick_ = mode_==Mode::View?RightClick::Menu:mode; }
     const std::optional<Fragment>& fragment() const { return fragment_; }
     void select_fragment(Fragment fragment);
-    void select_trace_fragment(SequenceId id,std::size_t start,std::size_t width){select_fragment({{id},start,width});}
     void extend_fragment(bool toEnd);
     void clear_residue_selection(){caretId_.reset();clear_fragment();viewport()->update();}
     void reveal_first_selected();
     bool has_base_selection() const;
     void highlight_selected_bases(bool highlight);
-    void set_quality_highlight(unsigned threshold, std::optional<std::unordered_set<SequenceId>> rows, const QColor& color);
+    void mark_low_quality(unsigned threshold,const std::optional<std::unordered_set<SequenceId>>& rows);
+    void set_base_highlight_color(const QColor& color){baseHighlightColor_=color;viewport()->update();}
     void clear_base_highlights();
     bool base_highlighted(const Sequence& row, std::size_t column) const;
     QJsonArray base_highlight_state() const;
@@ -53,7 +53,7 @@ public:
     bool paste_residue_rows(const std::vector<std::string>&);
     std::pair<std::size_t, std::size_t> visible_column_range() const;
     void navigate_to(std::size_t column);
-    void navigate_to_cell(SequenceId id,std::size_t column);
+    void navigate_to_cell(SequenceId id,std::size_t column,bool insertionBoundary=false);
     void set_search_match(std::optional<Fragment>);
     const std::optional<Fragment>& search_match()const{return searchMatch_;}
     void set_search_results(std::shared_ptr<const MotifIndex> index){
@@ -80,6 +80,9 @@ public:
 
     bool identity_dots() const noexcept { return identityDots_; }
     void set_residue_palette(ResiduePalette palette);
+    void set_custom_residue_colors(const CustomResidueColors& colors);
+    const CustomResidueColors& custom_residue_colors()const{return customColors_;}
+    void set_wheel_steps(int rows,int columns){wheelRows_=rows;wheelColumns_=columns;}
     ResiduePalette residue_palette() const noexcept {return residuePalette_;}
     void set_residue_display(ResidueDisplay display);
     ResidueDisplay residue_display() const noexcept {return residueDisplay_;}
@@ -134,7 +137,8 @@ private:
     bool on_name_border(int x) const { return std::abs(x-(nameWidth_-1))<=4; }
     void ensure_render_cache();
     void clear_render_cache();
-    const QPixmap& row_tile(const Sequence& row, std::size_t tile,bool selectedStyle=false);
+    enum class TileStyle { Normal, DarkText, Inverted };
+    const QPixmap& row_tile(const Sequence& row,std::size_t tile,TileStyle style);
     Document* document_ = nullptr;
     Mode mode_ = Mode::View;
     bool identityDots_ = false;
@@ -143,6 +147,8 @@ private:
     std::shared_ptr<const ProteinProfiles> proteinProfiles_;
 
     ResiduePalette residuePalette_=ResiduePalette::Classic;
+    CustomResidueColors customColors_=default_residue_colors();
+    int wheelRows_=3,wheelColumns_=6;
     ResidueDisplay residueDisplay_=ResidueDisplay::Letters;
     RightClick rightClick_ = RightClick::Menu;
     std::optional<Fragment> fragment_;
@@ -154,12 +160,10 @@ private:
     std::optional<std::unordered_set<SequenceId>> siteRows_;
     RowKind siteMolecule_=RowKind::Nucleotide;
     std::uint64_t siteRevision_=0;
-    struct BaseMark { std::size_t start, end; bool highlighted; };
-    enum class BaseHighlight { None, Quality, Manual };
-    BaseHighlight base_highlight(const Sequence& row, std::size_t column) const;
+    struct BaseMark { std::size_t start, end; };
+    static void merge_base_marks(std::vector<BaseMark>& marks);
+    void remove_base_mark(SequenceId id, std::size_t start, std::size_t end);
     std::map<SequenceId,std::vector<BaseMark>> baseMarks_;
-    unsigned qualityThreshold_=0;
-    std::optional<std::unordered_set<SequenceId>> qualityRows_;
     QColor baseHighlightColor_{198,173,242};
     std::optional<Cell> dragAnchor_, selectionOrigin_;
     std::vector<SequenceId> dragRows_;
@@ -182,6 +186,7 @@ private:
     std::unordered_set<SequenceId> liveIds_;
     std::optional<SequenceId> caretId_;
     std::size_t caretColumn_ = 0;
+    bool insertionBoundary_=false;
     std::size_t selectionAnchor_ = 0;
     std::optional<SequenceId> selectionAnchorId_;
     std::optional<QPoint> rowDragStart_;
@@ -196,6 +201,7 @@ private:
     QCache<QString, QPixmap> tiles_{32 * 1024 * 1024};
     QHash<quint64, QString> names_;
     std::array<QPixmap, 128> glyphs_;
+    std::array<QPixmap, 128> invertedGlyphs_,invertedDotGlyphs_;
     std::array<QPixmap, 128> maskGlyphs_;
     std::array<QPixmap, 128> plainGlyphs_,dotGlyphs_,searchGlyphs_;
     QPixmap oversizedTile_;

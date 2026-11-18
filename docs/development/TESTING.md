@@ -11,6 +11,15 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.29.8 focused acceptance
+
+1. With a linked chromatogram visible, drag across the overview and confirm the trace scrolls during the drag. Drag each panel grip slowly up and down. Each panel should follow the pointer, including after hiding and reopening the other panel.
+2. In Edit with Sample spacing, drag an original call towards a neighbor and check it stops before crossing. Verify the alignment text, imported position and Q. Click each flank, check the alignment insertion caret, type a base and verify its signal position. Reposition the inserted base. Repeat with a reversed trace, leading/trailing alignment gaps, and Alignment spacing. Select several bases from the alignment and check the trace displays the selection. Check Undo/Redo, native save/reopen, edited AB1 export in Chromas, and a previous format-5 session.
+3. Mark a gap-only selection. Apply a low-quality snapshot to selected traces, unhighlight a qualifying cell, and rerun the same settings. Check the cell is marked again. Save and reopen with both kinds of marks and a column rule. Verify older low-quality rules and exclusions migrate to the shared marks.
+4. Hold a click and make a horizontal selection in the top and bottom visible rows. The view should stay on the same rows. Drag outside the viewport to verify continued autoscroll. Change rows and columns per wheel step in Settings and test wheel, horizontal wheel and Ctrl+wheel.
+5. Make a custom palette in View and in Settings, including U and an ambiguous base. Check cancel, default settings, session round trip, the trace legend and the inverted selection colors. Verify the Motif search toggle appears beside the alignment overview toggle. Check the Flush alignment label and the Colored residue backgrounds tooltip.
+6. Build on Apple Silicon using the README instructions. Open an AB1, edit calls, save/reopen, export and run Homebrew MAFFT after launching from Finder. Repeat the [Windows installer checks](WINDOWS_INSTALLER.md#release-candidate-installation-and-upgrade) and [Debian desktop checks](DEBIAN_PACKAGE.md#install-and-test).
+
 ## 0.29.7 focused acceptance
 
 1. Build with MSVC and check the merge preview compiles without the C4456 warning for `label`.
@@ -46,7 +55,7 @@ On Windows the script tools/windows/validate.ps1 can configure/build/test with a
 
 ## General native and distribution checks
 
-- Open FASTA/AB1/native sessions, edit, Undo/Redo, copy across windows, save/reopen and inspect original trace evidence. New session format 5 requires 0.29.2 or later; old formats remain readable.
+- Open FASTA/AB1/native sessions, edit, Undo/Redo, copy across windows, save/reopen and inspect original trace evidence. New session format 6 requires 0.29.8 or later. Formats 1–5 remain readable.
 - Verify Explorer Open With, drag/drop and multiple interactive windows. Retest native DPI, name-divider cursor and compact dialogs.
 - Test real MAFFT success/cancellation and local BLAST tools. For NCBI use one authorized small public query; retain RID/diagnostics and resume it instead of submitting repeated copies.
 - Test protected/unwritable paths, final suffix/overwrite checks, failed/cancelled writes and source-file protection. Do not use the only copy of valuable data for crash/full-disk tests.

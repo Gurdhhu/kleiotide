@@ -13,6 +13,11 @@ and Overwrite/Insert, editing right-click choice and overview/trace visibility.
 The preview shows the chosen font/colors. Ruler sizing follows the alignment
 font using the existing readability rules. Use current appearance as defaults
 copies the current session's display choices into the dialog draft.
+Set separate row and column counts per mouse-wheel step. Horizontal wheel
+movement and Ctrl+wheel use the column count.
+
+Residue palette: edit the custom colors for nucleotides and IUPAC symbols.
+Select Custom in Appearance and editing to use the palette for new alignments.
 
 Translation: choose a built-in default genetic code, or use the current
 session's full custom code. Frames and coding-region coordinates remain
@@ -32,12 +37,14 @@ It does not merely query --version. Per-job Align dialog changes do not update
 global defaults. Existing mafft/launcher and mafft/threads values initialize the
 new preferences when no new-format preference value exists; old -1 becomes safe
 automatic. Unavailable launchers can be replaced in Settings or per job.
+On macOS, the launcher search also checks `/opt/homebrew/bin` and
+`/usr/local/bin` so Finder-launched sessions can find Homebrew MAFFT.
 
 ## Precedence and existing windows
 
 New clean sessions use the global appearance/code defaults. Opening a .kleio
 uses its saved document metadata and view state; missing legacy view fields use
-legacy defaults, not the user's new preferences. View controls still override
+legacy defaults and can use the configured custom palette. View controls still override
 the appearance in the current session. Applying global defaults does not change
 already open alignment letters, colors, modes, genetic codes or dirty state.
 
