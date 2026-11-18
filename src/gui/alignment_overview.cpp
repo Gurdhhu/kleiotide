@@ -114,12 +114,33 @@ void AlignmentOverview::navigate(const QPoint& point){
     const auto area=plot_rect();const double fraction=static_cast<double>(std::clamp(point.x()-area.left(),0,area.width()-1))/std::max(1,area.width()-1);
     view_->navigate_to(static_cast<std::size_t>(fraction*(document_->columns()-1)));update();
 }
-void AlignmentOverview::mousePressEvent(QMouseEvent*event){if(event->button()==Qt::LeftButton&&plot_rect().contains(event->position().toPoint())){navigate(event->position().toPoint());event->accept();}else QWidget::mousePressEvent(event);}
+void AlignmentOverview::mousePressEvent(QMouseEvent* event){
+    if(event->button()==Qt::LeftButton&&plot_rect().contains(event->position().toPoint())){
+        navigationDrag_=true;
+        QToolTip::hideText();
+        navigate(event->position().toPoint());
+        event->accept();
+    }else QWidget::mousePressEvent(event);
+}
 void AlignmentOverview::mouseMoveEvent(QMouseEvent*event){
-    if(event->buttons().testFlag(Qt::LeftButton)){navigate(event->position().toPoint());event->accept();return;}
+    if(navigationDrag_&&event->buttons().testFlag(Qt::LeftButton)){navigate(event->position().toPoint());event->accept();return;}
+    finish_navigation();
     show_tooltip(event->position().toPoint(),event->globalPosition().toPoint());
 }
+void AlignmentOverview::mouseReleaseEvent(QMouseEvent* event){
+    if(navigationDrag_&&event->button()==Qt::LeftButton){
+        navigate(event->position().toPoint());
+        finish_navigation();
+        event->accept();
+    }else QWidget::mouseReleaseEvent(event);
+}
+void AlignmentOverview::finish_navigation(){
+    if(!navigationDrag_)return;
+    navigationDrag_=false;
+    if(navigation_finished)navigation_finished();
+}
 bool AlignmentOverview::event(QEvent* event){
+    if(event->type()==QEvent::UngrabMouse||event->type()==QEvent::Hide)finish_navigation();
     if(event->type()==QEvent::ToolTip){auto* help=static_cast<QHelpEvent*>(event);show_tooltip(help->pos(),help->globalPos());event->accept();return true;}
     if(event->type()==QEvent::Leave)QToolTip::hideText();
     return QWidget::event(event);

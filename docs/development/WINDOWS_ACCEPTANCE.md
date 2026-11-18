@@ -2,6 +2,25 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
+## 0.29.7 initial build
+
+The Windows x64 Qt 6.5.3/MSVC2022 Release build compiled. The initial release
+check passed 48 of 49 tests. The last test failed while checking a fixed pixel
+in the manual highlight fill. The updated source checks the fill, glyph and
+border over regions scaled to the device pixel ratio. The updated Windows
+release check is pending.
+
+## 0.29.6 RC 1 testing
+
+All 49 automatic tests passed on the Windows x64 laptop. The tester confirmed
+that the two bottom panels resize, hide, and reopen independently and that
+Restore default layout places the overview below the chromatogram. Manual
+highlight borders left the letters clear, but were hard to see on colored
+cells. The report also identified striped column highlights, overview drag
+lag when the selection extended offscreen, a dead resize cursor above the
+trace grip and a shadowed-variable MSVC warning in the merge preview.
+Windows fresh-install/upgrade and Debian desktop checks are pending.
+
 ## 0.29.5 RC 1 testing
 
 The Windows x64 laptop passed all 49 automatic tests. The tester confirmed
@@ -50,4 +69,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The native 0.29.6 build and focused checks are pending.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The native 0.29.7 build and focused checks are pending.

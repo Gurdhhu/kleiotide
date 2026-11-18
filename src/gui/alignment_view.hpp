@@ -16,6 +16,7 @@
 #include <unordered_set>
 
 class QKeyEvent;
+class QJsonArray;
 class QMouseEvent;
 class QWheelEvent;
 class QTimer;
@@ -39,6 +40,8 @@ public:
     void set_quality_highlight(unsigned threshold, std::optional<std::unordered_set<SequenceId>> rows, const QColor& color);
     void clear_base_highlights();
     bool base_highlighted(const Sequence& row, std::size_t column) const;
+    QJsonArray base_highlight_state() const;
+    void restore_base_highlights(const QJsonArray& state);
     void slide_fragment(std::int64_t distance);
     void fill_fragment(char symbol);
     void unlock_fragment();
@@ -152,6 +155,8 @@ private:
     RowKind siteMolecule_=RowKind::Nucleotide;
     std::uint64_t siteRevision_=0;
     struct BaseMark { std::size_t start, end; bool highlighted; };
+    enum class BaseHighlight { None, Quality, Manual };
+    BaseHighlight base_highlight(const Sequence& row, std::size_t column) const;
     std::map<SequenceId,std::vector<BaseMark>> baseMarks_;
     unsigned qualityThreshold_=0;
     std::optional<std::unordered_set<SequenceId>> qualityRows_;

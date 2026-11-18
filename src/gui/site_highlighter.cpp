@@ -177,6 +177,8 @@ QJsonObject SiteHighlighter::state()const{
     s["conserved"]=rules_.conserved;s["variable"]=rules_.variable;s["informative"]=rules_.informative;s["singleton"]=rules_.singleton;s["coverage"]=rules_.coverage;s["conservation"]=rules_.conservation;s["informativeCoverage"]=rules_.informativeCoverage;
     s["coverageMin"]=rules_.coverageMin;s["coverageMax"]=rules_.coverageMax;s["conservationMin"]=rules_.conservationMin;s["conservationMax"]=rules_.conservationMax;
     s["qualityThreshold"]=static_cast<int>(qualityThreshold_);
+    const auto baseMarks=view_->base_highlight_state();
+    if(!baseMarks.isEmpty())s["baseMarks"]=baseMarks;
     if(qualityRows_&&source_){
         QJsonArray selected;
         for(const auto& row:source_->rows())if(qualityRows_->contains(row.id))selected.append(QString::number(row.id));
@@ -198,5 +200,6 @@ void SiteHighlighter::restore(const QJsonObject& s){
     const QColor color(s["color"].toString());if(color.isValid())color_=color;
     rules_.conserved=s["conserved"].toBool();rules_.variable=s["variable"].toBool();rules_.informative=s["informative"].toBool();rules_.singleton=s["singleton"].toBool();rules_.coverage=s["coverage"].toBool();rules_.conservation=s["conservation"].toBool();rules_.informativeCoverage=s["informativeCoverage"].toBool();
     auto percent=[&](const char* key,double fallback){const auto n=s[key].toDouble(fallback);return std::isfinite(n)?std::clamp(n,0.0,100.0):fallback;};rules_.coverageMin=percent("coverageMin",0);rules_.coverageMax=std::max(rules_.coverageMin,percent("coverageMax",100));rules_.conservationMin=percent("conservationMin",80);rules_.conservationMax=std::max(rules_.conservationMin,percent("conservationMax",100));sync_actions();invalidate();publish_quality();
+    view_->restore_base_highlights(s["baseMarks"].toArray());
 }
 }

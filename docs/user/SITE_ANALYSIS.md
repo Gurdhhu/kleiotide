@@ -10,7 +10,8 @@ snapshot. Column coordinates remain fixed if the alignment is subsequently edite
 Masks never vote. A selected analysis subset determines column classes and receives the shading.
 Rows outside that captured subset remain unshaded. In all-row scope, shading
 appears in all rows of the chosen molecule type. Masks and rows of the other
-molecule type remain unshaded. The ruler also identifies highlighted sites.
+molecule type remain unshaded. Column highlights use shading in the alignment
+and ruler in every residue display mode.
 
 ## Site classes versus percentage conservation
 
@@ -51,9 +52,11 @@ to turn the rule off. The rule and its scope can be saved in a native session.
 
 **Highlight selected bases** and **Unhighlight selected bases** are also
 available in the selected-residue context menu. Manual marks use alignment
-coordinates and last for the current window. Unhighlighting overrides the
-current low-quality rule at the selected bases until the rule changes. **Clear highlighting** removes the
-site rules, quality rule and manual marks.
+coordinates and appear as a pale fill with a border. Unhighlighting overrides
+the current low-quality rule at the selected bases until the rule changes.
+Save as a `.kleio` session to keep manual marks, low-quality rules and
+exclusions, and column highlighting. **Clear highlighting** removes all
+three types of highlighting.
 
 ## Alignment statistics
 

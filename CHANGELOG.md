@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.7 — testing
+
+- Give manually highlighted residues a pale fill and a border. Use shading alone for column highlights in every residue display mode.
+- Save manual base marks and low-quality exclusions in native sessions alongside the existing column and low-quality rules.
+- Keep the alignment moving during overview drags and recenter the chromatogram on release. Draw selection borders only at their actual column boundaries.
+- Remove the inactive dock separator above the chromatogram grip and move Restore default layout into its own View section above Alignment font.
+- Resolve the shadowed-variable build warning in the merge preview.
+
 ## 0.29.6 — testing
 
 - Keep the chromatogram and alignment overview at their own heights when either panel is resized, hidden or shown. Return the space from a hidden panel to the alignment.

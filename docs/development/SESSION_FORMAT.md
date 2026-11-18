@@ -75,6 +75,8 @@ View schema version 1 stores font, name-area width, scroll positions, name/resid
 
 Editing mode values are 0 View, 1 Insert, 2 Overwrite (previously named Rewrite); a legacy 3 Slide maps to Overwrite. `editMode` remembers the editing submode while viewing. Highlight scopes use stable row-ID snapshots and fixed selected-column coordinates. Genetic codes, coding annotations and protein provenance belong to binary semantic metadata, not only display JSON.
 
+The `highlight` object stores column rules and their scope, the display color, the low-quality threshold and any selected trace rows. Kleiotide 0.29.7 adds an optional `baseMarks` array. Each entry is `[rowId, ranges]` and each range is `[start, end, marked]`. The start and end are zero-based alignment columns with an exclusive end. Ranges are sorted and nonoverlapping. A true mark applies a manual highlight, and false suppresses the current low-quality rule for that range. Older sessions without the array open with no manual marks or exclusions. Column highlights are recomputed from their saved rules and scope.
+
 ## Migration by format
 
 | Format | Added mandatory data | Reader behavior |

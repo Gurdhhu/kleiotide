@@ -71,6 +71,7 @@
 #include <QPlainTextEdit>
 #include <QPainter>
 #include <QPainterPath>
+#include <QProxyStyle>
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -144,6 +145,16 @@ namespace {
 constexpr int overviewPanelHeight = 105;
 constexpr int tracePanelHeight = 253;
 
+class PanelDockStyle final : public QProxyStyle {
+public:
+    int pixelMetric(PixelMetric metric,const QStyleOption* option,
+                    const QWidget* widget) const override {
+        // The panel grips are the only resize targets in this window.
+        if(metric==PM_DockWidgetSeparatorExtent)return 0;
+        return QProxyStyle::pixelMetric(metric,option,widget);
+    }
+};
+
 class PanelResizeHandle final : public QWidget {
 public:
     PanelResizeHandle(QDockWidget* dock, QWidget* alignment)
@@ -189,6 +200,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     document_->load({},AppSettings::instance().values().translation());savedState_=document_->state_id();
     setWindowTitle("Kleiotide — alignment editor");
     resize(1180, 720);setAcceptDrops(true);
+    auto* dockStyle=new PanelDockStyle;
+    dockStyle->setParent(this);
+    setStyle(dockStyle);
     view_ = new AlignmentView(this);
     view_->set_document(document_.get());
     highlighter_=new SiteHighlighter(view_,this);highlighter_->set_document(document_.get());
@@ -214,7 +228,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     traces_->cell_requested=[this](SequenceId id,std::size_t column){if(!busy_)view_->navigate_to_cell(id,column);};
     traces_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(busy_)return;view_->select_trace_fragment(id,start,width);view_->navigate_to(start);};
     traces_->key_requested=[this](QKeyEvent* event){if(!busy_&&prepare_trace_edit())QApplication::sendEvent(view_,event);};
-    view_->viewport_changed=[this]{overview_->update();const auto [begin,end]=view_->visible_column_range();traces_->follow_viewport(begin,end);};
+    const auto followTraceViewport=[this]{
+        const auto [begin,end]=view_->visible_column_range();
+        traces_->follow_viewport(begin,end);
+    };
+    view_->viewport_changed=[this,followTraceViewport]{
+        overview_->update();
+        // Re-centering rebuilds the chromatogram's full-width signal layers.
+        // Keep overview dragging responsive and follow the final position once.
+        if(!overview_->navigation_drag_active())followTraceViewport();
+    };
+    overview_->navigation_finished=followTraceViewport;
     view_->changed = [this] { update_state(); };
     view_->selection_changed = [this] {
         if(displayedDocument_!=document_.get()||displayedState_!=document_->state_id()||displayedMode_!=static_cast<int>(view_->mode()))update_state();
@@ -270,7 +294,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         a->setObjectName(importIds[i]);a->setCheckable(true);a->setChecked(i==static_cast<int>(fastaImport_));importGroup->addAction(a);
         a->setToolTip("Applies to FASTA Open, Add and clipboard imports in this window. Alphabets overlap: ACGT can be either nucleotide or protein. Incompatible printable rows become masks. Saved sessions and AB1 files retain their declared types.");}
     file->addSeparator();
-    action(file, "&Save", QKeySequence::Save, [this] { save(); });
+    action(file, "&Save", QKeySequence::Save, [this] { save(); })->setObjectName("saveAlignment");
     action(file, "Save &as…", QKeySequence::SaveAs, [this] { save(true); });
     action(file,"Export FASTA…",{},[this]{save(true,{},true);});
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
@@ -454,7 +478,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* paletteMenu=view->addMenu("Residue palette");auto* paletteGroup=new QActionGroup(this);
     for(int i=0;i<residue_palette_count;++i){const auto palette=static_cast<ResiduePalette>(i);auto* option=paletteMenu->addAction(palette_label(palette));option->setObjectName("residuePalette."+palette_id(palette));option->setCheckable(true);paletteGroup->addAction(option);option->setChecked(i==0);option->setIcon(view_icon(5,palette));
         option->setToolTip("Change alignment residue colors and trace-channel colors. High contrast, Okabe–Ito and Paul Tol text is darkened where needed for contrast on white; Kleio and Chromas-style keep their exact base colors.");connect(option,&QAction::triggered,this,[this,palette]{set_residue_palette(palette);});}
-    auto* fontAction=action(view, "Alignment &font…", {}, [this] { choose_font(); });fontAction->setObjectName("alignmentFont");
     toolbar->setObjectName("editingToolbar");toolbar->setMovable(false);toolbar->setFloatable(false);
     auto makeSwitch=[&](const char* object,const QString& accessible){
         auto* frame=new QFrame(toolbar);frame->setObjectName(object);frame->setAccessibleName(accessible);
@@ -510,17 +533,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* toolbarMenu=view->addMenu("Toolbars");toolbarMenu->setObjectName("toolbarsMenu");
     toolbarMenu->addAction(motifDock_->toggleViewAction());toolbarMenu->addAction(overviewToggle);toolbarMenu->addAction(traceToggle);
     auto* editingVisibility=toolbar->toggleViewAction();editingVisibility->setText("Editing controls");editingVisibility->setObjectName("editingToolbarView");toolbarMenu->addAction(editingVisibility);
-    action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
-        auto* translationBar=findChild<QToolBar*>("translationToolbar");const bool translationVisible=translationBar&&!translationBar->isHidden();
-        if(translationBar){removeToolBarBreak(translationBar);removeToolBar(translationBar);}
-        removeToolBar(toolbar);removeToolBar(sizeToolbar);
-        addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
-        if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
-        overview_->setFixedHeight(overviewPanelHeight);
-        traces_->setFixedHeight(tracePanelHeight);
-        overviewDock->show();traceDock_->setVisible(traces_->has_traces());
-        motifDock_->hide();update_toolbar_layout();
-    })->setObjectName("restoreDefaultLayout");
     auto* help = menuBar()->addMenu("&Help");
     auto* about = help->addAction("About Kleiotide");
     about->setObjectName("aboutKleiotide");
@@ -537,7 +549,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
             .arg(QString::fromLatin1(version)));box.setTextInteractionFlags(Qt::TextBrowserInteraction);for(auto* label:box.findChildren<QLabel*>())label->setOpenExternalLinks(true);box.setStandardButtons(QMessageBox::Ok);box.exec();
     });
     translation_=new TranslationUI(this);
-    view->removeAction(fontAction);view->addSeparator();view->addAction(fontAction);
+    view->addSeparator();
+    action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
+        auto* translationBar=findChild<QToolBar*>("translationToolbar");const bool translationVisible=translationBar&&!translationBar->isHidden();
+        if(translationBar){removeToolBarBreak(translationBar);removeToolBar(translationBar);}
+        removeToolBar(toolbar);removeToolBar(sizeToolbar);
+        addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
+        if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
+        overview_->setFixedHeight(overviewPanelHeight);
+        traces_->setFixedHeight(tracePanelHeight);
+        overviewDock->show();traceDock_->setVisible(traces_->has_traces());
+        motifDock_->hide();update_toolbar_layout();
+    })->setObjectName("restoreDefaultLayout");
+    view->addSeparator();
+    action(view,"Alignment &font…",{},[this]{choose_font();})->setObjectName("alignmentFont");
     sequence->removeAction(sequenceSelection->menuAction());sequence->removeAction(sort->menuAction());
     sequence->addSeparator();sequence->addMenu(sequenceSelection);sequence->addMenu(sort);
     apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();

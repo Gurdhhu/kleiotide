@@ -11,6 +11,15 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.29.7 focused acceptance
+
+1. Build with MSVC and check the merge preview compiles without the C4456 warning for `label`.
+2. In View → Residue display → Colored residue backgrounds, manually highlight an isolated base and an adjacent block. Clear the residue selection and verify the pale fill, dark border and readable letters. Enable a column rule and verify even shading across rows and the ruler in each residue display mode. Repeat with protein rows, translation enabled, two palettes, small and large fonts and Windows scaling.
+3. With a chromatogram open, drag across the overview on the 3440×1440 display with the selected block inside, partly outside and fully outside the visible alignment. The alignment follows the drag and the chromatogram recenters on release. The selection remains intact. Repeat by clicking the overview and by scrolling the alignment directly.
+4. In View, check the separators around Restore default layout immediately above Alignment font. Hover just above the chromatogram grip and check that only the grip offers resizing. Drag both grips, hide/reopen both panels and restore the default layout.
+5. Enable a column rule and low-quality highlighting. Unhighlight one low-quality call and manually mark a different base. Save to `.kleio`, reopen, and verify all three layers and the exclusion. Clear highlighting, save, and reopen to verify the cleared state. Open an earlier session and check that its saved column and quality rules still load.
+6. Run the [Windows RC installation and upgrade checks](WINDOWS_INSTALLER.md#release-candidate-installation-and-upgrade), starting with a fresh default-folder install. Follow the [Debian desktop checks](DEBIAN_PACKAGE.md#install-and-test) on Debian 13.
+
 ## 0.29.6 focused acceptance
 
 1. Open an alignment with a linked trace. Drag each bottom panel's grip and check that the other panel keeps its height. Hide and reopen each panel in turn. The alignment should gain the freed space, and the reopened panel should return at its prior height. Restore the default layout and verify that the overview is below the chromatogram.
