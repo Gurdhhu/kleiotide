@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.29.9 — testing
+
+- Edit nucleotide and IUPAC colors directly in Settings → Residue palette.
+- Insert a nucleotide at a deleted imported call or at an open chromatogram sample, including between current calls. Native sessions and edited AB1 exports retain these positions.
+
 ## 0.29.8 — testing
 
 - Drag current chromatogram calls between adjacent calls and insert at a chosen signal sample in either flank. Native sessions and edited AB1 exports retain these positions.

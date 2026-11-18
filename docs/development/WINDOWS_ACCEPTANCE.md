@@ -70,4 +70,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. Native 0.29.8 build and focused checks are pending.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The 0.29.8 RC2 laptop report recorded 49/49 automatic passes and a Settings palette issue. The 0.29.9 native build and focused checks are pending.

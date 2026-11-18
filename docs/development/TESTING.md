@@ -11,6 +11,12 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.29.9 focused acceptance
+
+1. In File → Settings → Residue palette, click the U and R swatches and choose distinct colors. Check that Custom is selected under Appearance and editing and the preview reflects both changes. Test color-picker Cancel, Settings Cancel, Apply, Restore Defaults and reopened Settings. Check that new alignments use the saved defaults and that Apply to current session updates its alignment and trace legend.
+2. Delete an original base between two current calls. Click its crossed-out letter on the Imported line and type a nucleotide. Compare the inserted sample with the deleted call's original sample and check the position relative to surrounding bases. The new call has no original Q.
+3. Click blank space between Current calls, a peak without a call, and an open position between peaks. Type a base at each caret. Repeat with both flanks, a reverse-complemented trace, alignment gaps, Sample spacing and Alignment spacing. Verify Undo/Redo, native save/reopen and edited AB1 export.
+
 ## 0.29.8 focused acceptance
 
 1. With a linked chromatogram visible, drag across the overview and confirm the trace scrolls during the drag. Drag each panel grip slowly up and down. Each panel should follow the pointer, including after hiding and reopening the other panel.

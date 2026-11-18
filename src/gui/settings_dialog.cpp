@@ -130,10 +130,9 @@ void show_settings(
              "global defaults or the session's genetic code. Cancel does not "
              "undo this explicit application.");
   auto *palettePage=page("Residue palette");
-  QPushButton editColors("Edit custom palette…");
-  editColors.setObjectName("settingsEditCustomPalette");
-  palettePage->addRow(&editColors);
-  note(palettePage,"Set colors for A, C, G, T, U and IUPAC ambiguity codes. Select Custom in Appearance and editing to use these colors.");
+  note(palettePage,"Click a base or IUPAC symbol to change its color. Editing a color selects the Custom palette.");
+  auto* colorEditor=new ResidueColorEditor(&dialog);
+  palettePage->addRow(colorEditor);
   auto *memory = page("Memory and performance");
   auto *bulk = spin(memory, "settingsBulkMiB",
                     "Additional bulk-edit working limit", 1, 65536, " MiB");
@@ -353,10 +352,10 @@ void show_settings(
     p.setFont(chosenFont());
     const QFontMetrics fm(chosenFont());
     int x = 6;
-    for (char c : std::string("ACGTRY N~-")) {
+    for (char c : std::string("ACGTURY N~-")) {
       const auto paint =
           residue_paint(c, static_cast<ResiduePalette>(palette->currentIndex()),
-                        static_cast<ResidueDisplay>(display->currentIndex()),false,&seed.customResidueColors);
+                        static_cast<ResidueDisplay>(display->currentIndex()),false,&colorEditor->colors());
       const int width =
           std::max(12, fm.horizontalAdvance(QChar::fromLatin1(c)) + 4);
       p.fillRect(x, 4, width, 56, paint.background);
@@ -371,6 +370,7 @@ void show_settings(
     auto p = seed;
     p.font = chosenFont();
     p.palette = static_cast<ResiduePalette>(palette->currentIndex());
+    p.customResidueColors = colorEditor->colors();
     p.display = static_cast<ResidueDisplay>(display->currentIndex());
     p.identityDots = dots->isChecked();
     p.viewOnly = mode->currentIndex() == 1;
@@ -420,6 +420,7 @@ void show_settings(
   };
   auto fill = [&](const AppPreferences &p) {
     seed = p;
+    colorEditor->set_colors(p.customResidueColors);
     family.setCurrentFont(p.font);
     points->setValue(p.font.pointSize());
     bold->setChecked(p.font.bold());
@@ -472,13 +473,10 @@ void show_settings(
     render();
   };
   fill(seed);
-  QObject::connect(&editColors,&QPushButton::clicked,&dialog,[&]{
-    if(auto colors=choose_residue_colors(&dialog,seed.customResidueColors)){
-      seed.customResidueColors=*colors;
-      palette->setCurrentIndex(static_cast<int>(ResiduePalette::Custom));
-      render();
-    }
-  });
+  colorEditor->colors_changed=[&]{
+    palette->setCurrentIndex(static_cast<int>(ResiduePalette::Custom));
+    render();
+  };
   QObject::connect(&family, &QFontComboBox::currentFontChanged, &dialog,
                    [&] { render(); });
   for (auto *s : {points})

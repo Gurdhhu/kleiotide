@@ -249,7 +249,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
             view_->refresh();update_state();
         }catch(const std::exception& error){statusBar()->showMessage(QString::fromUtf8(error.what()),6000);}
     };
-    traces_->canvas()->flank_base_typed=[this](SequenceId id,std::size_t column,std::uint32_t sample,char base){
+    traces_->canvas()->insertion_base_typed=[this](SequenceId id,std::size_t column,std::uint32_t sample,char base){
         if(busy_||view_->mode()==AlignmentView::Mode::View)return;
         try{
             const auto link=inserted_trace_call(document_->sequence(id),column,sample);

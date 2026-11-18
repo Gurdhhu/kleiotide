@@ -74,11 +74,14 @@ neighboring calls. Sample spacing shows the adjusted position directly over the
 original trace. The alignment letters and gaps stay in place. Select a range
 in the alignment to highlight it in the chromatogram.
 
-Click a trace flank beyond the first or last current call and type a nucleotide
-to insert it at the indicated sample. The alignment caret shows the matching
-insertion boundary. The new call can be dragged afterwards. Its position is
-saved independently of the imported calls and original Q. Undo/Redo, format-6
-sessions, and edited AB1 exports retain the adjusted positions.
+Click a deleted letter in **Imported** to place an insertion caret at its
+original sample. For another location, click the signal plot or an open space
+in **Current**, including between calls and in either flank. Type a nucleotide
+to insert it at the indicated sample, before the next current base or after the
+last one. The alignment caret shows where the base will be inserted. You can
+drag the new call afterwards. Edited AB1 exports use its selected sample and
+Q0. The original calls and their measured Q remain available in the trace.
+Undo/Redo and format-6 sessions retain the edited positions.
 
 ## Quality editing
 

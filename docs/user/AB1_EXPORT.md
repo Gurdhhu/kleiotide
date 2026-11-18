@@ -34,7 +34,7 @@ reported as success even if a late cancellation arrives afterward.
 
 ## Peaks and signal
 
-Manually adjusted calls and calls inserted by clicking a trace flank export
+Manually adjusted calls and calls inserted at a chosen trace sample export
 at their chosen sample positions. Other surviving original calls keep their
 recorded sample positions. Terminal additions with inferred anchors use those
 positions, with Q0. Internal inserted runs interpolate between neighboring

@@ -40,6 +40,12 @@ automatic. Unavailable launchers can be replaced in Settings or per job.
 On macOS, the launcher search also checks `/opt/homebrew/bin` and
 `/usr/local/bin` so Finder-launched sessions can find Homebrew MAFFT.
 
+In **Residue palette**, click a nucleotide or IUPAC swatch to choose its color.
+Changing a swatch selects **Custom** under **Appearance and editing**, where
+you can preview the palette. Use **Apply** to save the defaults for new
+sessions or **Apply to current session** on the appearance tab to update the
+open alignment.
+
 ## Precedence and existing windows
 
 New clean sessions use the global appearance/code defaults. Opening a .kleio

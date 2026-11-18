@@ -4,7 +4,7 @@
 
 I started Kleiotide to build a practical tool for the daily work of myself and my colleagues: checking sequences against chromatograms, preparing and refining alignments, comparing specimens, and organizing molecular data for taxonomic and phylogenetic studies. Although shaped by these needs, I hope it will also prove useful to a broader community of biologists.
 
-Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.29.8, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
+Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.29.9, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
 
 The interface follows a straightforward principle: common tasks should be easy to start. Open an alignment directly, inspect a chromatogram, or align two sequences without first creating a project, defining a pipeline, or completing a multistep import procedure. Alignments open in independent main windows, avoiding differently sized document windows nested inside another window.
 
@@ -29,7 +29,7 @@ Native **`.kleio` sessions** preserve the alignment together with linked trace e
 
 ## Getting started
 
-Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.29.8**. Kleiotide 0.29.8 reads earlier sessions and saves in format 6, which adds manually positioned trace calls.
+Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.29.9**. Kleiotide 0.29.9 reads earlier sessions and saves in format 6, which adds manually positioned trace calls.
 
 - [User guides](docs/README.md#user-guides)
 - [Build from source](docs/development/BUILDING.md)

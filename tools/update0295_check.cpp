@@ -331,6 +331,49 @@ int main(int argc,char** argv) {
         undo();undo();
         require(document.state_id()==state,"Trace adjustments and insertions each support Undo");
 
+        view->navigate_to_cell(5,8);
+        traceScroll->setValue(0);
+        const int deletedX=qRound(canvas->column_x(8));
+        QKeyEvent deleteCall(QEvent::KeyPress,Qt::Key_Delete,Qt::NoModifier);
+        QApplication::sendEvent(view,&deleteCall);
+        require(!trace_column(document.sequence(5),8)&&canvas->position(8).sample==210.,
+                "Deleting a current call leaves a hole in the original evidence");
+        traceScroll->setValue(0);
+        const auto at=[&](int x,int y,std::size_t column,int sample){
+            traceClick({x,y});
+            require(!view->fragment()&&view->caret()&&view->caret()->second==column,
+                    "An open sample places the alignment caret before the next current base");
+            require(child<QLabel>(window,"tracePosition")->text().contains(QString("sample %1").arg(sample)),
+                    "The trace status reports the intended sample");
+            QKeyEvent key(QEvent::KeyPress,Qt::Key_C,Qt::NoModifier,"C");
+            QApplication::sendEvent(canvas,&key);
+            const auto inserted=canvas->position(column);
+            require(inserted.current=='C'&&inserted.sample==sample&&inserted.adjusted&&
+                    !inserted.originalCall&&!inserted.quality,"Typing anchors a new base at the selected sample");
+        };
+        at(deletedX+3,24,8,190);
+        require(document.sequence(5).trace->original->quality[8]==10,
+                "Typing at a deleted call preserves its imported quality separately");
+        undo();
+        traceScroll->setValue(0);
+        at(deletedX-9,8,8,181);
+        undo();
+        traceScroll->setValue(0);
+        at(deletedX+13,60,8,203);
+        undo();undo();
+        require(document.state_id()==state,"Undo restores the original call after editing interior samples");
+
+        view->navigate_to_cell(2,1);
+        auto* traceSpacing=child<QComboBox>(window,"traceSpacing");
+        traceSpacing->setCurrentIndex(1);
+        const auto between=qRound((canvas->column_x(1)+canvas->column_x(2))/2.);
+        at(between,60,2,10);
+        require(document.sequence(2).trace->reversed,
+                "Alignment-spaced insertion keeps the original sample on a reverse trace");
+        undo();
+        traceSpacing->setCurrentIndex(0);
+        require(document.state_id()==state,"Undo restores the reverse trace and its alignment");
+
         view->select_ids({1});
         const auto quality=[&](int scope){
             modal([&]{trigger("highlightLowQuality");},[&](QDialog& dialog){

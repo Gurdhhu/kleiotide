@@ -82,6 +82,24 @@ run("Adjusted calls and exact flank insertions preserve evidence, history and ex
     const auto reverse=adjusted_trace(d.sequence(1),2,0);
     require(reverse->adjustedPeaks[2]==11,"Reverse drag clamps before the oriented neighbor");
     require(prepare_abif_export(d.sequence(1)).peaks==std::vector<std::uint16_t>({6,19,20,39,46}),"Reverse AB1 puts exact positions in exported orientation");
+    Document interiorEdit;
+    interiorEdit.load({{"trace","~A~CG~",RowKind::Nucleotide,link}});
+    interiorEdit.replace(1,3,1,"");
+    interiorEdit.transform({1},Document::Transform::ReverseComplement);
+    require(interiorEdit.sequence(1).symbols.text()=="~C~T~","Interior deletion and reverse retain alignment gaps");
+    const auto deleted=inserted_trace_call(interiorEdit.sequence(1),3,20);
+    interiorEdit.replace_many({{1,3,0,"G",deleted}});
+    const auto interior=inserted_trace_call(interiorEdit.sequence(1),4,16);
+    interiorEdit.replace_many({{1,4,0,"A",interior}});
+    const auto savedReverse=parse(bytes(interiorEdit));
+    const auto& reverseRow=savedReverse.document.sequence(1);
+    require(reverseRow.symbols.text()=="~C~GAT~"&&trace_position(reverseRow,3).sample==20.&&
+            trace_position(reverseRow,4).sample==16.,"Reverse session retains both interior anchors");
+    const auto exported=prepare_abif_export(reverseRow);
+    require(exported.peaks==std::vector<std::uint16_t>({19,29,33,39})&&
+            exported.quality==std::vector<std::uint8_t>({23,0,0,21})&&
+            reverseRow.trace->original->quality==evidence->quality,
+            "Reverse AB1 retains interior positions without transferring the original deleted Q");
 });
 
 run("Independent format-3 group/protein fixture migrates to current format",[]{std::ifstream file(std::filesystem::path(__FILE__).parent_path()/"fixtures/session_v3.kleio",std::ios::binary);const auto old=read_session(file);require(old.formatVersion==3&&old.document.groups().size()==1&&old.document.sequence(1).kind==RowKind::Protein&&old.document.sequence(2).kind==RowKind::Mask&&old.document.sequence(1).groupId==1,"Format 3 semantic migration");const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_version&&upgraded.document.groups()==old.document.groups(),"Upgrade preserves group catalog");});

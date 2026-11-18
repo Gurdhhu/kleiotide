@@ -44,7 +44,7 @@ public:
     std::function<void(const QString&)> evidence_selected;
     std::function<void(SequenceId,std::size_t)> boundary_requested;
     std::function<void(SequenceId,std::size_t,std::uint32_t)> peak_moved;
-    std::function<void(SequenceId,std::size_t,std::uint32_t,char)> flank_base_typed;
+    std::function<void(SequenceId,std::size_t,std::uint32_t,char)> insertion_base_typed;
     std::function<void(QKeyEvent*)> key_requested;
 protected:
     bool viewportEvent(QEvent*) override;
@@ -70,6 +70,7 @@ private:
     void update_scrollbar();
     void scroll_to(double position);
     void select_call(std::size_t call);
+    void select_sample(double sample,std::optional<std::size_t> deletedCall={});
     void rebuild_positions();
     void invalidate_render_cache();
     void render_trace_layers();
@@ -84,7 +85,7 @@ private:
     int labelGutter_=0;
     std::size_t alignmentColumns_=0,selectionStart_=0,selectionWidth_=0;
     std::optional<std::size_t> draggedOrdinal_;
-    std::optional<std::uint32_t> draggedSample_,flankSample_;
+    std::optional<std::uint32_t> draggedSample_,insertionSample_;
     double dragStartX_=0.,dragOffsetX_=0.;
     std::optional<TraceCoordinates> coordinates_;
     std::vector<std::size_t> currentColumns_;

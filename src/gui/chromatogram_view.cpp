@@ -55,13 +55,13 @@ void TraceCanvas::set_alignment_spacing(bool enabled){if(aligned_==enabled)retur
 void TraceCanvas::set_alignment_columns(std::size_t columns){if(alignmentColumns_==columns)return;alignmentColumns_=columns;update_scrollbar();}
 void TraceCanvas::set_selection(std::size_t start,std::size_t width,bool blue){if(selectionStart_==start&&selectionWidth_==width&&blue_==blue)return;selectionStart_=start;selectionWidth_=width;blue_=blue;viewport()->update(QRect(0,0,viewport()->width(),18));}
 void TraceCanvas::set_sequence(const Sequence* row) {
-    if(!row||!row->trace){if(!active_)return;active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();originalColumns_.clear();draggedOrdinal_.reset();draggedSample_.reset();flankSample_.reset();pickedCall_.reset();interacting_=false;update_scrollbar();invalidate_render_cache();return;}
+    if(!row||!row->trace){if(!active_)return;active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();originalColumns_.clear();draggedOrdinal_.reset();draggedSample_.reset();insertionSample_.reset();pickedCall_.reset();interacting_=false;update_scrollbar();invalidate_render_cache();return;}
     if(active_&&row_.id==row->id&&row_.trace==row->trace&&row_.symbols.text()==row->symbols.text())return;
     const bool newSignal=!active_||row_.trace->original!=row->trace->original;
     const bool newRow=!active_||row_.id!=row->id;
     row_=*row;active_=true;coordinates_.emplace(row_);currentColumns_.clear();
     rebuild_positions();
-    pickedCall_.reset();flankSample_.reset();draggedOrdinal_.reset();draggedSample_.reset();
+    pickedCall_.reset();insertionSample_.reset();draggedOrdinal_.reset();draggedSample_.reset();
     column_=newRow?0:std::min(column_,row_.symbols.size());
     if(newSignal){maximum_=1.;for(const auto& channel:row_.trace->original->channels)for(auto value:channel)maximum_=std::max(maximum_,static_cast<double>(value));}
     update_scrollbar();if(newRow)center_column(column_);invalidate_render_cache();
@@ -111,8 +111,8 @@ void TraceCanvas::center_column(std::size_t column) {
     scroll_to(horizontalScrollBar()->value()+column_x(column)-viewport()->width()/2.);
 }
 void TraceCanvas::focus_column(std::size_t column,bool center) {
-    if(!interacting_&&(!hasFocus()||column_!=column))flankSample_.reset();
-    if(column_==column&&!pickedCall_){if(center&&!flankSample_)center_column(column);viewport()->update();return;}
+    if(!interacting_&&(!hasFocus()||column_!=column))insertionSample_.reset();
+    if(column_==column&&!pickedCall_){if(center&&!insertionSample_)center_column(column);viewport()->update();return;}
     column_=column;pickedCall_.reset();if(center)center_column(column);viewport()->update();
 }
 void TraceCanvas::set_zoom(int percent) {
@@ -218,9 +218,10 @@ void TraceCanvas::paintEvent(QPaintEvent*) {
         painter.drawText(QPointF(x-4,12),QString(QChar(row_.symbols.text()[currentColumns_[ordinal]])));
     }
     const auto focus=position(column_);
-    const double px=draggedSample_?sample_x(*draggedSample_):flankSample_?sample_x(*flankSample_):
+    const double px=draggedSample_?sample_x(*draggedSample_):insertionSample_?sample_x(*insertionSample_):
         pickedCall_?sample_x(row_.trace->original->peaks[*pickedCall_]):column_x(column_);
-    painter.setPen(QPen(QColor(20,140,180),1.5,focus.originalCall||pickedCall_?Qt::SolidLine:Qt::DashLine));
+    const bool solid=!insertionSample_&&(focus.originalCall||pickedCall_);
+    painter.setPen(QPen(QColor(20,140,180),1.5,solid?Qt::SolidLine:Qt::DashLine));
     painter.drawLine(QPointF(px,0),QPointF(px,viewport()->height()-20));
     // Sticky row labels sit above residues, quality and caret graphics.
     painter.fillRect(QRect(0,0,labelGutter_,50),Qt::white);painter.setPen(Qt::darkGray);
@@ -247,7 +248,7 @@ std::vector<TraceCanvas::Label> TraceCanvas::current_labels()const {
 }
 void TraceCanvas::select_call(std::size_t call) {
     if(!active_)return;
-    flankSample_.reset();
+    insertionSample_.reset();
     pickedCall_=call;viewport()->update();
     if(const auto column=trace_column(row_,call)){
         column_=*column;if(cell_requested)cell_requested(row_.id,*column);
@@ -269,23 +270,52 @@ std::optional<std::size_t> TraceCanvas::column_at(double px)const {
     }
     return best;
 }
+void TraceCanvas::select_sample(double sample,std::optional<std::size_t> deletedCall) {
+    const double last=static_cast<double>(row_.trace->original->channels[0].size()-1);
+    if(sample<0.||sample>last)return;
+    const double oriented=raw_from_oriented(sample);
+    // Alignment spacing can introduce small rounding errors when converting pixels back to samples.
+    constexpr double tolerance=1e-7;
+    const auto next=std::lower_bound(currentSamples_.begin(),currentSamples_.end(),oriented-tolerance,
+        [this](double current,double target){return raw_from_oriented(current)<target;});
+    const auto ordinal=static_cast<std::size_t>(next-currentSamples_.begin());
+    if(next!=currentSamples_.end()&&std::abs(*next-sample)<=tolerance){
+        insertionSample_.reset();
+        pickedCall_.reset();
+        column_=currentColumns_[ordinal];
+        if(cell_requested)cell_requested(row_.id,column_);
+        viewport()->update();
+        return;
+    }
+    const double lo=ordinal?std::floor(raw_from_oriented(currentSamples_[ordinal-1]))+1.:0.;
+    const double hi=next!=currentSamples_.end()?std::ceil(raw_from_oriented(*next))-1.:last;
+    if(lo>hi)return;
+    // Use the boundary before the next base, leaving any intervening alignment gaps in place.
+    const auto boundary=next!=currentSamples_.end()?currentColumns_[ordinal]:
+        currentColumns_.empty()?std::size_t{0}:currentColumns_.back()+1;
+    const auto selected=static_cast<std::uint32_t>(raw_from_oriented(std::clamp(std::round(oriented),lo,hi)));
+    pickedCall_.reset();
+    column_=boundary;
+    insertionSample_=selected;
+    if(boundary_requested)boundary_requested(row_.id,boundary);
+    if(evidence_selected){
+        const auto evidence=deletedCall?QString("Deleted imported call %1 · ").arg(static_cast<qulonglong>(*deletedCall+1)):QString{};
+        evidence_selected(evidence+QString("Insertion point · sample %1 · %2").arg(selected).arg(
+            editable_?"Type a nucleotide to insert here":"Switch to Edit to insert here"));
+    }
+    viewport()->update();
+}
 void TraceCanvas::mousePressEvent(QMouseEvent* event) {
     if(!active_||event->button()!=Qt::LeftButton){QAbstractScrollArea::mousePressEvent(event);return;}
     const auto x=event->position().x(),y=event->position().y();
     if(x<labelGutter_&&y<50){event->accept();return;}
     interacting_=true;setFocus();
-    const auto& link=*row_.trace;
-    const auto& peaks=link.original->peaks;
-    const double sample=sample_at(x);
-    const auto oriented=raw_from_oriented(sample);
-    const bool left=currentSamples_.empty()||oriented<raw_from_oriented(currentSamples_.front());
-    const bool right=currentSamples_.empty()||oriented>raw_from_oriented(currentSamples_.back());
-    if(y<18)if(const auto column=column_at(x)){
-        const bool gap=is_gap(row_.symbols.text()[*column]);
-        if(!gap||(!left&&!right)){
-            pickedCall_.reset();flankSample_.reset();
+    if(y<18){
+        const auto column=column_at(x);
+        if(column&&!is_gap(row_.symbols.text()[*column])){
+            pickedCall_.reset();insertionSample_.reset();
             column_=*column;
-            if(!gap&&editable_&&peak_moved){
+            if(editable_&&peak_moved){
                 draggedOrdinal_=static_cast<std::size_t>(std::lower_bound(currentColumns_.begin(),currentColumns_.end(),*column)-currentColumns_.begin());
                 dragStartX_=x;dragOffsetX_=column_x(*column)-x;
                 invalidate_render_cache();
@@ -294,25 +324,21 @@ void TraceCanvas::mousePressEvent(QMouseEvent* event) {
             event->accept();return;
         }
     }
-    if((y<18||y>=50)&&(left||right)&&sample>=0.&&sample<=static_cast<double>(link.original->channels[0].size()-1)){
-        const auto last=static_cast<std::uint32_t>(link.original->channels[0].size()-1);
-        const auto boundary=left?(currentColumns_.empty()?std::size_t{0}:currentColumns_.front()):currentColumns_.back()+1;
-        const double lo=left||currentSamples_.empty()?0.:std::floor(raw_from_oriented(currentSamples_.back()))+1;
-        const double hi=right||currentSamples_.empty()?last:std::ceil(raw_from_oriented(currentSamples_.front()))-1;
-        if(lo<=hi){
-            pickedCall_.reset();
-            column_=boundary;
-            flankSample_=static_cast<std::uint32_t>(raw_from_oriented(std::clamp(std::round(oriented),lo,hi)));
-            if(boundary_requested)boundary_requested(row_.id,boundary);
-            if(evidence_selected)evidence_selected(QString("Insertion point · sample %1 · %2").arg(*flankSample_).arg(
-                editable_?"Type a nucleotide to insert here":"Switch to Edit to insert here"));
-            viewport()->update();event->accept();return;
+    const double sample=sample_at(x);
+    if(y>=18&&y<50){
+        const auto& peaks=row_.trace->original->peaks;
+        const auto it=std::lower_bound(peaks.begin(),peaks.end(),sample);
+        auto call=it==peaks.end()?peaks.size()-1:static_cast<std::size_t>(it-peaks.begin());
+        auto distance=[&](std::size_t index){return std::abs(sample_x(peaks[index])-x);};
+        if(call&&distance(call-1)<distance(call))--call;
+        if(distance(call)<=6.){
+            if(originalColumns_[call])select_call(call);
+            else select_sample(peaks[call],call);
+            event->accept();return;
         }
     }
-    if(y<18){interacting_=false;event->accept();return;}
-    auto it=std::lower_bound(peaks.begin(),peaks.end(),sample);std::size_t call=it==peaks.end()?peaks.size()-1:static_cast<std::size_t>(it-peaks.begin());
-    if(call&&std::abs(static_cast<double>(peaks[call-1])-sample)<std::abs(static_cast<double>(peaks[call])-sample))--call;
-    select_call(call);interacting_=false;event->accept();
+    select_sample(sample);
+    event->accept();
 }
 void TraceCanvas::mouseMoveEvent(QMouseEvent* event){
     if(draggedOrdinal_&&event->buttons().testFlag(Qt::LeftButton)){
@@ -349,19 +375,19 @@ bool TraceCanvas::viewportEvent(QEvent* event){
     return QAbstractScrollArea::viewportEvent(event);
 }
 void TraceCanvas::keyPressEvent(QKeyEvent* event){
-    if(flankSample_){
+    if(insertionSample_){
         const auto text=event->text().toLatin1();
         const bool command=(event->modifiers()&(Qt::ControlModifier|Qt::AltModifier|Qt::MetaModifier))!=Qt::NoModifier;
         if(!command&&text.size()==1&&is_nucleotide_symbol(text.front())&&!is_gap(text.front())){
-            if(editable_&&flank_base_typed){
+            if(editable_&&insertion_base_typed){
                 interacting_=true;
-                flank_base_typed(row_.id,column_,*flankSample_,text.front());
+                insertion_base_typed(row_.id,column_,*insertionSample_,text.front());
                 interacting_=false;
             }
             event->accept();return;
         }
         if(event->key()==Qt::Key_Delete||event->key()==Qt::Key_Backspace){event->accept();return;}
-        flankSample_.reset();viewport()->update();
+        insertionSample_.reset();viewport()->update();
     }
     if(active_&&key_requested&&(!pickedCall_||trace_column(row_,*pickedCall_))){key_requested(event);return;}
     QAbstractScrollArea::keyPressEvent(event);
@@ -392,7 +418,7 @@ ChromatogramPanel::ChromatogramPanel(QWidget* parent):QWidget(parent) {
     connect(choices_,qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{update_row();if(const auto* row=current_row()){update_position(0);if(cell_requested)cell_requested(row->id,0);}});
     canvas_->cell_requested=[this](SequenceId id,std::size_t column){update_position(column);if(cell_requested)cell_requested(id,column);};
     canvas_->key_requested=[this](QKeyEvent* event){if(key_requested)key_requested(event);};
-    canvas_->setToolTip("In Edit, drag a Current call to adjust its position. Click beyond the current calls and type a nucleotide to insert it at that sample.");
+    canvas_->setToolTip("In Edit, drag a Current call to move it. Click a deleted imported call or an open signal position and type a nucleotide to insert it there.");
     canvas_->evidence_selected=[this](const QString& text){position_->setText(text);};
     set_residue_palette(ResiduePalette::Classic);
 }

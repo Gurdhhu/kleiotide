@@ -110,7 +110,7 @@ std::shared_ptr<const TraceLink> inserted_trace_call(const Sequence& row,std::si
     const auto before=[&](double a,double b){return row.trace->reversed?a>b:a<b;};
     if((ordinal&& !before(positions[ordinal-1],sample))||
        (ordinal<positions.size()&&!before(sample,positions[ordinal])))
-        throw std::invalid_argument("Choose a free signal position beyond the terminal call.");
+        throw std::invalid_argument("Choose a free signal position between the neighboring calls.");
     auto result=std::make_shared<TraceLink>(*edited_trace(row,column,0,"N"));
     if(result->adjustedPeaks.empty())result->adjustedPeaks.resize(result->originalCalls.size(),-1);
     result->adjustedPeaks[ordinal]=static_cast<std::int32_t>(sample);
