@@ -31,6 +31,7 @@ Native **`.kleio` sessions** preserve the alignment together with linked trace e
 
 Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.30.1**. Kleiotide 0.30.1 reads earlier sessions and saves in format 6, which adds manually positioned trace calls.
 
+- [Latest release](https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.1-rc1)
 - [User guides](docs/README.md#user-guides)
 - [Build from source](docs/development/BUILDING.md)
 - [Windows installer preparation](docs/development/WINDOWS_INSTALLER.md)
