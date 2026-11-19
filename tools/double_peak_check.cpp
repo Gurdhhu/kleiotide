@@ -88,7 +88,7 @@ void save_report(QDialog& dialog, const QTemporaryDir& files, const QString& ext
         require(sheets == QStringList{"Calculation methods", "Double peaks"} && rules.size() > 1 &&
             rules[1] == QStringList{"Kleiotide version", QString::fromLatin1(version)} &&
             results.size() == 5 && results[1].size() > 8 && results[1][0] == "No" && results[1][2] == "1" &&
-            results[1][4] == "R" && results[1][6].toDouble() == 50.0 &&
+            results[1][4] == "R" && results[1][6].toDouble() == 60.0 &&
             results[1][8] == "4",
             "XLSX contains rules, version, checkbox choices and measured values");
     } else {
@@ -168,8 +168,21 @@ int main(int argc, char** argv) {
                 auto* model = table->model();
                 if (stage == 0 && model->rowCount() == 2) {
                     require(child<QComboBox>(*dialog, "doublePeakScope")->currentIndex() == 0 &&
-                        child<QSpinBox>(*dialog, "doublePeakSecondary")->value() == 50,
+                        child<QSpinBox>(*dialog, "doublePeakSecondary")->value() == 60,
                         "Selected scope and default threshold");
+                    for (int column = 0; column < model->columnCount(); ++column)
+                        require(!model->headerData(column, Qt::Horizontal, Qt::ToolTipRole).toString().isEmpty(),
+                            "Every preview column has an explanatory tooltip");
+                    require(model->headerData(8, Qt::Horizontal, Qt::ToolTipRole).toString().contains("recorded signal points") &&
+                        model->index(0, 6).data(Qt::ToolTipRole).toString().contains("60 of 100 signal units above zero"),
+                        "Tooltips explain displacement and show the actual heights");
+                    require(!child<QComboBox>(*dialog, "doublePeakScope")->toolTip().isEmpty(),
+                        "Scope has an explanatory tooltip");
+                    for (const auto* setting : {"doublePeakSecondary", "doublePeakThird", "doublePeakDisplacement"})
+                        require(!child<QSpinBox>(*dialog, setting)->toolTip().isEmpty(),
+                            "Each threshold has an explanatory tooltip");
+                    require(model->index(1, 10).data().toString() == "Detected peak pair does not include the current symbol",
+                        "Review states the exact reason for the unchecked proposal");
                     require(model->index(0, 2).data().toString() == "1" &&
                         model->index(0, 4).data().toString() == "R" &&
                         model->index(0, 0).data(Qt::CheckStateRole).toInt() == Qt::Checked &&

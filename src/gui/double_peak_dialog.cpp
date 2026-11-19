@@ -34,9 +34,24 @@
 
 namespace kleiotide {
 namespace {
-const QStringList headers{"Apply", "Sequence", "Alignment column", "Current", "Proposed",
-    "Peak pair", "Secondary / major (%)", "Third / major (%)", "Displacement (samples)",
-    "Displacement (% of spacing)", "Review"};
+struct PreviewColumn {
+    const char* name;
+    const char* tooltip;
+    int width;
+};
+constexpr std::array columns{
+    PreviewColumn{"Apply", "Check to apply this substitution.", 52},
+    PreviewColumn{"Sequence", "Name of the sequence with this chromatogram.", 180},
+    PreviewColumn{"Alignment column", "Position in the alignment, counting gaps and starting at 1.", 115},
+    PreviewColumn{"Current", "Base or ambiguity symbol now in the alignment.", 66},
+    PreviewColumn{"Proposed", "IUPAC ambiguity symbol for the two detected bases.", 80},
+    PreviewColumn{"Peak pair", "The major base first and the secondary base second, in the alignment strand.", 88},
+    PreviewColumn{"Secondary / major (%)", "Height of the secondary peak as a percentage of the major peak. Both are measured from the same zero line.", 145},
+    PreviewColumn{"Third / major (%)", "Height of the third peak as a percentage of the major peak. Zero means no third peak met the shape and spacing criteria.", 128},
+    PreviewColumn{"Displacement (samples)", "Horizontal distance between the two peak tops, in recorded signal points.", 155},
+    PreviewColumn{"Displacement (% of spacing)", "Distance between the peak tops as a percentage of the typical spacing between neighboring bases near this site.", 174},
+    PreviewColumn{"Review", "Proposals whose peak pair excludes the current symbol start unchecked.", 315}
+};
 
 QString number(double value) {
     return QString::number(value, 'f', 2);
@@ -53,8 +68,9 @@ TextTable calculation_rules(const DoublePeakPlan& plan) {
         {"Positions examined", "Current residues with imported, inferred or manually placed signal anchors. Gaps and interpolated positions are skipped."},
         {"Local spacing", "Median of nearby positive differences between imported calls, with neighboring current anchors as a fallback."},
         {"Site window", "Within 40% of local spacing on each side of the current anchor, stopping before the midpoint to a neighboring current anchor."},
-        {"Peak detection", "Local maximum within the site window. Examine up to half the local spacing on either side of the peak for the background and prominence."},
-        {"Peak height", "Apex minus the lower flank minimum. The apex must rise above both flank minima by at least 20% of that height and at least one signal unit."},
+        {"Major peak", "Find the tallest signal in the site window across all channels. Skip the site if none of the tallest signals forms a qualifying peak."},
+        {"Peak shape", "A local maximum must rise on both sides by at least one signal unit and at least 20% of its rise above the lower flank minimum. Examine up to half the local spacing on each flank."},
+        {"Peak height", "Height above the common zero line of the displayed chromatogram. The two flanks are used to check peak shape."},
         {"Secondary and third peak ratios", "For each other channel, take the strongest qualifying peak within the displacement limit from the major apex. Divide by the major peak height."},
         {"Threshold comparisons", "The secondary peak must meet or exceed its threshold. The third peak must fall below its threshold. Maximum displacement is inclusive."},
         {"Strand and case", "Peak pairs are reported in the alignment strand. Proposed IUPAC symbols use the case of the current letter."},
@@ -63,6 +79,7 @@ TextTable calculation_rules(const DoublePeakPlan& plan) {
         {"Sequences examined", QString::number(qulonglong(plan.rows))},
         {"Current residues in scope", QString::number(qulonglong(plan.sites))},
         {"Residues without an anchor", QString::number(qulonglong(plan.unanchored))},
+        {"Sites without a clear major peak", QString::number(qulonglong(plan.unresolvedMajor))},
         {"Sites excluded by a third peak", QString::number(qulonglong(plan.thirdPeakExcluded))}};
 }
 
@@ -76,13 +93,15 @@ public:
     }
 
     int columnCount(const QModelIndex& parent = {}) const override {
-        return parent.isValid() ? 0 : static_cast<int>(headers.size());
+        return parent.isValid() ? 0 : static_cast<int>(columns.size());
     }
 
     QVariant headerData(int section, Qt::Orientation orientation, int role) const override {
-        if (orientation == Qt::Horizontal && role == Qt::DisplayRole &&
-            section >= 0 && section < headers.size())
-            return headers[section];
+        if (orientation == Qt::Horizontal && section >= 0 && section < columnCount()) {
+            const auto& column = columns[static_cast<std::size_t>(section)];
+            if (role == Qt::DisplayRole) return QString::fromUtf8(column.name);
+            if (role == Qt::ToolTipRole) return QString::fromUtf8(column.tooltip);
+        }
         return {};
     }
 
@@ -99,7 +118,7 @@ public:
         case 7: return number(call.thirdPercent);
         case 8: return QString::number(qulonglong(call.displacementSamples));
         case 9: return number(call.displacementPercent);
-        case 10: return call.needsReview ? "Check current symbol against the detected pair" : QString();
+        case 10: return call.needsReview ? "Detected peak pair does not include the current symbol" : QString();
         default: return {};
         }
     }
@@ -110,7 +129,19 @@ public:
             return included[static_cast<std::size_t>(index.row())] ? Qt::Checked : Qt::Unchecked;
         if (role == Qt::DisplayRole && index.column() != 0)
             return cell(index.row(), index.column());
-        if (role == Qt::ToolTipRole) return cell(index.row(), index.column());
+        if (role == Qt::ToolTipRole) {
+            if (index.column() == 6) {
+                const auto& call = plan->calls[static_cast<std::size_t>(index.row())];
+                return QString("Secondary peak %1 is %2 of %3 signal units above zero (%4%).")
+                    .arg(QChar::fromLatin1(call.minor)).arg(call.secondaryHeight).arg(call.majorHeight)
+                    .arg(number(call.secondaryPercent));
+            }
+            const auto value = cell(index.row(), index.column());
+            if (index.column() == 1 || index.column() == 10) {
+                if (!value.isEmpty()) return value;
+            }
+            return headerData(index.column(), Qt::Horizontal, Qt::ToolTipRole);
+        }
         return {};
     }
 
@@ -156,10 +187,12 @@ public:
         rules.push_back({"Proposals checked for application", QString::number(qulonglong(checkedCount))});
         TextTable rows;
         rows.reserve(plan->calls.size() + 1);
-        rows.push_back(headers);
+        QStringList headers;
+        for (const auto& column : columns) headers.push_back(QString::fromUtf8(column.name));
+        rows.push_back(std::move(headers));
         for (int i = 0; i < rowCount(); ++i) {
             QStringList fields;
-            fields.reserve(headers.size());
+            fields.reserve(columnCount());
             for (int j = 0; j < columnCount(); ++j) fields.push_back(cell(i, j));
             rows.push_back(std::move(fields));
         }
@@ -203,6 +236,8 @@ public:
         scope_->addItem("All sequences with chromatograms");
         if (!linkedSelected) scope_->setCurrentIndex(1);
         form->addRow("Scope", scope_);
+        scope_->setToolTip("Analyze the selected sequences with chromatograms or all sequences with chromatograms.");
+        form->labelForField(scope_)->setToolTip(scope_->toolTip());
 
         const auto percent = [&](const char* name, const QString& label, unsigned value, const QString& tip) {
             auto* spin = new QSpinBox(this);
@@ -212,15 +247,16 @@ public:
             spin->setValue(static_cast<int>(value));
             spin->setToolTip(tip);
             form->addRow(label, spin);
+            form->labelForField(spin)->setToolTip(tip);
             return spin;
         };
         const DoublePeakSettings defaults;
         secondary_ = percent("doublePeakSecondary", "Minimum secondary peak height", defaults.secondaryPercent,
-            "Percentage of the major peak height required for the secondary peak.");
+            "The secondary peak must reach this percentage of the major peak's height above zero.");
         third_ = percent("doublePeakThird", "Exclude if third peak reaches", defaults.thirdPercent,
-            "Reject a site if a third peak meets this percentage of the major peak height.");
+            "Skip the site if a third peak reaches this percentage of the major peak's height above zero.");
         displacement_ = percent("doublePeakDisplacement", "Maximum peak displacement", defaults.displacementPercent,
-            "Maximum separation between peak apices as a percentage of local base spacing.");
+            "The two peak tops must be within this percentage of the typical spacing between nearby bases.");
 
         auto* ruleToggle = new QToolButton(this);
         ruleToggle->setCheckable(true);
@@ -228,8 +264,9 @@ public:
         ruleToggle->setArrowType(Qt::RightArrow);
         ruleToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         layout->addWidget(ruleToggle, 0, Qt::AlignLeft);
-        auto* rules = new QLabel("At each anchored Current residue, look for distinct local maxima with enough rise above the surrounding signal. "
-            "Compare heights and displacement against the major peak. Positions with no signal anchor are skipped. Phred scores are ignored.", this);
+        auto* rules = new QLabel("At each anchored Current residue, the tallest signal must form a clear peak. "
+            "Peak heights are measured from the same zero line you see in the trace. "
+            "The displacement limit uses the spacing between nearby bases. Phred scores are ignored.", this);
         rules->setWordWrap(true);
         rules->hide();
         layout->addWidget(rules);
@@ -248,9 +285,8 @@ public:
         table_->verticalHeader()->hide();
         table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
         table_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-        const std::array widths{52, 180, 115, 66, 80, 88, 145, 128, 155, 174, 270};
         for (int column = 0; column < model_->columnCount(); ++column)
-            table_->setColumnWidth(column, widths[static_cast<std::size_t>(column)]);
+            table_->setColumnWidth(column, columns[static_cast<std::size_t>(column)].width);
         layout->addWidget(table_, 1);
 
         trace_ = new TraceCanvas(this);
@@ -385,9 +421,12 @@ private:
 
     void update_status() {
         const auto& plan = *model_->plan;
-        status_->setText(QString("%1 sequences · %2 current residues · %3 proposed · %4 checked · %5 without an anchor · %6 excluded by a third peak")
+        auto summary = QString("%1 sequences · %2 current residues · %3 proposed · %4 checked · %5 without an anchor · %6 excluded by a third peak")
             .arg(plan.rows).arg(plan.sites).arg(plan.calls.size()).arg(model_->checkedCount)
-            .arg(plan.unanchored).arg(plan.thirdPeakExcluded));
+            .arg(plan.unanchored).arg(plan.thirdPeakExcluded);
+        if (plan.unresolvedMajor)
+            summary += QString(" · %1 without a clear major peak").arg(plan.unresolvedMajor);
+        status_->setText(summary);
         apply_->setEnabled(model_->checkedCount != 0);
         copy_->setEnabled(true);
         save_->setEnabled(true);

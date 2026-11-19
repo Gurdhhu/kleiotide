@@ -91,12 +91,16 @@ examines non-gap residues in the **Current** row with an imported, inferred
 or manually placed sample anchor. Positions with only an interpolated
 location are counted in the status line.
 
-The default secondary peak threshold is **50%** of the major peak height.
+The default secondary peak threshold is **60%** of the major peak height.
 Sites with a qualifying third peak at **30%** of the major peak height or
-higher are excluded. Peak apices may be separated by at most **20%** of the
-local sample spacing by default. Kleiotide uses the analyzed signal in each
-channel and requires local maxima to rise above the surrounding signal.
-Phred scores do not enter the calculation.
+higher are excluded. Peak tops may be separated by at most **20%** of the
+local base spacing by default. Displacement in samples counts the recorded
+signal points between the two tops.
+
+Kleiotide measures the peaks from the same zero line you see in the trace.
+It uses the surrounding signal to check whether a local maximum has a clear
+peak shape. If the tallest signal near the residue has no clear peak, the
+site is skipped. Phred scores do not enter the calculation.
 
 Select a proposed substitution to inspect its chromatogram. The table shows
 the one-based alignment column, current and proposed symbols, the two bases,

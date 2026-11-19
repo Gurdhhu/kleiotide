@@ -20,7 +20,7 @@ struct Site {
 
 struct Peak {
     std::size_t sample;
-    double height;
+    std::int32_t height;
     std::size_t channel;
 };
 
@@ -60,7 +60,8 @@ std::optional<Peak> best_peak(const std::vector<std::int32_t>& signal, std::size
         while (end < last && signal[end] == signal[end + 1]) ++end;
         if (signal[start] > signal[start - 1] && signal[end] > signal[end + 1]) {
             const auto apex = start + (end - start) / 2;
-            if (distance(apex, target) > maxShift) {
+            const auto height = signal[apex];
+            if (height <= 0 || distance(apex, target) > maxShift) {
                 start = end + 1;
                 continue;
             }
@@ -68,9 +69,10 @@ std::optional<Peak> best_peak(const std::vector<std::int32_t>& signal, std::size
                 signal.begin() + start);
             const auto right = std::min_element(signal.begin() + end + 1,
                 signal.begin() + end + 1 + std::min(flank, signal.size() - end - 1));
-            const double height = double(signal[apex]) - std::min(*left, *right);
-            const double prominence = double(signal[apex]) - std::max(*left, *right);
-            if (prominence >= std::max(1.0, height * minimumProminence) &&
+            // The local baseline is only used to judge the peak shape.
+            const double rise = double(height) - std::min(*left, *right);
+            const double prominence = double(height) - std::max(*left, *right);
+            if (prominence >= std::max(1.0, rise * minimumProminence) &&
                 (!best || height > best->height ||
                  (height == best->height && distance(apex, target) < distance(best->sample, target))))
                 best = Peak{apex, height, channel};
@@ -102,14 +104,24 @@ void examine_site(DoublePeakPlan& plan, const Sequence& row, std::span<const Sit
     const auto flank = std::max<std::size_t>(1, static_cast<std::size_t>(std::round(spacing * flankRadius)));
     const auto siteShift = std::max(distance(center, first), distance(center, last));
 
+    // Establish the tallest displayed signal before rejecting shoulders and
+    // unresolved maxima. A shorter channel cannot stand in for it.
+    std::int32_t tallest = 0;
+    for (const auto& channel : trace.channels)
+        tallest = std::max(tallest, *std::max_element(channel.begin() + first, channel.begin() + last + 1));
+    if (!tallest) return;
+
     std::optional<Peak> major;
     for (std::size_t channel = 0; channel < trace.channels.size(); ++channel) {
         const auto peak = best_peak(trace.channels[channel], channel, first, last, center, flank, siteShift);
-        if (peak && (!major || peak->height > major->height ||
-                     (peak->height == major->height && distance(peak->sample, center) < distance(major->sample, center))))
+        if (peak && peak->height == tallest &&
+            (!major || distance(peak->sample, center) < distance(major->sample, center)))
             major = peak;
     }
-    if (!major) return;
+    if (!major) {
+        ++plan.unresolvedMajor;
+        return;
+    }
     const auto maxShift = static_cast<std::size_t>(std::floor(spacing * plan.settings.displacementPercent / 100));
     std::optional<Peak> secondary, third;
     for (std::size_t channel = 0; channel < trace.channels.size(); ++channel) {
@@ -125,8 +137,8 @@ void examine_site(DoublePeakPlan& plan, const Sequence& row, std::span<const Sit
             third = peak;
         }
     }
-    if (!secondary || secondary->height * 100 < major->height * plan.settings.secondaryPercent) return;
-    if (third && third->height * 100 >= major->height * plan.settings.thirdPercent) {
+    if (!secondary || 100LL * secondary->height < std::int64_t(major->height) * plan.settings.secondaryPercent) return;
+    if (third && 100LL * third->height >= std::int64_t(major->height) * plan.settings.thirdPercent) {
         ++plan.thirdPeakExcluded;
         return;
     }
@@ -144,8 +156,8 @@ void examine_site(DoublePeakPlan& plan, const Sequence& row, std::span<const Sit
     const auto shift = distance(major->sample, secondary->sample);
     plan.calls.push_back({row.id, column, current,
         lowercase ? static_cast<char>(proposed - 'A' + 'a') : proposed, primary, minor,
-        100 * secondary->height / major->height,
-        third ? 100 * third->height / major->height : 0,
+        major->height, secondary->height, 100.0 * secondary->height / major->height,
+        third ? 100.0 * third->height / major->height : 0,
         100 * double(shift) / spacing, shift, currentBase != primary && currentBase != minor});
 }
 }

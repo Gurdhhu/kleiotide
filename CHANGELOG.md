@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.1 — testing
+
+- Measure double peak heights from the common chromatogram zero line. Skip sites where the tallest signal has no clear peak.
+- Set the default secondary peak threshold to 60%. Explain the settings and preview columns in tooltips, and clarify the review note when the pair excludes the current symbol.
+
 ## 0.30.0 — testing
 
 - Preview double peaks at anchored residues in linked chromatograms and apply checked IUPAC substitutions. Review the signal at each site and copy or save the calculation rules and complete preview.

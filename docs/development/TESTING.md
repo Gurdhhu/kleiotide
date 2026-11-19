@@ -11,6 +11,12 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.30.1 focused acceptance
+
+1. Open Double peak calling and confirm the secondary threshold starts at 60%. Hover each setting, label and preview column. The displacement tooltip should explain that one sample is a recorded signal point.
+2. Recheck a visibly short secondary peak at a 90% threshold and a site with a broad dominant signal above two smaller peaks. Confirm that the height ratio agrees with the displayed signal and that a site with no clear apex in the tallest signal is skipped.
+3. Check a genuine pair that excludes the current symbol. It should start unchecked and show “Detected peak pair does not include the current symbol”. Verify that copy and all three save formats include the updated rules and version.
+
 ## 0.30.0 focused acceptance
 
 1. Open an alignment with linked traces. Find Double peak calling in its own section just after Delete trace in the Sequence menu and sequence-name context menu. Switch between Selected and All. Change each threshold and check that the preview refreshes.

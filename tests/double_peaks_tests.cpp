@@ -20,9 +20,49 @@ template<class Action> void rejects(Action action, const char* message) {
     }
     throw std::runtime_error(message);
 }
+
+Record trace_with_dominant_g(bool broad) {
+    auto trace = std::make_shared<Chromatogram>();
+    trace->calls = "AGA";
+    trace->peaks = {35, 60, 85};
+    for (auto& channel : trace->channels) channel.resize(120);
+    auto& g = trace->channels[2];
+    const auto peak = [&](std::size_t channel, std::size_t center, int height) {
+        auto& samples = trace->channels[channel];
+        samples[center] += height;
+        samples[center - 1] += height / 2;
+        samples[center + 1] += height / 2;
+    };
+    if (broad) {
+        std::fill(g.begin() + 48, g.begin() + 73, 180);
+        peak(0, 60, 100);
+        peak(3, 61, 95);
+    } else {
+        std::fill(g.begin(), g.end(), 100);
+        peak(2, 60, 100);
+        peak(0, 61, 94);
+    }
+    auto link = std::make_shared<TraceLink>();
+    link->original = trace;
+    link->originalCalls = {1};
+    return {broad ? "Broad dominant signal" : "Elevated background",
+        "G", RowKind::Nucleotide, link};
+}
 }
 
 int main() try {
+    Document reportedCases;
+    reportedCases.load({trace_with_dominant_g(false), trace_with_dominant_g(true)});
+    const auto permissive = plan_double_peaks(reportedCases, {true, 47, 30, 20}, {});
+    require(permissive.calls.size() == 1 && permissive.calls[0].id == 1 &&
+        permissive.calls[0].major == 'G' && permissive.calls[0].minor == 'A' &&
+        permissive.calls[0].majorHeight == 200 && permissive.calls[0].secondaryHeight == 94 &&
+        permissive.calls[0].secondaryPercent == 47,
+        "Both peak heights use the displayed zero line, even with unequal channel backgrounds");
+    const auto strict = plan_double_peaks(reportedCases, {true, 90, 30, 20}, {});
+    require(strict.calls.empty() && strict.unresolvedMajor == 1,
+        "A shorter peak cannot pass the height threshold and two smaller peaks cannot replace the dominant signal");
+
     Document document;
     document.load({test::double_peak_read("forward", true),
         test::double_peak_read("without Q", false), {"unlinked", "AAAA"}});
@@ -34,7 +74,7 @@ int main() try {
         "Selected scope, third peak rejection, displacement, height, prominence and deleted-call exclusion");
     const auto& supported = plan.calls[0];
     require(supported.column == 0 && supported.current == 'A' && supported.proposed == 'R' &&
-        supported.secondaryPercent == 50 && supported.displacementSamples == 4 &&
+        supported.secondaryPercent == 60 && supported.displacementSamples == 4 &&
         supported.displacementPercent == 20 && !supported.needsReview,
         "Relative peak height and displacement include their exact boundaries");
     const auto& review = plan.calls[1];

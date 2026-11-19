@@ -8,8 +8,7 @@ inline Record double_peak_read(std::string name, bool withQuality) {
     trace->calls = "ACACAGT";
     trace->peaks = {20, 40, 60, 80, 100, 120, 140};
     if (withQuality) trace->quality = {0, 4, 72, 54, 12, 38, 0};
-    for (std::size_t i = 0; i < trace->channels.size(); ++i)
-        trace->channels[i].resize(180, static_cast<int>(10 + i * 10));
+    for (auto& channel : trace->channels) channel.resize(180);
     const auto peak = [&](std::size_t channel, std::size_t center, int height) {
         auto& samples = trace->channels[channel];
         samples[center] += height;
@@ -18,7 +17,7 @@ inline Record double_peak_read(std::string name, bool withQuality) {
             samples[center + offset] += height * (4 - static_cast<int>(offset)) / 4;
         }
     };
-    peak(0, 20, 100); peak(2, 24, 50);                      // Both thresholds exactly.
+    peak(0, 20, 100); peak(2, 24, 60);                      // Both thresholds exactly.
     peak(1, 40, 100); peak(3, 41, 64); peak(0, 40, 30);     // Third peak exactly 30%.
     peak(0, 60, 100); peak(3, 66, 70);                      // Peaks are too far apart at 20%.
     peak(1, 80, 100); peak(0, 81, 49);                      // Below the secondary threshold.
