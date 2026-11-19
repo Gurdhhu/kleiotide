@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.30.0 — testing
+
+- Preview double peaks at anchored residues in linked chromatograms and apply checked IUPAC substitutions. Review the signal at each site and copy or save the calculation rules and complete preview.
+
 ## 0.29.10 — testing
 
 - Keep the chromatogram insertion caret at the selected signal sample when a modifier key is pressed. Type uppercase calls with Shift.

@@ -83,6 +83,34 @@ drag the new call afterwards. Edited AB1 exports use its selected sample and
 Q0. The original calls and their measured Q remain available in the trace.
 Undo/Redo and format-6 sessions retain the edited positions.
 
+## Double peak calling
+
+Open **Sequence → Double peak calling** or use the sequence-name context menu.
+Choose selected sequences or all sequences with chromatograms. The preview
+examines non-gap residues in the **Current** row with an imported, inferred
+or manually placed sample anchor. Positions with only an interpolated
+location are counted in the status line.
+
+The default secondary peak threshold is **50%** of the major peak height.
+Sites with a qualifying third peak at **30%** of the major peak height or
+higher are excluded. Peak apices may be separated by at most **20%** of the
+local sample spacing by default. Kleiotide uses the analyzed signal in each
+channel and requires local maxima to rise above the surrounding signal.
+Phred scores do not enter the calculation.
+
+Select a proposed substitution to inspect its chromatogram. The table shows
+the one-based alignment column, current and proposed symbols, the two bases,
+the peak-height ratios, and the displacement. A proposal starts unchecked
+if the current symbol differs from the detected pair, including when it is
+a different ambiguity code. Review each such site before checking it.
+**Apply** makes the checked substitutions in one undoable edit and preserves
+the original imported evidence.
+
+**Copy table** copies the calculation rules, Kleiotide version and preview
+as TSV. **Save table** offers XLSX, TSV and CSV with the same information,
+including which proposals are checked. The preview is a record of proposed
+changes, and its checked column indicates what would be substituted on Apply.
+
 ## Quality editing
 
 Edit → Trim low-quality ends and Low-quality calls to N provide automatic previews with collapsed rules. Only usable original quality is evidence; manual or inserted residues do not receive fabricated scores. Review the proposed edits and confirm Trim ends or Convert calls to N. Cancel leaves the alignment unchanged. Linked signal evidence remains available after edits and alignment.

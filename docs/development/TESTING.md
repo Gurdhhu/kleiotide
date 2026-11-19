@@ -2,7 +2,7 @@
 
 ## Automatic suite
 
-Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 49 tests (20 core, nine Qt unit, 20 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
+Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 51 tests (21 core, nine Qt unit, 21 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
 
 ```sh
 cmake --build build --config Release --target release-check --parallel 2
@@ -10,6 +10,12 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
+
+## 0.30.0 focused acceptance
+
+1. Open an alignment with linked traces. Find Double peak calling in its own section just after Delete trace in the Sequence menu and sequence-name context menu. Switch between Selected and All. Change each threshold and check that the preview refreshes.
+2. Use a trace with visually identifiable double peaks, shifted peaks, and sites with three peaks. Inspect the proposed alignment columns by clicking rows. Compare both strands, manually adjusted anchors, and a sequence with gaps. Check the inclusive secondary threshold and the third-peak exclusion. Confirm that positions without an anchor are counted and skipped.
+3. Uncheck a supported proposal and review a mismatched or ambiguous current symbol. Copy the preview and save XLSX, TSV and CSV. Check the rules, version, ratios, alignment columns and checked status. Apply changes, then verify Undo/Redo and save/reopen. Verify Cancel leaves residues and trace data intact.
 
 ## 0.29.10 focused acceptance
 

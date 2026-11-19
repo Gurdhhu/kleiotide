@@ -2,6 +2,13 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
+## 0.29.10 RC 1 testing
+
+The Windows x64 laptop passed all 49 automatic tests. The tester confirmed
+that modifier keys keep the insertion caret in place and that marks follow
+cells through edits, undo, reversal and session save/reload. Native Debian
+license display and resize-handle checks are pending.
+
 ## 0.29.9 RC 1 testing
 
 The Windows x64 laptop passed 49/49 automatic tests. The tester confirmed
@@ -82,4 +89,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The 0.29.10 native Windows build and focused checks are pending.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The 0.30.0 native Windows build and focused checks are pending.

@@ -1192,6 +1192,11 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     menu.addSeparator();
     auto* link=menu.addAction("Link trace (AB1)…",[this]{if(link_trace_requested)link_trace_requested();});link->setEnabled(!selected_.empty());
     auto* unlink=menu.addAction("Delete trace…",[this]{if(delete_trace_requested)delete_trace_requested();});unlink->setEnabled(!selected_.empty());menu.addSeparator();
+    auto* doublePeaks=menu.addAction("Double peak calling…",[this]{if(double_peak_requested)double_peak_requested();});
+    doublePeaks->setToolTip("Preview IUPAC substitutions supported by two peaks in linked chromatograms.");
+    doublePeaks->setEnabled(document_&&double_peak_requested&&
+        std::any_of(document_->rows().begin(),document_->rows().end(),[](const auto& row){return bool(row.trace);}));
+    menu.addSeparator();
     menu.addAction("NCBI nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
     menu.addSeparator();
     auto* addGroup=menu.addAction("Add to group…",[this]{if(add_group_requested)add_group_requested();});addGroup->setEnabled(!selected_.empty());

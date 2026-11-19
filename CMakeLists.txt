@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.29.10 LANGUAGES CXX)
+project(Kleiotide VERSION 0.30.0 LANGUAGES CXX)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()
@@ -13,7 +13,7 @@ if(KLEIOTIDE_PACKAGE_DEBIAN AND NOT KLEIOTIDE_BUILD_GUI)
   message(FATAL_ERROR "Debian packaging requires the Qt application")
 endif()
 add_library(kleiotide_core src/core/abif_export.cpp src/core/collapse.cpp src/core/distances.cpp src/core/translation.cpp src/core/genetic_codes.cpp src/core/site_summary.cpp src/core/composition.cpp src/core/trace_quality.cpp src/core/groups.cpp src/core/group_import.cpp src/core/motif_index.cpp src/core/row_selection.cpp src/core/trace_coordinates.cpp src/core/session.cpp src/core/abif.cpp src/core/chromatogram.cpp
-    src/core/trace_peak_mapping.cpp src/core/alignment.cpp src/core/fasta.cpp src/core/overview.cpp src/core/sorting.cpp src/core/mafft_alignment.cpp src/core/mafft_template.cpp src/core/statistics.cpp)
+    src/core/trace_peak_mapping.cpp src/core/double_peaks.cpp src/core/alignment.cpp src/core/fasta.cpp src/core/overview.cpp src/core/sorting.cpp src/core/mafft_alignment.cpp src/core/mafft_template.cpp src/core/statistics.cpp)
 configure_file(src/core/version.hpp.in generated/core/version.hpp @ONLY)
 target_include_directories(kleiotide_core PUBLIC src "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(MSVC)
@@ -63,6 +63,9 @@ if(BUILD_TESTING)
   add_executable(kleiotide_quality_tests tests/trace_quality_tests.cpp)
   target_link_libraries(kleiotide_quality_tests PRIVATE kleiotide_core)
   add_test(NAME trace_quality COMMAND kleiotide_quality_tests)
+  add_executable(kleiotide_double_peaks_tests tests/double_peaks_tests.cpp)
+  target_link_libraries(kleiotide_double_peaks_tests PRIVATE kleiotide_core)
+  add_test(NAME double_peaks COMMAND kleiotide_double_peaks_tests)
   add_executable(kleiotide_group_tests tests/group_tests.cpp)
   target_link_libraries(kleiotide_group_tests PRIVATE kleiotide_core)
   add_test(NAME groups COMMAND kleiotide_group_tests)
@@ -144,6 +147,7 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/site_highlighter.cpp
     src/gui/composition_dialog.cpp
     src/gui/quality_dialog.cpp
+    src/gui/double_peak_dialog.cpp
     src/gui/groups_dialog.cpp
     src/gui/clipboard.cpp
     src/gui/motif_search.cpp
@@ -252,7 +256,7 @@ if(KLEIOTIDE_BUILD_GUI)
     kleiotide_workflow(mafft_fixture)
     kleiotide_workflow(blast_fixture)
     set(release_workflows abif_import_check save_safety_check identity_group_check translation_check
-        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check auto_preview_check update0292_check update0294_check update0295_check)
+        translation_controls_check merge_check abif_export_check collapse_check distance_check mafft_check stage0191_check settings_check release_fixes_check blast_trace_check local_blast_check exchange_gui_check auto_preview_check update0292_check update0294_check update0295_check double_peak_check)
     foreach(workflow IN LISTS release_workflows)
       kleiotide_workflow(${workflow})
       set(workflow_test_name "gui.${workflow}")

@@ -281,6 +281,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     view_->copy_fragment_requested=[this]{copy_clipboard();};view_->cut_fragment_requested=[this]{cut_clipboard();};view_->paste_fragment_requested=[this]{paste_fragment();};
     view_->rename_requested = [this](SequenceId id) { rename_sequence(id); };
     view_->link_trace_requested=[this]{link_traces();};view_->delete_trace_requested=[this]{delete_traces();};view_->blast_requested=[this](bool protein){search_blast(protein);};
+    view_->double_peak_requested=[this]{call_double_peaks();};
     view_->delete_rows_requested = [this] { delete_selected(); };
     view_->add_group_requested=[this]{group_action(1);};view_->remove_group_requested=[this]{group_action(2);};
     view_->message = [this](const QString& text) { statusBar()->showMessage(text, 5000); };
@@ -391,6 +392,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     sequence->addSeparator();
     action(sequence,"Link trace (AB1)…",{},[this]{link_traces();})->setObjectName("linkTrace");
     action(sequence,"Delete trace…",{},[this]{delete_traces();})->setObjectName("deleteTrace");sequence->addSeparator();
+    auto* doublePeaks=action(sequence,"Double peak calling…",{},[this]{call_double_peaks();});
+    doublePeaks->setObjectName("doublePeakCalling");
+    doublePeaks->setToolTip("Preview IUPAC substitutions supported by two peaks in linked chromatograms.");
+    sequence->addSeparator();
     auto* merge=action(sequence,"Merge aligned sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
     auto* overlapMerge=action(sequence,"Find overlap and merge…",{},[this]{merge_sequences(true);});overlapMerge->setObjectName("findOverlapAndMerge");overlapMerge->setToolTip("Find overlaps in the current orientation with an optional edit allowance, review partial contigs and append the chosen result.");
     auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview the retained groups and traces.");
@@ -754,6 +759,7 @@ void MainWindow::update_state() {
     if(auto* toggle=findChild<QAction*>("chromatogramView"))toggle->setEnabled(traces_->has_traces());
     if(auto* exportAbif=findChild<QAction*>("exportAbif"))exportAbif->setEnabled(!busy_&&traces_->has_traces());
     if(auto* exportBatch=findChild<QAction*>("exportAbifBatch"))exportBatch->setEnabled(!busy_&&traces_->has_traces());
+    if(auto* doublePeaks=findChild<QAction*>("doublePeakCalling"))doublePeaks->setEnabled(!busy_&&traces_->has_traces());
     const bool dirty = document_->state_id() != savedState_;
     const auto title = path_.isEmpty() ? (resultLabel_.isEmpty()?QString("Untitled"):resultLabel_) : QFileInfo(path_).fileName();
     setWindowTitle(title + (dirty ? " *" : "") + " — Kleiotide");
