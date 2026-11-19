@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <unordered_set>
 #include <unordered_map>
@@ -13,6 +14,28 @@ namespace {
 std::size_t residues(std::string_view text) {
     return static_cast<std::size_t>(std::count_if(text.begin(), text.end(),
         [](char c) { return !is_gap(c); }));
+}
+void merge_cell_ranges(std::vector<CellRange>& ranges) {
+    std::sort(ranges.begin(),ranges.end(),[](const auto& a,const auto& b){return a.start<b.start;});
+    std::size_t count=0;
+    for(const auto range:ranges){
+        if(range.start>=range.end)continue;
+        if(count&&range.start<=ranges[count-1].end)ranges[count-1].end=std::max(ranges[count-1].end,range.end);
+        else ranges[count++]=range;
+    }
+    ranges.resize(count);
+}
+void retain_cells(std::vector<Document::CellTransfer>& transfers,std::size_t before,
+                  std::size_t after,std::size_t length=1) {
+    if(!length)return;
+    if(!transfers.empty()){
+        auto& last=transfers.back();
+        if(last.before+last.length==before&&last.after+last.length==after){
+            last.length+=length;
+            return;
+        }
+    }
+    transfers.push_back({before,after,length});
 }
 void validate_name(const std::string& name) {
     const bool blank = std::all_of(name.begin(), name.end(), [](char c) {
@@ -196,7 +219,8 @@ void Document::erase_rows(const std::vector<SequenceId>& ids) {
         const auto count = finish - end;
         command.cost += sizeof(RowSplice);
         for (std::size_t i = end; i < finish; ++i)
-            command.cost += sizeof(Sequence) + rows_[i].name.size() + rows_[i].symbols.size() + trace_storage_bytes(rows_[i].trace)+protein_storage_bytes(rows_[i].protein);
+            command.cost += sizeof(Sequence) + rows_[i].name.size() + rows_[i].symbols.size() +
+                trace_storage_bytes(rows_[i].trace)+protein_storage_bytes(rows_[i].protein)+rows_[i].cellMarks.size()*sizeof(CellRange);
         command.edits.emplace_back(RowSplice{end, count, 0, {}, {}});
     }
     execute(std::move(command));
@@ -218,7 +242,7 @@ void Document::collapse_identical(const std::vector<CollapseGroup>& clusters){
     }
     std::size_t end=rows_.size();
     while(end){if(!removed.contains(rows_[end-1].id)){--end;continue;}const auto finish=end;while(end&&removed.contains(rows_[end-1].id))--end;
-        command.cost+=sizeof(RowSplice);for(std::size_t i=end;i<finish;++i)command.cost+=sizeof(Sequence)+rows_[i].name.size()+rows_[i].symbols.size()+trace_storage_bytes(rows_[i].trace)+protein_storage_bytes(rows_[i].protein);
+        command.cost+=sizeof(RowSplice);for(std::size_t i=end;i<finish;++i)command.cost+=sizeof(Sequence)+rows_[i].name.size()+rows_[i].symbols.size()+trace_storage_bytes(rows_[i].trace)+protein_storage_bytes(rows_[i].protein)+rows_[i].cellMarks.size()*sizeof(CellRange);
         command.edits.emplace_back(RowSplice{end,finish-end,0,{},{}});
     }
     execute(std::move(command));
@@ -227,6 +251,38 @@ void Document::replace(SequenceId id, std::size_t start, std::size_t count,
                        std::string_view replacement) {
     replace_many({{id,start,count,std::string(replacement),{}}});
 }
+void Document::mark_cells(SequenceId id,std::vector<CellRange> ranges) {
+    auto& row=mutable_sequence(id);
+    for(auto& range:ranges)range.end=std::min(range.end,row.symbols.size());
+    auto& marks=row.cellMarks;
+    marks.insert(marks.end(),ranges.begin(),ranges.end());
+    merge_cell_ranges(marks);
+}
+void Document::unmark_cells(SequenceId id,CellRange removed) {
+    auto& marks=mutable_sequence(id).cellMarks;
+    if(removed.start>=removed.end||marks.empty())return;
+    std::vector<CellRange> kept;
+    kept.reserve(marks.size());
+    for(const auto range:marks){
+        if(range.end<=removed.start||range.start>=removed.end)kept.push_back(range);
+        else {
+            if(range.start<removed.start)kept.push_back({range.start,removed.start});
+            if(range.end>removed.end)kept.push_back({removed.end,range.end});
+        }
+    }
+    marks=std::move(kept);
+}
+void Document::clear_cell_marks() {
+    for(auto& row:rows_)row.cellMarks.clear();
+    for(auto* history:{&undo_,&redo_})for(auto& command:*history)for(auto& edit:command.edits){
+        if(auto* patch=std::get_if<TextPatch>(&edit)){
+            command.cost-=patch->parkedMarks.size()*sizeof(CellRange);
+            patch->parkedMarks.clear();
+        }else if(auto* splice=std::get_if<RowSplice>(&edit)){
+            for(auto* buffer:{&splice->removed,&splice->inserted})for(auto& row:*buffer)row.cellMarks.clear();
+        }
+    }
+}
 void Document::replace_many(const std::vector<Replacement>& edits,std::optional<ColumnRange> erasedColumns) {
     Command command; command.cost = sizeof(Command);
     std::size_t planned=0;
@@ -234,6 +290,7 @@ void Document::replace_many(const std::vector<Replacement>& edits,std::optional<
         const auto& row=sequence(edit.id);
         if(edit.start>row.symbols.size()||edit.count>row.symbols.size()-edit.start)throw std::out_of_range("Edit range outside sequence.");
         account_bulk_memory(planned,edit.count,2);account_bulk_memory(planned,edit.text.size(),2);
+        if(edit.transfers)account_bulk_memory(planned,edit.transfers->size(),sizeof(CellTransfer));
         if(edit.text.size()>edit.count){
             const auto retained=row.symbols.size()-edit.count;
             if(edit.text.size()>std::numeric_limits<std::size_t>::max()-retained)throw std::length_error("Edited row exceeds storage limits.");
@@ -260,11 +317,17 @@ void Document::replace_many(const std::vector<Replacement>& edits,std::optional<
             if(protein)validate_protein_layout(check);
         }
         if(protein&&row.protein&&*protein==*row.protein)protein=row.protein;
-        if (before == after && trace==row.trace && protein==row.protein) continue;
+        if (before == after && trace==row.trace && protein==row.protein &&
+            (!edit.transfers||row.cellMarks.empty())) continue;
         command.cost += sizeof(TextPatch) + before.size() + after.size();
+        if(edit.transfers)command.cost+=edit.transfers->size()*sizeof(CellTransfer);
         if(protein!=row.protein)command.cost+=protein_storage_bytes(protein)+protein_storage_bytes(row.protein);
-        if(trace!=row.trace){if(trace)command.cost+=sizeof(TraceLink)+(trace->originalCalls.size()+trace->inferredPeaks.size())*sizeof(std::int32_t);if(row.trace)command.cost+=sizeof(TraceLink)+(row.trace->originalCalls.size()+row.trace->inferredPeaks.size())*sizeof(std::int32_t);}
-        command.edits.emplace_back(TextPatch{edit.id, edit.start, std::move(before), std::move(after),row.trace,std::move(trace),row.protein,std::move(protein)});
+        if(trace!=row.trace){
+            for(const auto& link:{trace,row.trace})if(link)
+                command.cost+=sizeof(TraceLink)+(link->originalCalls.size()+link->inferredPeaks.size()+link->adjustedPeaks.size())*sizeof(std::int32_t);
+        }
+        command.edits.emplace_back(TextPatch{edit.id, edit.start, std::move(before), std::move(after),
+            row.trace,std::move(trace),row.protein,std::move(protein),edit.transfers});
     }
     if(erasedColumns&&!translation_.regions.empty()){
         const auto start=erasedColumns->start,width=erasedColumns->width;
@@ -333,38 +396,46 @@ std::int64_t Document::slide(const std::vector<SequenceId>& ids, std::size_t sta
     if (!moved) return 0;
     const auto distance = static_cast<std::size_t>(moved < 0 ? -moved : moved);
     std::vector<Replacement> patches;
+    std::size_t mapBytes=0;
     for (auto id : ids) {
         const auto& row=sequence(id);
         const auto& text = row.symbols.text();
         std::string block = start < text.size() ? text.substr(start, width) : std::string{};
+        const auto blockLength=block.size();
         block.resize(width, '~');
+        auto transfers=std::make_shared<std::vector<CellTransfer>>();
         if (moved > 0) {
             const auto begin = std::min(start, text.size());
             auto end = std::min(start + width, text.size());
-            std::string pushed; std::size_t remaining = distance;
-            while (end < text.size() && remaining) {
-                const auto c = text[end++];
-                if (c == '~') --remaining; else pushed += c;
-            }
             std::string after(start - begin + distance, '~');
-            after += block; after += pushed;
-            patches.push_back({id, begin, end - begin, std::move(after)});
+            retain_cells(*transfers,start-begin,after.size(),blockLength);
+            after += block;
+            std::size_t remaining = distance;
+            while (end < text.size() && remaining) {
+                const auto c = text[end];
+                if (c == '~') --remaining;
+                else {retain_cells(*transfers,end-begin,after.size());after+=c;}
+                ++end;
+            }
+            patches.push_back({id, begin, end - begin, std::move(after),{},{},transfers});
         } else {
             // Delete the nearest external open gaps from the prefix, pushing
             // every intervening residue/dash left. Internal block gaps stay intact.
             auto begin = start; std::size_t remaining = distance;
             while (remaining) { --begin; if (begin >= text.size() || text[begin] == '~') --remaining; }
-            std::string after;
-            for (auto c = begin; c < start; ++c) {
-                const auto symbol = c < text.size() ? text[c] : '~';
-                if (symbol != '~') after += symbol;
-            }
-            after += block; after.append(distance, '~');
             const auto existingStart = std::min(begin, text.size());
             const auto existingEnd = std::min(start + width, text.size());
-            if (begin > existingStart) after.insert(0, begin - existingStart, '~');
-            patches.push_back({id, existingStart, existingEnd - existingStart, std::move(after)});
+            std::string after(begin-existingStart,'~');
+            for (auto c = begin; c < std::min(start,text.size()); ++c) {
+                if(text[c]=='~')continue;
+                retain_cells(*transfers,c-existingStart,after.size());
+                after+=text[c];
+            }
+            retain_cells(*transfers,start-existingStart,after.size(),blockLength);
+            after += block; after.append(distance, '~');
+            patches.push_back({id, existingStart, existingEnd - existingStart, std::move(after),{},{},transfers});
         }
+        account_bulk_memory(mapBytes,transfers->size(),sizeof(CellTransfer));
     }
     replace_many(patches); return moved;
 }
@@ -440,8 +511,17 @@ void Document::transform(const std::vector<SequenceId>& ids, Transform operation
         const auto& text = row.symbols.text();
         auto after = text;
         const bool rna = text.find_first_of("Uu") != std::string::npos && text.find_first_of("Tt") == std::string::npos;
-        if (operation == Transform::Degap || operation == Transform::Unalign)
-            std::erase_if(after, [&](char c) { return operation == Transform::Degap ? c == '~' : is_gap(c); });
+        std::shared_ptr<std::vector<CellTransfer>> transfers;
+        if (operation == Transform::Degap || operation == Transform::Unalign){
+            transfers=std::make_shared<std::vector<CellTransfer>>();
+            after.clear();
+            for(std::size_t c=0;c<text.size();++c){
+                if(operation==Transform::Degap?text[c]=='~':is_gap(text[c]))continue;
+                retain_cells(*transfers,c,after.size());
+                after+=text[c];
+            }
+            account_bulk_memory(planned,transfers->size(),sizeof(CellTransfer));
+        }
         else {
             for (auto& c : after) {
                 const bool lower = c >= 'a' && c <= 'z';
@@ -464,9 +544,16 @@ void Document::transform(const std::vector<SequenceId>& ids, Transform operation
                 default: break;
                 }
             }
-            if (operation == Transform::ReverseComplement) std::reverse(after.begin(), after.end());
+            if (operation == Transform::ReverseComplement){
+                std::reverse(after.begin(), after.end());
+                if(after!=text||!row.cellMarks.empty()){
+                    transfers=std::make_shared<std::vector<CellTransfer>>();
+                    if(!text.empty())transfers->push_back({0,0,text.size(),true});
+                }
+            }
         }
         Replacement patch{id,0,text.size(),std::move(after),{}};
+        patch.transfers=std::move(transfers);
         if(operation==Transform::ReverseComplement&&row.trace)patch.trace=reversed_trace(row.trace);
         patches.push_back(std::move(patch));
     }
@@ -480,15 +567,23 @@ void Document::minimize() {
         if(row.protein)for(const auto& span:row.protein->spans)for(auto c=span.first();c<=span.last();++c)keep[c]=true;}
     const auto retained=static_cast<std::size_t>(std::count(keep.begin(),keep.end(),true));if(retained==width)return;
     account_bulk_memory(planned,width,sizeof(std::size_t));for(const auto& row:rows_)account_bulk_memory(planned,row.symbols.size(),3);
-    std::vector<std::size_t> mapped(width);std::size_t next=0;for(std::size_t c=0;c<width;++c){mapped[c]=next;if(keep[c])++next;}
+    std::vector<std::size_t> mapped(width);
+    auto transfers=std::make_shared<std::vector<CellTransfer>>();
+    std::size_t next=0;
+    for(std::size_t c=0;c<width;++c){
+        mapped[c]=next;
+        if(keep[c])retain_cells(*transfers,c,next++);
+    }
+    account_bulk_memory(planned,transfers->size(),sizeof(CellTransfer));
     auto settings=translation_;settings.regions.clear();
     for(const auto& r:translation_.regions)for(auto c=r.start;c<std::min(width,r.start+r.width);++c)if(keep[c]){
         const auto phase=r.phase?static_cast<unsigned>((r.phase-1+c-r.start)%3+1):0;
         if(!settings.regions.empty()){auto& last=settings.regions.back();const auto expected=last.phase?static_cast<unsigned>((last.phase-1+last.width)%3+1):0;if(last.start+last.width==mapped[c]&&expected==phase){++last.width;continue;}}
         settings.regions.push_back({mapped[c],1,phase});}
-    validate_translation_settings(settings);Command command;command.cost=sizeof(Command);
+    validate_translation_settings(settings);Command command;
+    command.cost=sizeof(Command)+transfers->size()*sizeof(CellTransfer);
     for(const auto& row:rows_){std::string after;for(std::size_t c=0;c<row.symbols.size();++c)if(keep[c])after+=row.symbols.text()[c];auto layout=row.protein;
-        if(after!=row.symbols.text()){command.cost+=sizeof(TextPatch)+after.size()+row.symbols.size();command.edits.emplace_back(TextPatch{row.id,0,row.symbols.text(),std::move(after),row.trace,row.trace,row.protein,layout});}}
+        if(after!=row.symbols.text()){command.cost+=sizeof(TextPatch)+after.size()+row.symbols.size();command.edits.emplace_back(TextPatch{row.id,0,row.symbols.text(),std::move(after),row.trace,row.trace,row.protein,layout,transfers});}}
     if(settings!=translation_){command.cost+=sizeof(TranslationPatch)+(settings.regions.size()+translation_.regions.size())*sizeof(CodingRegion);command.edits.emplace_back(TranslationPatch{std::move(settings)});}
     if(!command.edits.empty())execute(std::move(command));
 }
@@ -538,18 +633,58 @@ void Document::rename(const std::vector<std::pair<SequenceId, std::string>>& nam
     }
     if (!command.edits.empty()) execute(std::move(command));
 }
-std::optional<Document::RowIndex> Document::prepare(Command& command, bool forward) {
+Document::MarkUpdate Document::prepare_marks(TextPatch& patch,const Sequence& row,bool forward) {
+    MarkUpdate result{&patch,patch.parkedMarks,{}};
+    const auto start=patch.start;
+    const auto removed=forward?patch.before.size():patch.after.size();
+    const auto inserted=forward?patch.after.size():patch.before.size();
+    const auto end=start+removed;
+    const auto from=[&](const CellTransfer& transfer){return forward?transfer.before:transfer.after;};
+    const auto to=[&](const CellTransfer& transfer){return forward?transfer.after:transfer.before;};
+    const std::span<const CellTransfer> transfers=patch.transfers?std::span(*patch.transfers):std::span<const CellTransfer>{};
+    for(const auto& mark:row.cellMarks){
+        if(mark.start<start)result.live.push_back({mark.start,std::min(mark.end,start)});
+        if(mark.end>end)result.live.push_back({std::max(mark.start,end)-removed+inserted,mark.end-removed+inserted});
+        auto first=std::max(start,mark.start);
+        const auto finish=std::min(end,mark.end);
+        if(first>=finish)continue;
+        auto transfer=std::lower_bound(transfers.begin(),transfers.end(),first-start,
+            [&](const CellTransfer& entry,std::size_t position){return from(entry)+entry.length<=position;});
+        for(;transfer!=transfers.end()&&start+from(*transfer)<finish;++transfer){
+            const auto source=start+from(*transfer);
+            const auto target=start+to(*transfer);
+            const auto a=std::max(first,source),b=std::min(finish,source+transfer->length);
+            if(first<a)result.parked.push_back({first,a});
+            if(transfer->reverse)result.live.push_back({target+transfer->length-(b-source),target+transfer->length-(a-source)});
+            else result.live.push_back({target+(a-source),target+(b-source)});
+            first=b;
+        }
+        if(first<finish)result.parked.push_back({first,finish});
+    }
+    merge_cell_ranges(result.live);
+    return result;
+}
+Document::PreparedEdit Document::prepare(Command& command, bool forward) {
     // All allocations that can affect row/sequence storage are attempted before
     // applying the command. Reserve may change capacity, not document content.
     std::size_t requiredRows = rows_.size();
+    std::size_t markBytes=0;
+    PreparedEdit prepared;
     for (auto& edit : command.edits) {
         if (std::holds_alternative<TranslationPatch>(edit)) {
         } else if (auto* p = std::get_if<TextPatch>(&edit)) {
-            auto& text = mutable_sequence(p->id).symbols;
+            auto& row = mutable_sequence(p->id);
+            auto& text = row.symbols;
             const auto& outgoing = forward ? p->before : p->after;
             const auto& incoming = forward ? p->after : p->before;
             if (outgoing.size() > text.size()) throw std::logic_error("Invalid history patch.");
             text.reserve(text.size() - outgoing.size() + incoming.size());
+            if((p->transfers||outgoing.size()!=incoming.size())&&
+               (!row.cellMarks.empty()||!p->parkedMarks.empty())){
+                auto update=prepare_marks(*p,row,forward);
+                account_bulk_memory(markBytes,update.live.size()+update.parked.size(),sizeof(CellRange));
+                prepared.marks.push_back(std::move(update));
+            }
         } else if (auto* name = std::get_if<NamePatch>(&edit)) {
             mutable_sequence(name->id).name.reserve((forward ? name->after : name->before).size());
         } else if (auto* kind=std::get_if<KindPatch>(&edit)) {
@@ -570,15 +705,17 @@ std::optional<Document::RowIndex> Document::prepare(Command& command, bool forwa
     }
     rows_.reserve(requiredRows);
     const bool structural=std::any_of(command.edits.begin(),command.edits.end(),[](const auto& e){return std::holds_alternative<RowSplice>(e)||std::holds_alternative<RowOrder>(e);});
-    if(!structural)return {};
+    if(!structural)return prepared;
     RowIndex working=rowIndex_;working.reserve(requiredRows);
     for(const auto& edit:command.edits)if(const auto* splice=std::get_if<RowSplice>(&edit)){
         const auto& incoming=forward?splice->inserted:splice->removed;
         for(const auto& row:incoming)working.try_emplace(row.id,std::numeric_limits<std::size_t>::max());
     }
-    return working;
+    prepared.index=std::move(working);
+    return prepared;
 }
-void Document::apply(Command& command, bool forward, RowIndex* preparedIndex) {
+void Document::apply(Command& command, bool forward, PreparedEdit& prepared) {
+    auto* preparedIndex=prepared.index?&*prepared.index:nullptr;
     bool indexDirty=false;
     auto reindex=[&]{
         // Every node was allocated by prepare(). These updates cannot allocate.
@@ -634,6 +771,13 @@ void Document::apply(Command& command, bool forward, RowIndex* preparedIndex) {
     } else {
         for (auto it = command.edits.rbegin(); it != command.edits.rend(); ++it) applyEdit(*it);
     }
+    for(auto& update:prepared.marks){
+        auto& patch=*update.patch;
+        rowFor(patch.id).cellMarks=std::move(update.live);
+        command.cost-=patch.parkedMarks.size()*sizeof(CellRange);
+        command.cost+=update.parked.size()*sizeof(CellRange);
+        patch.parkedMarks=std::move(update.parked);
+    }
     if(preparedIndex){
         if(indexDirty)reindex();
         for(auto it=preparedIndex->begin();it!=preparedIndex->end();)
@@ -678,8 +822,8 @@ void Document::execute(Command command) {
     const bool contentChanged=std::any_of(command.edits.begin(),command.edits.end(),[](const auto& edit) {return !std::holds_alternative<NamePatch>(edit)&&!std::holds_alternative<GroupPatch>(edit)&&!std::holds_alternative<TranslationPatch>(edit);});
     command.contentAfter = contentChanged ? nextContentId_++ : contentId_;
     undo_.reserve(undo_.size() + 1);
-    auto index=prepare(command, true);
-    apply(command, true,index?&*index:nullptr);
+    auto prepared=prepare(command,true);
+    apply(command,true,prepared);
     redo_.clear();
     undo_.push_back(std::move(command));
     trim_history();
@@ -706,16 +850,16 @@ std::optional<Document::ResidueLocation> Document::redo_residue_location() const
 void Document::undo() {
     if (!can_undo()) return;
     redo_.reserve(redo_.size() + 1);
-    auto index=prepare(undo_.back(), false);
-    apply(undo_.back(), false,index?&*index:nullptr);
+    auto prepared=prepare(undo_.back(),false);
+    apply(undo_.back(),false,prepared);
     redo_.push_back(std::move(undo_.back()));
     undo_.pop_back();
 }
 void Document::redo() {
     if (!can_redo()) return;
     undo_.reserve(undo_.size() + 1);
-    auto index=prepare(redo_.back(), true);
-    apply(redo_.back(), true,index?&*index:nullptr);
+    auto prepared=prepare(redo_.back(),true);
+    apply(redo_.back(),true,prepared);
     undo_.push_back(std::move(redo_.back()));
     redo_.pop_back();
 }

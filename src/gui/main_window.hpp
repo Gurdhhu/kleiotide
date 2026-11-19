@@ -53,6 +53,7 @@ private:
     void set_sequence_type();
     void link_traces();
     void delete_traces();
+    void call_double_peaks();
     void search_blast(bool protein);
     void delete_selected();
     void collapse_sequences();

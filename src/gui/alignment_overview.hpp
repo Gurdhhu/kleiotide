@@ -3,7 +3,6 @@
 #include <QWidget>
 #include <QPixmap>
 #include <QTimer>
-#include <functional>
 #include <memory>
 namespace kleiotide {
 class AlignmentView;
@@ -22,6 +21,7 @@ protected:
     void resizeEvent(QResizeEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
 private:
     void show_tooltip(const QPoint&,const QPoint&);
     void begin_scan();
@@ -29,6 +29,7 @@ private:
     void rebuild_plot();
     QRect plot_rect() const;
     void navigate(const QPoint& point);
+    void finish_navigation();
     const Document* document_=nullptr;
     AlignmentView* view_;
     std::unique_ptr<OverviewScan> scan_;
@@ -37,6 +38,7 @@ private:
     QTimer debounce_,work_;
     std::uint64_t requested_=0;
     qreal dpr_=0;
+    bool navigationDrag_=false;
     QString error_;
     std::size_t workspace_=16*1024*1024;
 };

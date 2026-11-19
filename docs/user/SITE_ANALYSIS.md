@@ -10,7 +10,8 @@ snapshot. Column coordinates remain fixed if the alignment is subsequently edite
 Masks never vote. A selected analysis subset determines column classes and receives the shading.
 Rows outside that captured subset remain unshaded. In all-row scope, shading
 appears in all rows of the chosen molecule type. Masks and rows of the other
-molecule type remain unshaded. The ruler also identifies highlighted sites.
+molecule type remain unshaded. Column highlights use shading in the alignment
+and ruler in every residue display mode.
 
 ## Site classes versus percentage conservation
 
@@ -43,17 +44,19 @@ can intentionally highlight them. Threshold comparisons are inclusive.
 
 ## Highlighting individual bases
 
-**Highlight low-quality calls** outlines bases whose measured original Phred Q
-is strictly below the threshold. Choose all linked traces or capture a
-selection of sequence names. Gaps, insertions, substituted calls and calls
-without measured quality are skipped. Clear the checkbox in the same dialog
-to turn the rule off. The rule and its scope can be saved in a native session.
+**Highlight low-quality calls** adds a snapshot of bases whose measured
+original Phred Q is strictly below the threshold. Choose all linked traces
+or the selected sequence names. Gaps, insertions, substituted calls and calls
+without measured quality are skipped. Apply the command again to restore
+highlights on all calls that now qualify.
 
 **Highlight selected bases** and **Unhighlight selected bases** are also
-available in the selected-residue context menu. Manual marks use alignment
-coordinates and last for the current window. Unhighlighting overrides the
-current low-quality rule at the selected bases until the rule changes. **Clear highlighting** removes the
-site rules, quality rule and manual marks.
+available in the selected-residue context menu. They apply to residues and
+gaps. Manual marks and low-quality snapshots use the same pale fill and border.
+Marks move with their cells when an edit shifts or reverses them. Inserted cells
+start unmarked. Deleting a marked cell removes the mark, and Undo can restore it
+with the cell. Save a `.kleio` session to keep these marks and column rules.
+**Clear highlighting** removes both cell marks and column highlighting.
 
 ## Alignment statistics
 
@@ -88,7 +91,7 @@ an existing completed summary. Composition uses a cancellable worker while the
 source is held immutable; its table supplies visible cells on demand.
 
 Optional view JSON stores highlighting rules, ranges, molecule, color and stable-ID
-scope snapshots. Current native sessions use format 5; highlighting remains optional view metadata. View settings do not change the
+scope snapshots. Current native sessions use format 6. Highlighting is optional view metadata. View settings do not change the
 document's sequence-data dirty flag; explicitly save a native session to retain
 them. New FASTA windows start without site highlights. Composition tables are
 transient; Copy/Export retain their results and method settings.

@@ -8,9 +8,11 @@ namespace kleiotide {
 struct AppPreferences {
     QFont font;
     ResiduePalette palette=ResiduePalette::Classic;
+    CustomResidueColors customResidueColors=default_residue_colors();
     ResidueDisplay display=ResidueDisplay::Letters;
     bool identityDots=false,viewOnly=false,insert=false,overviewVisible=true,traceVisible=true;
     int rightClick=0,fastaImport=0;
+    int wheelRows=3,wheelColumns=6;
     unsigned code=1;
     std::optional<GeneticCode> customCode;
     int bulkMiB=2048,undoMiB=64,overviewMiB=16,scanDelayMs=150;

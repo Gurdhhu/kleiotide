@@ -38,6 +38,52 @@ int main() {
         try { action(); ++passed; std::cout << "PASS " << name << '\n'; }
         catch (const std::exception& e) { ++failed; std::cerr << "FAIL " << name << ": " << e.what() << '\n'; }
     };
+    test("Cell marks move with retained gaps and residues through history", [] {
+        Document d;
+        d.load({{"trace","A~C-G~T"},{"short","A~~G"}});
+        const auto id=d.rows()[0].id, other=d.rows()[1].id;
+        const auto marked=[&](std::initializer_list<CellRange> expected){
+            require(d.sequence(id).cellMarks==std::vector<CellRange>(expected),"Expected marked cell ranges");
+        };
+        const auto originalState=d.state_id();
+        d.mark_cells(id,{{1,5}});
+        require(d.state_id()==originalState&&!d.can_undo(),"Display marking leaves edit history untouched");
+        d.replace(id,2,0,"T");marked({{1,2},{3,6}});
+        d.edit_gaps({id},1,false);marked({{2,5}});
+        d.undo();marked({{1,2},{3,6}});
+        d.redo();marked({{2,5}});
+        d.undo();
+        d.mark_cells(id,{{2,3}});
+        d.undo();marked({{1,5}});
+        d.redo();marked({{1,6}});
+        d.erase_columns(3,2);marked({{1,4}});
+        d.undo();marked({{1,6}});
+        d.erase_rows({id});d.undo();marked({{1,6}});
+        d.reorder({other,id});marked({{1,6}});
+    });
+    test("Cell marks follow block pushes, reversal and gap removal", [] {
+        Document d;
+        d.load({{"row","A~C~G~-T"},{"ragged","A~~"}});
+        const auto id=d.rows()[0].id,other=d.rows()[1].id;
+        const auto marked=[&](std::initializer_list<CellRange> expected){
+            require(d.sequence(id).cellMarks==std::vector<CellRange>(expected),"Expected moved cell marks");
+        };
+        d.mark_cells(id,{{2,7}});
+        require(d.slide({id},2,3,2)==2&&d.sequence(id).symbols.text()=="A~~~C~G-T","Block pushes other cells past an open gap");
+        marked({{4,8}});
+        require(d.slide({id},4,3,-2)==-2,"Slide back left");marked({{2,5},{7,8}});
+        d.undo();marked({{4,8}});
+        d.undo();marked({{2,7}});
+        d.transform({id},Document::Transform::ReverseComplement);marked({{1,6}});
+        d.transform({id},Document::Transform::Degap);marked({{1,4}});
+        d.undo();marked({{1,6}});
+        d.undo();marked({{2,7}});
+        d.mark_cells(other,{{1,3}});
+        d.minimize();marked({{1,3}});
+        require(d.sequence(other).cellMarks==std::vector<CellRange>{{1,2}},"Ragged row keeps only the surviving marked gap");
+        d.undo();marked({{2,7}});
+        d.erase_rows({id});d.clear_cell_marks();d.undo();marked({});
+    });
     test("Undo and redo identify residue destinations without metadata jumps", [] {
         Document d;d.load({{"first","AAAACGTT"},{"second","TTTT"}});const auto id=d.rows()[0].id;
         require(!d.undo_residue_location()&&!d.redo_residue_location(),"Empty history has no location");

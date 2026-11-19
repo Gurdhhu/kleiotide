@@ -2,6 +2,7 @@
 #include "gui/settings_dialog.hpp"
 #include "gui/blast_data.hpp"
 #include "gui/mafft_dialog.hpp"
+#include "gui/residue_palette_dialog.hpp"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDesktopServices>
@@ -40,8 +41,8 @@ void show_settings(
   QVBoxLayout layout(&dialog);
   QLabel scope(
       "Appearance, editing and translation defaults apply to new clean "
-      "sessions. Existing sessions keep their own values. Resource and "
-      "recovery settings apply to subsequent work in all windows.");
+      "sessions. Existing sessions keep their own appearance. Wheel, resource "
+      "and recovery settings apply in all windows.");
   scope.setWordWrap(true);
   layout.addWidget(&scope);
   QTabWidget tabs;
@@ -94,7 +95,7 @@ void show_settings(
   auto *bold = check(look, "settingsBold", "Bold");
   auto *italic = check(look, "settingsItalic", "Italic");
   auto *palette = combo(look, "settingsPalette", "Residue palette", {});
-  for (int i = 0; i < residue_palette_count; ++i)
+  for (int i = 0; i <= residue_palette_count; ++i)
     palette->addItem(palette_label(static_cast<ResiduePalette>(i)));
   auto *display =
       combo(look, "settingsDisplay", "Residue display",
@@ -113,6 +114,10 @@ void show_settings(
                        "Insert gaps in others", "Delete open gaps in others"});
   auto *overview = check(look, "settingsOverview", "Show alignment overview");
   auto *traces = check(look, "settingsTrace", "Show traces when available");
+  auto *wheelRows=spin(look,"settingsWheelRows","Rows per wheel step",1,100);
+  auto *wheelColumns=spin(look,"settingsWheelColumns","Columns per wheel step",1,100);
+  wheelRows->setToolTip("Rows scrolled by one vertical mouse wheel step.");
+  wheelColumns->setToolTip("Columns scrolled by a horizontal wheel step or Ctrl+wheel.");
   QPushButton useLook("Use current session appearance as defaults");
   useLook.setObjectName("settingsUseAppearance");
   look->addRow(&useLook);
@@ -124,6 +129,10 @@ void show_settings(
              "editing choices to this window immediately. It does not change "
              "global defaults or the session's genetic code. Cancel does not "
              "undo this explicit application.");
+  auto *palettePage=page("Residue palette");
+  note(palettePage,"Click a base or IUPAC symbol to change its color. Editing a color selects the Custom palette.");
+  auto* colorEditor=new ResidueColorEditor(&dialog);
+  palettePage->addRow(colorEditor);
   auto *memory = page("Memory and performance");
   auto *bulk = spin(memory, "settingsBulkMiB",
                     "Additional bulk-edit working limit", 1, 65536, " MiB");
@@ -343,10 +352,10 @@ void show_settings(
     p.setFont(chosenFont());
     const QFontMetrics fm(chosenFont());
     int x = 6;
-    for (char c : std::string("ACGTRY N~-")) {
+    for (char c : std::string("ACGTURY N~-")) {
       const auto paint =
           residue_paint(c, static_cast<ResiduePalette>(palette->currentIndex()),
-                        static_cast<ResidueDisplay>(display->currentIndex()));
+                        static_cast<ResidueDisplay>(display->currentIndex()),false,&colorEditor->colors());
       const int width =
           std::max(12, fm.horizontalAdvance(QChar::fromLatin1(c)) + 4);
       p.fillRect(x, 4, width, 56, paint.background);
@@ -361,11 +370,14 @@ void show_settings(
     auto p = seed;
     p.font = chosenFont();
     p.palette = static_cast<ResiduePalette>(palette->currentIndex());
+    p.customResidueColors = colorEditor->colors();
     p.display = static_cast<ResidueDisplay>(display->currentIndex());
     p.identityDots = dots->isChecked();
     p.viewOnly = mode->currentIndex() == 1;
     p.insert = editing->currentIndex() == 1;
     p.rightClick = right->currentIndex();
+    p.wheelRows=wheelRows->value();
+    p.wheelColumns=wheelColumns->value();
     p.overviewVisible = overview->isChecked();
     p.traceVisible = traces->isChecked();
     p.code = code->currentData().toUInt();
@@ -408,6 +420,7 @@ void show_settings(
   };
   auto fill = [&](const AppPreferences &p) {
     seed = p;
+    colorEditor->set_colors(p.customResidueColors);
     family.setCurrentFont(p.font);
     points->setValue(p.font.pointSize());
     bold->setChecked(p.font.bold());
@@ -418,6 +431,8 @@ void show_settings(
     mode->setCurrentIndex(p.viewOnly ? 1 : 0);
     editing->setCurrentIndex(p.insert ? 1 : 0);
     right->setCurrentIndex(p.rightClick);
+    wheelRows->setValue(p.wheelRows);
+    wheelColumns->setValue(p.wheelColumns);
     overview->setChecked(p.overviewVisible);
     traces->setChecked(p.traceVisible);
     fillCodes();
@@ -458,6 +473,10 @@ void show_settings(
     render();
   };
   fill(seed);
+  colorEditor->colors_changed=[&]{
+    palette->setCurrentIndex(static_cast<int>(ResiduePalette::Custom));
+    render();
+  };
   QObject::connect(&family, &QFontComboBox::currentFontChanged, &dialog,
                    [&] { render(); });
   for (auto *s : {points})
@@ -471,6 +490,7 @@ void show_settings(
     auto p = read();
     p.font = appearance.font;
     p.palette = appearance.palette;
+    p.customResidueColors=appearance.customResidueColors;
     p.display = appearance.display;
     p.identityDots = appearance.identityDots;
     p.overviewVisible = appearance.overviewVisible;

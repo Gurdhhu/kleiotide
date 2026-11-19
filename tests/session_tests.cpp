@@ -1,4 +1,5 @@
 #include "core/abif.hpp"
+#include "core/abif_export.hpp"
 #include "core/session.hpp"
 #include "abif_fixture.hpp"
 #include <iostream>
@@ -22,7 +23,7 @@ run("Session retains edits, row kind/case/gaps/IDs and embedded shared evidence"
 run("Sessions reopen and remain editable without original AB1 files",[]{auto d=parse(bytes(example())).document;auto old=d.sequence(1).trace;d.replace(1,2,0,"NN");validate_trace(d.sequence(1));d.undo();require(d.sequence(1).trace==old,"fresh undo after reopening");d.append({{"new","ACGT"}});require(d.rows().back().id==5,"stable next ID");});
 run("Empty documents and forced nucleotide-looking masks roundtrip",[]{Document empty;require(parse(bytes(empty)).document.rows().empty(),"empty session");Document d;d.load({{"mask","ACGT",RowKind::Mask},{"empty",""}});require(parse(bytes(d)).document.rows()[0].kind==RowKind::Mask,"explicit mask retained");});
 run("Bad IDs reject before document mutation",[]{auto d=example();const auto before=bytes(d);for(const auto& ids:std::vector<std::vector<SequenceId>>{{0},{1,1},{7}}){try{std::vector<Record> r(ids.size(),{"new","A"});d.restore_session(std::move(r),ids,6);throw std::logic_error("bad ID accepted");}catch(const std::invalid_argument&){}require(bytes(d)==before,"atomic restore");}});
-run("Version, truncation, checksum, trailing bytes and huge fake lengths rejected",[]{const auto good=bytes(example());for(std::size_t i=0;i<good.size();i+=17)rejects(good.substr(0,i));auto bad=good;bad[8]=6;rejects(bad);bad=good;bad.back()^=1;rejects(bad);rejects(good+"x");bad=good;for(unsigned i=0;i<8;++i)bad[20+i]=static_cast<char>(255);rejects(bad);});
+run("Version, truncation, checksum, trailing bytes and huge fake lengths rejected",[]{const auto good=bytes(example());for(std::size_t i=0;i<good.size();i+=17)rejects(good.substr(0,i));auto bad=good;bad[8]=static_cast<char>(session_version+1);rejects(bad);bad=good;bad.back()^=1;rejects(bad);rejects(good+"x");bad=good;for(unsigned i=0;i<8;++i)bad[20+i]=static_cast<char>(255);rejects(bad);});
 run("2000 malformed session mutations fail safely",[]{std::mt19937 random(909);const auto good=bytes(example());for(unsigned i=0;i<2000;++i){auto bad=good;bad[random()%bad.size()]^=static_cast<char>(1+random()%255);rejects(bad);}});
 
 run("Independent version-1 fixture migrates without reclassifying old masks or losing evidence",[]{
@@ -47,7 +48,58 @@ run("Checksummed unsupported types/representations and invalid declared alphabet
     require(good.size()==133&&static_cast<unsigned char>(good[90])==2,"Known portable single-row layout");
     auto bad=good;bad[90]=3;rejects(withCRC(bad));bad=good;bad[91]=1;rejects(withCRC(bad));
     bad=good;bad[90]=0;rejects(withCRC(bad));bad=good;bad[117]='1';rejects(withCRC(bad));bad=good;bad[92]=1;rejects(withCRC(bad));bad=good;bad[44]=0;rejects(withCRC(bad));
-    bad=good;bad[8]=6;rejects(withCRC(bad));
+    bad=good;bad[8]=static_cast<char>(session_version+1);rejects(withCRC(bad));
+});
+run("Adjusted calls and exact flank insertions preserve evidence, history and exported peaks",[]{
+    auto evidence=std::make_shared<Chromatogram>();
+    evidence->calls="ACG";evidence->peaks={10,20,30};evidence->quality={21,22,23};
+    for(auto& channel:evidence->channels)channel.resize(50,1);
+    auto link=std::make_shared<TraceLink>();
+    link->original=evidence;link->originalCalls={0,1,2};
+    Document d;d.load({{"trace","~A~CG~",RowKind::Nucleotide,link}});
+    const auto moved=adjusted_trace(d.sequence(1),1,40);
+    require(moved->adjustedPeaks[1]==29,"Drag clamps strictly before the next call");
+    d.replace_many({{1,0,0,{},moved}});
+    require(d.sequence(1).symbols.text()=="~A~CG~"&&trace_position(d.sequence(1),3).sample==29.,"Moving changes only the sample position");
+    require(trace_position(d.sequence(1),3).quality==22&&evidence->peaks[1]==20,"Original call and Q are preserved");
+    d.undo();require(d.sequence(1).trace==link,"Undo restores the peak position");
+    d.redo();require(d.sequence(1).trace==moved,"Redo reapplies the adjustment");
+    const auto leading=inserted_trace_call(d.sequence(1),1,3);
+    d.replace_many({{1,1,0,"T",leading}});
+    const auto trailing=inserted_trace_call(d.sequence(1),6,43);
+    d.replace_many({{1,6,0,"N",trailing}});
+    const auto saved=parse(bytes(d));
+    const auto& row=saved.document.sequence(1);
+    require(saved.formatVersion==session_version&&row.symbols.text()=="~TA~CGN~","Both terminal inserts respect alignment gaps");
+    require(row.trace->adjustedPeaks==trailing->adjustedPeaks&&row.trace->original->peaks==evidence->peaks,"Session saves both sets of positions");
+    auto forward=prepare_abif_export(row);
+    require(forward.peaks==std::vector<std::uint16_t>({3,10,29,30,43})&&
+            forward.quality==std::vector<std::uint8_t>({0,21,22,23,0}),"AB1 preserves adjusted positions and Q");
+    std::ostringstream ab1;write_abif_export(ab1,forward);
+    std::istringstream input(ab1.str());
+    require(read_abif(input,"exported",{}).trace->original->peaks==std::vector<std::uint32_t>({3,10,29,30,43}),"Adjusted positions survive AB1 reimport");
+    d.transform({1},Document::Transform::ReverseComplement);
+    const auto reverse=adjusted_trace(d.sequence(1),2,0);
+    require(reverse->adjustedPeaks[2]==11,"Reverse drag clamps before the oriented neighbor");
+    require(prepare_abif_export(d.sequence(1)).peaks==std::vector<std::uint16_t>({6,19,20,39,46}),"Reverse AB1 puts exact positions in exported orientation");
+    Document interiorEdit;
+    interiorEdit.load({{"trace","~A~CG~",RowKind::Nucleotide,link}});
+    interiorEdit.replace(1,3,1,"");
+    interiorEdit.transform({1},Document::Transform::ReverseComplement);
+    require(interiorEdit.sequence(1).symbols.text()=="~C~T~","Interior deletion and reverse retain alignment gaps");
+    const auto deleted=inserted_trace_call(interiorEdit.sequence(1),3,20);
+    interiorEdit.replace_many({{1,3,0,"G",deleted}});
+    const auto interior=inserted_trace_call(interiorEdit.sequence(1),4,16);
+    interiorEdit.replace_many({{1,4,0,"A",interior}});
+    const auto savedReverse=parse(bytes(interiorEdit));
+    const auto& reverseRow=savedReverse.document.sequence(1);
+    require(reverseRow.symbols.text()=="~C~GAT~"&&trace_position(reverseRow,3).sample==20.&&
+            trace_position(reverseRow,4).sample==16.,"Reverse session retains both interior anchors");
+    const auto exported=prepare_abif_export(reverseRow);
+    require(exported.peaks==std::vector<std::uint16_t>({19,29,33,39})&&
+            exported.quality==std::vector<std::uint8_t>({23,0,0,21})&&
+            reverseRow.trace->original->quality==evidence->quality,
+            "Reverse AB1 retains interior positions without transferring the original deleted Q");
 });
 
 run("Independent format-3 group/protein fixture migrates to current format",[]{std::ifstream file(std::filesystem::path(__FILE__).parent_path()/"fixtures/session_v3.kleio",std::ios::binary);const auto old=read_session(file);require(old.formatVersion==3&&old.document.groups().size()==1&&old.document.sequence(1).kind==RowKind::Protein&&old.document.sequence(2).kind==RowKind::Mask&&old.document.sequence(1).groupId==1,"Format 3 semantic migration");const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_version&&upgraded.document.groups()==old.document.groups(),"Upgrade preserves group catalog");});

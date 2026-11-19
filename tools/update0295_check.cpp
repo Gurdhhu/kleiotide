@@ -2,6 +2,7 @@
 #include "core/chromatogram.hpp"
 #include "core/session.hpp"
 #include "gui/alignment_view.hpp"
+#include "gui/alignment_overview.hpp"
 #include "gui/chromatogram_view.hpp"
 #include "gui/mafft_dialog.hpp"
 #include "gui/main_window.hpp"
@@ -13,14 +14,25 @@
 #include <QDockWidget>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFontMetrics>
 #include <QImage>
+#include <QKeyEvent>
+#include <QKeySequence>
+#include <QLabel>
 #include <QMouseEvent>
+#include <QMenu>
+#include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSpinBox>
+#include <QStyle>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
+#include <QWheelEvent>
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -46,6 +58,28 @@ Record traced(std::string name,std::vector<std::uint8_t> quality) {
     link->originalCalls={0,1,2,3};
     return {std::move(name),"A~CGT",RowKind::Nucleotide,link};
 }
+Record long_trace() {
+    auto evidence=std::make_shared<Chromatogram>();
+    auto link=std::make_shared<TraceLink>();
+    link->original=evidence;
+    evidence->calls.assign(600,'A');
+    evidence->quality.assign(600,10);
+    for(std::int32_t i=0;i<600;++i) {
+        evidence->peaks.push_back(static_cast<std::uint32_t>(20*i+30));
+        link->originalCalls.push_back(i);
+    }
+    for(auto& channel:evidence->channels)channel.resize(12040,1);
+    return {"long trace",evidence->calls,RowKind::Nucleotide,link};
+}
+template<class Check>bool wait_for(Check ready) {
+    QElapsedTimer timer;
+    timer.start();
+    while(!ready()&&timer.elapsed()<10000) {
+        QApplication::processEvents();
+        QThread::msleep(1);
+    }
+    return ready();
+}
 template<class Open,class Check>void modal(Open open,Check check) {
     QTimer driver;
     driver.setInterval(5);
@@ -65,17 +99,74 @@ template<class Open,class Check>void modal(Open open,Check check) {
 }
 void drag_grip(QDockWidget& dock,int amount) {
     auto* grip=dock.titleBarWidget();
+    const int startHeight=dock.height();
     const QPoint local=grip->rect().center();
     const QPoint global=grip->mapToGlobal(local);
     QMouseEvent down(QEvent::MouseButtonPress,local,global,Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
     QApplication::sendEvent(grip,&down);
-    QMouseEvent move(QEvent::MouseMove,local-QPoint(0,amount),global-QPoint(0,amount),
-                     Qt::NoButton,Qt::LeftButton,Qt::NoModifier);
-    QApplication::sendEvent(grip,&move);
+    for(int offset:{amount/4,amount/2,amount,amount/2,amount}){
+        const auto at=global-QPoint(0,offset);
+        QMouseEvent move(QEvent::MouseMove,grip->mapFromGlobal(at),at,
+                         Qt::NoButton,Qt::LeftButton,Qt::NoModifier);
+        QApplication::sendEvent(grip,&move);
+        QApplication::processEvents();
+        require(std::abs(dock.height()-startHeight-offset)<=1,"Panel grip follows mouse displacement in both directions");
+    }
     QMouseEvent up(QEvent::MouseButtonRelease,local,global-QPoint(0,amount),
                    Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
     QApplication::sendEvent(grip,&up);
     QApplication::processEvents();
+}
+QRect device_pixels(const QImage& image,const QRect& logical) {
+    const auto scale=image.devicePixelRatio();
+    const int left=static_cast<int>(std::ceil(logical.x()*scale));
+    const int top=static_cast<int>(std::ceil(logical.y()*scale));
+    const int right=static_cast<int>(std::floor((logical.x()+logical.width())*scale));
+    const int bottom=static_cast<int>(std::floor((logical.y()+logical.height())*scale));
+    return QRect(left,top,right-left,bottom-top).intersected(image.rect());
+}
+void check_manual_cell(const QImage& before,const QImage& after,const QRect& cell) {
+    const auto interior=device_pixels(after,cell.adjusted(2,2,-2,-2));
+    int palePixels=0,glyphPixels=0;
+    for(int y=interior.top();y<=interior.bottom();++y)
+        for(int x=interior.left();x<=interior.right();++x){
+            const auto lightness=after.pixelColor(x,y).lightness();
+            if(lightness>180&&after.pixel(x,y)!=before.pixel(x,y))++palePixels;
+            if(lightness<120)++glyphPixels;
+        }
+    require(palePixels>0&&palePixels*4>=interior.width()*interior.height(),
+            "Manual mark adds a pale interior to a residue-colored cell");
+    require(glyphPixels>0,"Dark residue letters are visible against the pale fill");
+
+    const auto topEdge=device_pixels(after,QRect(cell.x()+2,cell.y(),cell.width()-4,2));
+    bool darkBorder=false;
+    for(int y=topEdge.top();y<=topEdge.bottom();++y)
+        for(int x=topEdge.left();x<=topEdge.right();++x)
+            if(after.pixelColor(x,y).lightness()<160)darkBorder=true;
+    require(darkBorder,"Manual mark retains a darker border");
+}
+void check_column_shade(const QImage& before,const QImage& after,const QRect& band,
+                        const QColor& background,const QColor& shade) {
+    QImage sample(1,1,QImage::Format_RGB32);
+    sample.fill(background);
+    QPainter painter(&sample);
+    painter.fillRect(sample.rect(),shade);
+    painter.end();
+    const auto expected=sample.pixelColor(0,0);
+    const auto area=device_pixels(after,band.adjusted(2,2,-2,-2));
+    int backgroundPixels=0,tintedPixels=0;
+    for(int y=area.top();y<=area.bottom();++y)
+        for(int x=area.left();x<=area.right();++x){
+            if(before.pixelColor(x,y)!=background)continue;
+            ++backgroundPixels;
+            const auto pixel=after.pixelColor(x,y);
+            if(std::abs(pixel.red()-expected.red())<=2&&std::abs(pixel.green()-expected.green())<=2&&
+               std::abs(pixel.blue()-expected.blue())<=2)++tintedPixels;
+        }
+    // Inspect background pixels through the join between rows, skipping glyphs
+    // and the outer edges of the captured band.
+    require(expected!=background&&backgroundPixels>0&&tintedPixels*20>=backgroundPixels*19,
+            "Column highlight is even shading across rows in every display mode");
 }
 }
 
@@ -86,7 +177,7 @@ int main(int argc,char** argv) {
         QTemporaryDir directory;
         Document source;
         source.load({traced("first",{0,19,20,45}),traced("second",{5,5,5,5}),
-                     traced("missing Q",{}),{"plain","ACGT"}});
+                     traced("missing Q",{}),{"plain","ACGT"},long_trace()});
         source.replace(1,4,1,"A");
         source.replace(1,5,0,"A");
         source.transform({2},Document::Transform::ReverseComplement);
@@ -104,13 +195,8 @@ int main(int argc,char** argv) {
         auto* view=dynamic_cast<AlignmentView*>(window.centralWidget());
         require(view,"Alignment view");
         window.open_path(path);
-        QElapsedTimer timer;
-        timer.start();
-        while((!view->isEnabled()||window.current_document().rows().size()!=4)&&timer.elapsed()<10000) {
-            app.processEvents();
-            QThread::msleep(1);
-        }
-        require(view->isEnabled()&&window.current_document().rows().size()==4,"Open trace session");
+        require(wait_for([&]{return view->isEnabled()&&window.current_document().rows().size()==5;}),
+                "Open trace session");
         auto& document=window.current_document();
         const auto state=document.state_id();
         const auto trigger=[&](const char* name){child<QAction>(window,name)->trigger();};
@@ -141,28 +227,164 @@ int main(int argc,char** argv) {
         require(traceDock->height()>previousTrace&&overviewDock->height()==changedOverview,"Trace grip changes only trace height");
         const int changedTrace=traceDock->height();
         const int alignmentHeight=view->height();
-        trigger("chromatogramView");
-        app.processEvents();
-        require(traceDock->isHidden()&&overviewDock->height()==changedOverview&&view->height()>alignmentHeight,
+        traceDock->hide();
+        require(wait_for([&]{return traceDock->isHidden()&&overviewDock->height()==changedOverview&&view->height()>alignmentHeight;}),
                 "Hiding trace returns its space to the alignment");
-        trigger("chromatogramView");
-        app.processEvents();
-        require(traceDock->isVisible()&&traceDock->height()==changedTrace&&overviewDock->height()==changedOverview,
+        traceDock->show();
+        require(wait_for([&]{return traceDock->isVisible()&&traceDock->height()==changedTrace&&overviewDock->height()==changedOverview;}),
                 "Reopening trace restores its own height");
-        trigger("alignmentOverviewView");
-        app.processEvents();
-        require(overviewDock->isHidden()&&traceDock->height()==changedTrace&&view->height()>alignmentHeight,
+        overviewDock->hide();
+        require(wait_for([&]{return overviewDock->isHidden()&&traceDock->height()==changedTrace&&view->height()>alignmentHeight;}),
                 "Hiding overview returns its space to the alignment");
-        trigger("alignmentOverviewView");
-        app.processEvents();
-        require(overviewDock->isVisible()&&overviewDock->height()==changedOverview&&traceDock->height()==changedTrace,
+        overviewDock->show();
+        require(wait_for([&]{return overviewDock->isVisible()&&overviewDock->height()==changedOverview&&traceDock->height()==changedTrace;}),
                 "Reopening overview restores its own height");
         trigger("restoreDefaultLayout");
         app.processEvents();
         require(traceDock->isVisible()&&overviewDock->isVisible()&&
                 traceDock->height()==previousTrace&&overviewDock->height()==previousOverview&&
                 traceDock->geometry().bottom()<overviewDock->geometry().top(),"Restore default panel sizes and order");
+        require(window.style()->pixelMetric(QStyle::PM_DockWidgetSeparatorExtent)==0,
+                "Only the panel grips provide resize targets");
+        auto* restoreLayout=child<QAction>(window,"restoreDefaultLayout");
+        auto* viewMenu=qobject_cast<QMenu*>(restoreLayout->parent());
+        require(viewMenu,"View menu");
+        const auto actions=viewMenu->actions();
+        const auto layoutPosition=actions.indexOf(restoreLayout);
+        require(layoutPosition>0&&layoutPosition+2<actions.size()&&
+                actions[layoutPosition-1]->isSeparator()&&actions[layoutPosition+1]->isSeparator()&&
+                actions[layoutPosition+2]==child<QAction>(window,"alignmentFont"),
+                "Restore default layout has its own section before Alignment font");
 
+        auto* overview=dynamic_cast<AlignmentOverview*>(child<QWidget>(window,"alignmentOverview"));
+        require(overview,"Alignment overview widget");
+        view->select_fragment({{5},3,35});
+        const auto fragment=view->fragment();
+        auto* traceScroll=canvas->horizontalScrollBar();
+        const int traceAtSelection=traceScroll->value();
+        const auto overviewMouse=[&](QEvent::Type type,const QPoint& point,
+                                     Qt::MouseButton button,Qt::MouseButtons buttons){
+            QMouseEvent event(type,point,overview->mapToGlobal(point),button,buttons,Qt::NoModifier);
+            QApplication::sendEvent(overview,&event);
+        };
+        const QPoint left(12,40),middle(overview->width()/3,40),right(overview->width()-12,40);
+        overviewMouse(QEvent::MouseButtonPress,left,Qt::LeftButton,Qt::LeftButton);
+        overviewMouse(QEvent::MouseMove,middle,Qt::NoButton,Qt::LeftButton);
+        const auto middleColumn=view->visible_column_range().first;
+        const int middleTrace=traceScroll->value();
+        overviewMouse(QEvent::MouseMove,right,Qt::NoButton,Qt::LeftButton);
+        require(middleColumn>0&&view->visible_column_range().first>middleColumn&&view->fragment()==fragment,
+                "Overview scrolls even while the entire selected fragment is offscreen");
+        require(middleTrace>traceAtSelection&&traceScroll->value()>middleTrace,
+                "Overview drag scrolls the trace while the mouse is held");
+        overviewMouse(QEvent::MouseButtonRelease,right,Qt::LeftButton,Qt::NoButton);
+        require(traceScroll->value()>traceAtSelection&&canvas->focused_column()==3,
+                "Trace follows the final viewport while retaining the selected column");
+        view->horizontalScrollBar()->setValue(0);
+        require(traceScroll->value()==traceAtSelection,"Normal scrolling still follows the viewport");
+
+        const auto traceMouse=[&](QEvent::Type type,const QPoint& point,Qt::MouseButton button,Qt::MouseButtons buttons){
+            QMouseEvent event(type,point,canvas->viewport()->mapToGlobal(point),button,buttons,Qt::NoModifier);
+            QApplication::sendEvent(canvas->viewport(),&event);
+        };
+        const auto traceClick=[&](const QPoint& point){
+            traceMouse(QEvent::MouseButtonPress,point,Qt::LeftButton,Qt::LeftButton);
+            traceMouse(QEvent::MouseButtonRelease,point,Qt::LeftButton,Qt::NoButton);
+        };
+        const QPoint call(qRound(canvas->column_x(8)),8);
+        traceMouse(QEvent::MouseButtonPress,call,Qt::LeftButton,Qt::LeftButton);
+        const auto moved=call+QPoint(60,0);
+        traceMouse(QEvent::MouseMove,moved,Qt::NoButton,Qt::LeftButton);
+        require(document.state_id()==state&&view->fragment()&&view->fragment()->width==1,
+                "Trace dragging previews a single call without changing the alignment");
+        traceMouse(QEvent::MouseButtonRelease,moved,Qt::LeftButton,Qt::NoButton);
+        require(document.sequence(5).symbols.text()==std::string(600,'A')&&canvas->position(8).sample==209.,
+                "Dragging is clamped to the next call and preserves the alignment symbols");
+        view->navigate_to_cell(5,0);
+        child<QComboBox>(window,"traceSpacing")->setCurrentIndex(0);
+        child<QSpinBox>(window,"traceZoom")->setValue(100);
+        // Exercise the same collision as a larger system font or display DPI.
+        const auto originalFont=canvas->font();
+        auto wideFont=originalFont;
+        wideFont.setStretch(250);
+        canvas->setFont(wideFont);
+        traceScroll->setValue(0);
+        wideFont.setPointSize(9);
+        const int labelGutter=QFontMetrics(wideFont,canvas->viewport()).horizontalAdvance("Original Q:")+12;
+        const QPoint flank(qRound(canvas->column_x(0))-9,8);
+        require(flank.x()>=labelGutter&&canvas->viewport()->rect().contains(flank),
+                "The leading trace sample is to the right of the wide label gutter");
+        traceClick(flank);
+        require(!view->fragment()&&view->caret()&&view->caret()->first==5&&view->caret()->second==0,
+                "Clicking before the trace calls places an insertion caret before the first aligned base");
+        require(child<QLabel>(window,"tracePosition")->text().contains("sample 21"),
+                "The leading flank picks the intended signal sample");
+        QKeyEvent insertCall(QEvent::KeyPress,Qt::Key_C,Qt::NoModifier,"C");
+        QApplication::sendEvent(canvas,&insertCall);
+        require(document.sequence(5).symbols.text().front()=='C'&&canvas->position(0).sample==21.&&
+                !canvas->position(0).quality,"Typing at the flank inserts a base at the clicked sample");
+        canvas->setFont(originalFont);
+        const auto undo=[&]{
+            for(auto* action:window.findChildren<QAction*>())if(action->shortcut()==QKeySequence::Undo){action->trigger();return;}
+            throw std::runtime_error("Undo action");
+        };
+        undo();undo();
+        require(document.state_id()==state,"Trace adjustments and insertions each support Undo");
+
+        view->navigate_to_cell(5,8);
+        traceScroll->setValue(0);
+        const int deletedX=qRound(canvas->column_x(8));
+        QKeyEvent deleteCall(QEvent::KeyPress,Qt::Key_Delete,Qt::NoModifier);
+        QApplication::sendEvent(view,&deleteCall);
+        require(!trace_column(document.sequence(5),8)&&canvas->position(8).sample==210.,
+                "Deleting a current call leaves a hole in the original evidence");
+        traceScroll->setValue(0);
+        const auto at=[&](int x,int y,std::size_t column,int sample){
+            traceClick({x,y});
+            require(!view->fragment()&&view->caret()&&view->caret()->second==column,
+                    "An open sample places the alignment caret before the next current base");
+            require(child<QLabel>(window,"tracePosition")->text().contains(QString("sample %1").arg(sample)),
+                    "The trace status reports the intended sample");
+            for(const auto& [key,modifier]:std::array<std::pair<Qt::Key,Qt::KeyboardModifier>,2>{{
+                    {Qt::Key_Control,Qt::ControlModifier},{Qt::Key_Shift,Qt::ShiftModifier}}}){
+                QKeyEvent press(QEvent::KeyPress,key,modifier);
+                QApplication::sendEvent(canvas,&press);
+                require(!view->fragment()&&view->caret()&&view->caret()->second==column&&
+                        child<QLabel>(window,"tracePosition")->text().contains(QString("sample %1").arg(sample)),
+                        "A modifier press keeps the trace insertion caret");
+                QKeyEvent release(QEvent::KeyRelease,key,Qt::NoModifier);
+                QApplication::sendEvent(canvas,&release);
+            }
+            QKeyEvent key(QEvent::KeyPress,Qt::Key_C,Qt::ShiftModifier,"C");
+            QApplication::sendEvent(canvas,&key);
+            const auto inserted=canvas->position(column);
+            require(inserted.current=='C'&&inserted.sample==sample&&inserted.adjusted&&
+                    !inserted.originalCall&&!inserted.quality,"Typing anchors a new base at the selected sample");
+        };
+        at(deletedX+3,24,8,190);
+        require(document.sequence(5).trace->original->quality[8]==10,
+                "Typing at a deleted call preserves its imported quality separately");
+        undo();
+        traceScroll->setValue(0);
+        at(deletedX-9,8,8,181);
+        undo();
+        traceScroll->setValue(0);
+        at(deletedX+13,60,8,203);
+        undo();undo();
+        require(document.state_id()==state,"Undo restores the original call after editing interior samples");
+
+        view->navigate_to_cell(2,1);
+        auto* traceSpacing=child<QComboBox>(window,"traceSpacing");
+        traceSpacing->setCurrentIndex(1);
+        const auto between=qRound((canvas->column_x(1)+canvas->column_x(2))/2.);
+        at(between,60,2,10);
+        require(document.sequence(2).trace->reversed,
+                "Alignment-spaced insertion keeps the original sample on a reverse trace");
+        undo();
+        traceSpacing->setCurrentIndex(0);
+        require(document.state_id()==state,"Undo restores the reverse trace and its alignment");
+
+        view->select_ids({1});
         const auto quality=[&](int scope){
             modal([&]{trigger("highlightLowQuality");},[&](QDialog& dialog){
                 require(dialog.objectName()=="highlightQualityDialog","Quality highlight dialog");
@@ -179,39 +401,96 @@ int main(int argc,char** argv) {
         require(!marked(2,0)&&!marked(3,0)&&!marked(4,0),"Selected trace scope and missing data");
         quality(0);
         require(marked(2,0)&&marked(2,4),"Original scores follow reverse-complemented calls");
+        require(marked(5,0),"All traces includes the long row");
+        trigger("highlightClear");
+        view->select_ids({1,2});
+        quality(1);
+        require(!marked(5,0),"Selected scope excludes the long row");
         view->select_fragment({{1},2,2});
         trigger("unhighlightSelectedBases");
-        require(marked(1,0)&&!marked(1,2),"Unhighlight suppresses only selected low-Q calls");
-        view->set_residue_display(ResidueDisplay::Letters);
+        require(marked(1,0)&&!marked(1,2),"Unhighlight removes only selected marks");
+        quality(1);
+        require(marked(1,2),"Rerunning the same low-quality snapshot marks qualifying bases again");
+        trigger("unhighlightSelectedBases");
+        require(!marked(1,2),"Unhighlight removes recurring marks");
+        view->select_fragment({{1},1,1});
+        trigger("highlightSelectedBases");
+        require(marked(1,1),"A gap-only selection can be highlighted");
+        view->set_residue_display(ResidueDisplay::Backgrounds);
         view->clear_residue_selection();
-        const auto grabMarkedCells=[&] {
-            const QRect cells(view->name_area_width()+view->cell_width(),
-                              view->ruler_height()+3*view->row_height(),
-                              2*view->cell_width(),view->row_height());
-            return view->viewport()->grab(cells).toImage();
+        const auto rowTop=[&](int row){return view->ruler_height()+row*view->row_height();};
+        const auto cellLeft=[&](int column){return view->name_area_width()+column*view->cell_width();};
+        const auto grabAlignment=[&] {
+            return view->viewport()->grab().toImage();
         };
-        const QImage before=grabMarkedCells();
+        const QImage before=grabAlignment();
         require(!before.isNull(),"Capture the two unmarked residues");
         view->select_fragment({{4},1,2});
         trigger("highlightSelectedBases");
         require(marked(4,1)&&marked(4,2)&&!marked(4,0),"Manual marks apply to selected cells in an untraced row");
         view->clear_residue_selection();
-        const QImage after=grabMarkedCells();
-        require(before.size()==after.size()&&before!=after,"Manual highlight draws a visible border");
-        int glyphPixels=0;
-        for(int y=0;y<before.height();++y) {
-            for(int x=0;x<before.width();++x) {
-                if(before.pixelColor(x,y)==Qt::white)continue;
-                ++glyphPixels;
-                require(before.pixel(x,y)==after.pixel(x,y),"Highlight border preserves every residue glyph pixel");
-            }
-        }
-        require(glyphPixels>0,"Captured cells contain visible residue letters");
+        const QImage after=grabAlignment();
+        require(before.size()==after.size()&&before!=after,"Manual highlight changes colored cells");
+        for(int column:{1,2})
+            check_manual_cell(before,after,QRect(cellLeft(column),rowTop(3),view->cell_width(),view->row_height()));
         view->select_fragment({{4},2,1});
         trigger("unhighlightSelectedBases");
         require(marked(4,1)&&!marked(4,2),"Partial unhighlight retains adjacent manual mark");
+        view->clear_residue_selection();
+
+        constexpr std::array styles{ResidueDisplay::Letters,ResidueDisplay::Monochrome,ResidueDisplay::Backgrounds};
+        std::array<QImage,styles.size()> unshaded;
+        for(std::size_t i=0;i<styles.size();++i){
+            view->set_residue_display(styles[i]);
+            unshaded[i]=grabAlignment();
+        }
+        child<QAction>(window,"highlightConserved")->setChecked(true);
+        // The long A-only row and four short rows all have A at this column.
+        require(wait_for([&]{const auto columns=view->site_highlights();return columns&&(*columns)[0];}),
+                "Conserved column computed");
+        const QRect band(cellLeft(0),rowTop(3),view->cell_width(),2*view->row_height());
+        for(std::size_t i=0;i<styles.size();++i){
+            const auto style=styles[i];
+            view->set_residue_display(style);
+            const bool coloredCells=style==ResidueDisplay::Backgrounds;
+            const QColor background=coloredCells?residue_paint('A',view->residue_palette(),style).background:QColor(Qt::white);
+            auto shade=view->site_highlight_color();
+            shade.setAlpha(coloredCells?115:80);
+            const auto shaded=grabAlignment();
+            check_column_shade(unshaded[i],shaded,band,background,shade);
+            shade.setAlpha(70);
+            check_column_shade(unshaded[i],shaded,QRect(cellLeft(0),0,view->cell_width(),view->ruler_height()),
+                               QColor(238,240,244),shade);
+        }
+
+        view->set_mode(AlignmentView::Mode::Insert);
+        view->navigate_to_cell(1,1,true);
+        require(view->paste_residues("~")&&marked(1,0)&&!marked(1,1)&&marked(1,2)&&!marked(1,3),
+                "An inserted gap stays unmarked and the previously highlighted gap moves");
+        const auto editedState=document.state_id();
+        child<QAction>(window,"saveAlignment")->trigger();
+        require(wait_for([&]{return view->isEnabled();}),"Save session with highlights");
+        MainWindow reopened;
+        auto* restoredView=dynamic_cast<AlignmentView*>(reopened.centralWidget());
+        require(restoredView,"Reopened alignment view");
+        reopened.open_path(path);
+        require(wait_for([&]{return restoredView->isEnabled()&&reopened.current_document().rows().size()==5;}),
+                "Reopen saved session");
+        const auto& restored=reopened.current_document();
+        require(restoredView->base_highlighted(restored.sequence(4),1)&&
+                !restoredView->base_highlighted(restored.sequence(4),2)&&
+                restoredView->base_highlighted(restored.sequence(1),0)&&
+                !restoredView->base_highlighted(restored.sequence(1),1)&&
+                restoredView->base_highlighted(restored.sequence(1),2)&&
+                !restoredView->base_highlighted(restored.sequence(1),3)&&
+                !restoredView->base_highlighted(restored.sequence(5),0),
+                "Gap and residue highlights persist with the saved snapshot");
+        require(wait_for([&]{const auto columns=restoredView->site_highlights();return columns&&(*columns)[0];}),
+                "Column rules and their shading survive the round trip");
+        reopened.close();
+
         trigger("highlightClear");
-        require(!marked(4,1)&&!marked(1,0)&&document.state_id()==state,"Clear removes both layers without editing");
+        require(!marked(4,1)&&!marked(1,0)&&document.state_id()==editedState,"Clear removes both layers without editing");
 
         const auto widthOnly=[](QDialog& dialog){
             const int width=dialog.width(),height=dialog.height();
@@ -225,7 +504,47 @@ int main(int argc,char** argv) {
         modal([&]{choose_mafft(&window,{});},widthOnly);
         modal([&]{choose_mafft_templates(&window,document,{1},false);},widthOnly);
         window.close();
-        std::cout<<"PASS trace selection, independent panel heights and visibility, readable per-base highlights and MAFFT dialog sizing\n";
+
+        Document scrolled;
+        scrolled.load(std::vector<Record>(40,{"row",std::string(300,'A')}));
+        AlignmentView editor;
+        editor.resize(650,260);
+        editor.set_document(&scrolled);
+        editor.show();
+        app.processEvents();
+        editor.set_wheel_steps(4,9);
+        const auto scroll=[&](QPoint delta,Qt::KeyboardModifiers modifiers){
+            const QPoint pos(editor.name_area_width()+20,editor.ruler_height()+15);
+            QWheelEvent wheel(pos,editor.viewport()->mapToGlobal(pos),QPoint(),delta,Qt::NoButton,
+                              modifiers,Qt::ScrollUpdate,false);
+            QApplication::sendEvent(editor.viewport(),&wheel);
+        };
+        scroll(QPoint(0,-120),Qt::NoModifier);
+        scroll(QPoint(0,-120),Qt::ControlModifier);
+        require(editor.verticalScrollBar()->value()==4&&editor.horizontalScrollBar()->value()==9,
+                "One mouse wheel step uses the configured rows and columns");
+        auto* viewport=editor.viewport();
+        for(int y:{editor.ruler_height()+1,viewport->height()-2}){
+            const QPoint from(editor.name_area_width()+editor.cell_width()/2,y);
+            const QPoint to=from+QPoint(2*editor.cell_width(),0);
+            QMouseEvent press(QEvent::MouseButtonPress,from,viewport->mapToGlobal(from),
+                              Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+            QMouseEvent drag(QEvent::MouseMove,to,viewport->mapToGlobal(to),
+                             Qt::NoButton,Qt::LeftButton,Qt::NoModifier);
+            QMouseEvent release(QEvent::MouseButtonRelease,to,viewport->mapToGlobal(to),
+                                Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+            QApplication::sendEvent(viewport,&press);
+            QThread::msleep(55);
+            app.processEvents();
+            QApplication::sendEvent(viewport,&drag);
+            QThread::msleep(55);
+            app.processEvents();
+            QApplication::sendEvent(viewport,&release);
+            require(editor.verticalScrollBar()->value()==4&&editor.fragment()&&
+                    editor.fragment()->ids.size()==1&&editor.fragment()->width==3,
+                    "Holding or dragging a horizontal selection at a visible row edge does not scroll vertically");
+        }
+        std::cout<<"PASS trace positioning, panel grips, live overview, highlights, wheel settings, edge selection and MAFFT sizing\n";
         return 0;
     } catch(const std::exception& error) {
         std::cerr<<"FAIL "<<error.what()<<'\n';

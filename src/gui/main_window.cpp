@@ -7,6 +7,7 @@
 #include "gui/local_blast.hpp"
 #include "gui/app_settings.hpp"
 #include "gui/settings_dialog.hpp"
+#include "gui/residue_palette_dialog.hpp"
 #include "gui/recovery.hpp"
 #include <QListWidget>
 #include <QProgressDialog>
@@ -71,6 +72,7 @@
 #include <QPlainTextEdit>
 #include <QPainter>
 #include <QPainterPath>
+#include <QProxyStyle>
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -92,19 +94,19 @@
 
 namespace kleiotide {
 namespace {
-QIcon view_icon(int kind,ResiduePalette palette=ResiduePalette::Classic) {
+QIcon view_icon(int kind,ResiduePalette palette=ResiduePalette::Classic,const CustomResidueColors* custom=nullptr) {
     QIcon icon;
     for(int scale:{1,2,3}) {
         QPixmap image(20*scale,20*scale);image.setDevicePixelRatio(scale);image.fill(Qt::transparent);
         QPainter p(&image);p.setRenderHint(QPainter::Antialiasing);p.setPen(QPen(QColor(70,80,95),1.1));
         if(kind==0) {
             auto font=QFontDatabase::systemFont(QFontDatabase::FixedFont);font.setPixelSize(7);font.setBold(true);p.setFont(font);
-            const auto colors=palette_colors(palette);
+            const auto colors=palette_colors(palette,custom);
             for(int i=0;i<4;++i){p.setPen(colors[i]);p.drawText(QRectF(i*5,1,5,10),Qt::AlignCenter,QString(QChar::fromLatin1("ACGT"[i])));
                 p.setPen(Qt::NoPen);p.setBrush(QColor(65,70,75));p.drawEllipse(QPointF(2.5+i*5,15),1.1,1.1);}
         } else if(kind==1) {
             p.drawLine(QPointF(1,17),QPointF(19,17));
-            const auto bases=palette_colors(palette);const QColor colors[]={bases[0],bases[1],bases[3]};
+            const auto bases=palette_colors(palette,custom);const QColor colors[]={bases[0],bases[1],bases[3]};
             for(int i=0;i<3;++i){QPainterPath path;path.moveTo(1,16);const double x=5+i*5;
                 path.cubicTo(x-3,16,x-2,4+i*2,x,3+i*2);path.cubicTo(x+2,4+i*2,x+2,16,19,16);
                 p.setPen(QPen(colors[i],1.4));p.drawPath(path);}
@@ -113,10 +115,10 @@ QIcon view_icon(int kind,ResiduePalette palette=ResiduePalette::Classic) {
             const int heights[]={6,10,7,12,9};for(int i=0;i<5;++i){p.setBrush(i==2?QColor(245,135,25):QColor(40,115,200));p.drawRect(QRectF(3+i*3,16-heights[i],2,heights[i]));}
         } else if(kind==6){
             auto f=QFontDatabase::systemFont(QFontDatabase::FixedFont);f.setPixelSize(8);f.setBold(true);p.setFont(f);
-            const auto colors=palette_colors(palette);for(int i=0;i<3;++i){p.setPen(colors[i]);p.drawText(QRect(i*5,8,6,11),Qt::AlignCenter,QString(QChar::fromLatin1("ACG"[i])));}
+            const auto colors=palette_colors(palette,custom);for(int i=0;i<3;++i){p.setPen(colors[i]);p.drawText(QRect(i*5,8,6,11),Qt::AlignCenter,QString(QChar::fromLatin1("ACG"[i])));}
             p.setPen(QPen(QColor(25,65,105),1.8));p.setBrush(QColor(230,245,255,100));p.drawEllipse(QRectF(3,1,10,10));p.drawLine(QPointF(12,10),QPointF(18,17));
         } else if(kind==3){auto font=QFontDatabase::systemFont(QFontDatabase::FixedFont);font.setPixelSize(14);font.setBold(true);p.setFont(font);p.setPen(Qt::black);p.drawText(QRect(0,0,20,20),Qt::AlignCenter,"Aa");
-        } else {const auto colors=palette_colors(palette);for(int i=0;i<4;++i){const QRectF rect(1+(i%2)*9,1+(i/2)*9,8,8);p.fillRect(rect,colors[static_cast<std::size_t>(i)]);
+        } else {const auto colors=palette_colors(palette,custom);for(int i=0;i<4;++i){const QRectF rect(1+(i%2)*9,1+(i/2)*9,8,8);p.fillRect(rect,colors[static_cast<std::size_t>(i)]);
                 if(kind==4){auto font=QFontDatabase::systemFont(QFontDatabase::FixedFont);font.setPixelSize(7);font.setBold(true);p.setFont(font);p.setPen(black_or_white(colors[static_cast<std::size_t>(i)]));p.drawText(rect,Qt::AlignCenter,QString(QChar::fromLatin1("ACGT"[i])));}}}
         p.end();icon.addPixmap(image);
     }
@@ -144,6 +146,16 @@ namespace {
 constexpr int overviewPanelHeight = 105;
 constexpr int tracePanelHeight = 253;
 
+class PanelDockStyle final : public QProxyStyle {
+public:
+    int pixelMetric(PixelMetric metric,const QStyleOption* option,
+                    const QWidget* widget) const override {
+        // The panel grips are the only resize targets in this window.
+        if(metric==PM_DockWidgetSeparatorExtent)return 0;
+        return QProxyStyle::pixelMetric(metric,option,widget);
+    }
+};
+
 class PanelResizeHandle final : public QWidget {
 public:
     PanelResizeHandle(QDockWidget* dock, QWidget* alignment)
@@ -158,37 +170,56 @@ public:
 protected:
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
-        painter.fillRect(rect(),palette().window());
-        painter.setPen(palette().mid().color());
+        const auto background=palette().window().color();
+        const QColor contrast=black_or_white(background);
+        painter.fillRect(rect(),background);
+        const float strength=underMouse()?0.65f:0.46f;
+        painter.setPen(QColor::fromRgbF(
+            background.redF()*(1-strength)+contrast.redF()*strength,
+            background.greenF()*(1-strength)+contrast.greenF()*strength,
+            background.blueF()*(1-strength)+contrast.blueF()*strength));
         const int center=width()/2;
         painter.drawLine(center-18,2,center+18,2);
         painter.drawLine(center-18,4,center+18,4);
     }
+    void enterEvent(QEnterEvent* event) override { QWidget::enterEvent(event);update(); }
+    void leaveEvent(QEvent* event) override { QWidget::leaveEvent(event);update(); }
     void mousePressEvent(QMouseEvent* event) override {
         if(event->button()!=Qt::LeftButton){event->ignore();return;}
-        startY_=qRound(event->globalPosition().y());
+        startY_=event->globalPosition().y();
         startHeight_=panel_->height();
+        maximumHeight_=startHeight_+std::max(0,alignment_->height()-90);
         event->accept();
     }
     void mouseMoveEvent(QMouseEvent* event) override {
         if(!event->buttons().testFlag(Qt::LeftButton)){event->ignore();return;}
         const int minimum = std::max(minimumHeight_, panel_->minimumSizeHint().height());
-        const int maximum = panel_->height() + std::max(0, alignment_->height() - 90);
-        const int requested = startHeight_ + startY_ - qRound(event->globalPosition().y());
-        panel_->setFixedHeight(std::clamp(requested, minimum, std::max(minimum, maximum)));
+        const int requested=startHeight_+qRound(startY_-event->globalPosition().y());
+        const int height=std::clamp(requested,minimum,std::max(minimum,maximumHeight_));
+        if(height!=panel_->height()){
+            panel_->setFixedHeight(height);
+            window()->layout()->activate();
+        }
         event->accept();
     }
 private:
     QWidget* panel_;
     QWidget* alignment_;
     int minimumHeight_;
-    int startY_=0,startHeight_=0;
+    qreal startY_=0;
+    int startHeight_=0,maximumHeight_=0;
 };
 }
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::make_shared<Document>()) {
     document_->load({},AppSettings::instance().values().translation());savedState_=document_->state_id();
     setWindowTitle("Kleiotide — alignment editor");
     resize(1180, 720);setAcceptDrops(true);
+    auto options=dockOptions();
+    options.setFlag(QMainWindow::AnimatedDocks,false);
+    setDockOptions(options);
+    auto* dockStyle=new PanelDockStyle;
+    dockStyle->setParent(this);
+    setStyle(dockStyle);
     view_ = new AlignmentView(this);
     view_->set_document(document_.get());
     highlighter_=new SiteHighlighter(view_,this);highlighter_->set_document(document_.get());
@@ -212,9 +243,34 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     traces_->setFixedHeight(tracePanelHeight);
     traceDock_->hide();
     traces_->cell_requested=[this](SequenceId id,std::size_t column){if(!busy_)view_->navigate_to_cell(id,column);};
-    traces_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(busy_)return;view_->select_trace_fragment(id,start,width);view_->navigate_to(start);};
     traces_->key_requested=[this](QKeyEvent* event){if(!busy_&&prepare_trace_edit())QApplication::sendEvent(view_,event);};
-    view_->viewport_changed=[this]{overview_->update();const auto [begin,end]=view_->visible_column_range();traces_->follow_viewport(begin,end);};
+    traces_->canvas()->boundary_requested=[this](SequenceId id,std::size_t column){
+        if(!busy_)view_->navigate_to_cell(id,column,true);
+    };
+    traces_->canvas()->peak_moved=[this](SequenceId id,std::size_t ordinal,std::uint32_t sample){
+        if(busy_||view_->mode()==AlignmentView::Mode::View)return;
+        try{
+            const auto& row=document_->sequence(id);
+            const auto link=adjusted_trace(row,ordinal,sample);
+            if(link==row.trace)return;
+            document_->replace_many({{id,0,0,{},link}});
+            view_->refresh();update_state();
+        }catch(const std::exception& error){statusBar()->showMessage(QString::fromUtf8(error.what()),6000);}
+    };
+    traces_->canvas()->insertion_base_typed=[this](SequenceId id,std::size_t column,std::uint32_t sample,char base){
+        if(busy_||view_->mode()==AlignmentView::Mode::View)return;
+        try{
+            const auto link=inserted_trace_call(document_->sequence(id),column,sample);
+            document_->replace_many({{id,column,0,std::string(1,base),link}});
+            view_->refresh();update_state();
+            view_->navigate_to_cell(id,column);
+        }catch(const std::exception& error){statusBar()->showMessage(QString::fromUtf8(error.what()),6000);}
+    };
+    view_->viewport_changed=[this]{
+        overview_->update();
+        const auto [begin,end]=view_->visible_column_range();
+        traces_->follow_viewport(begin,end);
+    };
     view_->changed = [this] { update_state(); };
     view_->selection_changed = [this] {
         if(displayedDocument_!=document_.get()||displayedState_!=document_->state_id()||displayedMode_!=static_cast<int>(view_->mode()))update_state();
@@ -225,6 +281,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     view_->copy_fragment_requested=[this]{copy_clipboard();};view_->cut_fragment_requested=[this]{cut_clipboard();};view_->paste_fragment_requested=[this]{paste_fragment();};
     view_->rename_requested = [this](SequenceId id) { rename_sequence(id); };
     view_->link_trace_requested=[this]{link_traces();};view_->delete_trace_requested=[this]{delete_traces();};view_->blast_requested=[this](bool protein){search_blast(protein);};
+    view_->double_peak_requested=[this]{call_double_peaks();};
     view_->delete_rows_requested = [this] { delete_selected(); };
     view_->add_group_requested=[this]{group_action(1);};view_->remove_group_requested=[this]{group_action(2);};
     view_->message = [this](const QString& text) { statusBar()->showMessage(text, 5000); };
@@ -270,7 +327,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         a->setObjectName(importIds[i]);a->setCheckable(true);a->setChecked(i==static_cast<int>(fastaImport_));importGroup->addAction(a);
         a->setToolTip("Applies to FASTA Open, Add and clipboard imports in this window. Alphabets overlap: ACGT can be either nucleotide or protein. Incompatible printable rows become masks. Saved sessions and AB1 files retain their declared types.");}
     file->addSeparator();
-    action(file, "&Save", QKeySequence::Save, [this] { save(); });
+    action(file, "&Save", QKeySequence::Save, [this] { save(); })->setObjectName("saveAlignment");
     action(file, "Save &as…", QKeySequence::SaveAs, [this] { save(true); });
     action(file,"Export FASTA…",{},[this]{save(true,{},true);});
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
@@ -335,6 +392,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     sequence->addSeparator();
     action(sequence,"Link trace (AB1)…",{},[this]{link_traces();})->setObjectName("linkTrace");
     action(sequence,"Delete trace…",{},[this]{delete_traces();})->setObjectName("deleteTrace");sequence->addSeparator();
+    auto* doublePeaks=action(sequence,"Double peak calling…",{},[this]{call_double_peaks();});
+    doublePeaks->setObjectName("doublePeakCalling");
+    doublePeaks->setToolTip("Preview IUPAC substitutions supported by two peaks in linked chromatograms.");
+    sequence->addSeparator();
     auto* merge=action(sequence,"Merge aligned sequences…",{},[this]{merge_sequences(false);});merge->setObjectName("mergeSelectedSequences");merge->setToolTip("Merge two or more selected nucleotide rows at their current alignment columns, with IUPAC consensus and optional trace-quality resolution.");
     auto* overlapMerge=action(sequence,"Find overlap and merge…",{},[this]{merge_sequences(true);});overlapMerge->setObjectName("findOverlapAndMerge");overlapMerge->setToolTip("Find overlaps in the current orientation with an optional edit allowance, review partial contigs and append the chosen result.");
     auto* collapse=action(sequence,"Collapse identical sequences…",{},[this]{collapse_sequences();});collapse->setObjectName("collapseIdentical");collapse->setToolTip("Keep one representative per identical ungapped sequence, with combined titles or a count suffix. Preview the retained groups and traces.");
@@ -401,7 +462,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(mafft,"Align selected sequences to templates…",{},[this]{align_mafft_templates(false);});
     action(mafft,"Align selected fragments to templates…",{},[this]{align_mafft_templates(true);});
     auto* report=mafft->addAction("Last alignment report…");connect(report,&QAction::triggered,this,[this]{show_mafft_report();});
-    action(alignment, "&Flush alignment", {}, [this] {
+    action(alignment, "&Flush alignment (pad ends with gaps)", {}, [this] {
         try{document_->flush();}
         catch(const std::bad_alloc&){QMessageBox::warning(this,"Flush alignment","Not enough memory to complete this edit. The alignment was not changed.");return;}
         catch(const std::exception& e){QMessageBox::warning(this,"Flush alignment",QString::fromUtf8(e.what()));return;}
@@ -435,7 +496,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     const char* distanceIds[]={"pairwiseDistances","overallDistance","withinGroupDistance","betweenGroupDistance"};
     for(int i=0;i<4;++i){auto* command=action(statistics,QString::fromUtf8(distanceLabels[i]),{},[this,i]{show_distances(i);});command->setObjectName(distanceIds[i]);}
     auto* view = menuBar()->addMenu("&View");
-    motifDock_->toggleViewAction()->setText("Motif search");motifDock_->toggleViewAction()->setIcon(view_icon(6));
+    auto* motifToggle=motifDock_->toggleViewAction();
+    motifToggle->setText("Motif search");motifToggle->setIcon(view_icon(6));
+    motifToggle->setToolTip("Show or hide motif search.");
     auto* overviewToggle=overviewDock->toggleViewAction();overviewToggle->setObjectName("alignmentOverviewView");
     overviewToggle->setIcon(view_icon(2));overviewToggle->setToolTip("Show or hide the alignment overview: column conservation, non-gap height and navigation.");
     auto* traceToggle=traceDock_->toggleViewAction();traceToggle->setObjectName("chromatogramView");
@@ -449,12 +512,23 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* display=view->addMenu("Residue display");auto* displayGroup=new QActionGroup(this);
     const char* displayLabels[]={"Colored residue letters","Monochrome residues","Colored residue backgrounds"};
     for(int i=0;i<3;++i){const auto style=static_cast<ResidueDisplay>(i);auto* option=display->addAction(QString::fromLatin1(displayLabels[i]));option->setObjectName("residueDisplay."+display_id(style));option->setCheckable(true);displayGroup->addAction(option);option->setChecked(i==0);
-        option->setIcon(view_icon(i==1?3:i==2?4:5));option->setToolTip(i==1?"Toggle monochrome alignment symbols. Click again to restore colored letters.":i==2?"Toggle residue-colored cells with contrasting black/white symbols. Click again to restore colored letters.":"Show residue-colored letters on a white alignment background.");
+        option->setIcon(view_icon(i==1?3:i==2?4:5));option->setToolTip(i==1?"Toggle monochrome alignment symbols. Click again to restore colored letters.":i==2?"Toggle back-colored view mode":"Show residue-colored letters on a white alignment background.");
         connect(option,&QAction::triggered,this,[this,style]{set_residue_display(style!=ResidueDisplay::Letters&&view_->residue_display()==style?ResidueDisplay::Letters:style);});}
     auto* paletteMenu=view->addMenu("Residue palette");auto* paletteGroup=new QActionGroup(this);
     for(int i=0;i<residue_palette_count;++i){const auto palette=static_cast<ResiduePalette>(i);auto* option=paletteMenu->addAction(palette_label(palette));option->setObjectName("residuePalette."+palette_id(palette));option->setCheckable(true);paletteGroup->addAction(option);option->setChecked(i==0);option->setIcon(view_icon(5,palette));
         option->setToolTip("Change alignment residue colors and trace-channel colors. High contrast, Okabe–Ito and Paul Tol text is darkened where needed for contrast on white; Kleio and Chromas-style keep their exact base colors.");connect(option,&QAction::triggered,this,[this,palette]{set_residue_palette(palette);});}
-    auto* fontAction=action(view, "Alignment &font…", {}, [this] { choose_font(); });fontAction->setObjectName("alignmentFont");
+    paletteMenu->addSeparator();
+    auto* customPalette=paletteMenu->addAction("Custom…");
+    customPalette->setObjectName("residuePalette.custom");customPalette->setCheckable(true);paletteGroup->addAction(customPalette);
+    customPalette->setToolTip("Choose your own nucleotide and IUPAC colors for this alignment.");
+    connect(customPalette,&QAction::triggered,this,[this]{
+        const auto existing=view_->residue_palette();
+        findChild<QAction*>("residuePalette."+palette_id(existing))->setChecked(true);
+        if(auto colors=choose_residue_colors(this,view_->custom_residue_colors())){
+            view_->set_custom_residue_colors(*colors);
+            set_residue_palette(ResiduePalette::Custom);
+        }
+    });
     toolbar->setObjectName("editingToolbar");toolbar->setMovable(false);toolbar->setFloatable(false);
     auto makeSwitch=[&](const char* object,const QString& accessible){
         auto* frame=new QFrame(toolbar);frame->setObjectName(object);frame->setAccessibleName(accessible);
@@ -497,7 +571,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         pair.second->setToolTip(pair.first->toolTip());pair.first->setDefaultAction(pair.second);
     }
     toolbar->addSeparator();
-    for(auto* toggle:{dots,traceToggle,overviewToggle}) {
+    for(auto* toggle:{dots,traceToggle,overviewToggle,motifToggle}) {
         toolbar->addAction(toggle);
         if(auto* button=qobject_cast<QToolButton*>(toolbar->widgetForAction(toggle)))button->setAccessibleName(toggle->text());
     }
@@ -510,17 +584,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* toolbarMenu=view->addMenu("Toolbars");toolbarMenu->setObjectName("toolbarsMenu");
     toolbarMenu->addAction(motifDock_->toggleViewAction());toolbarMenu->addAction(overviewToggle);toolbarMenu->addAction(traceToggle);
     auto* editingVisibility=toolbar->toggleViewAction();editingVisibility->setText("Editing controls");editingVisibility->setObjectName("editingToolbarView");toolbarMenu->addAction(editingVisibility);
-    action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
-        auto* translationBar=findChild<QToolBar*>("translationToolbar");const bool translationVisible=translationBar&&!translationBar->isHidden();
-        if(translationBar){removeToolBarBreak(translationBar);removeToolBar(translationBar);}
-        removeToolBar(toolbar);removeToolBar(sizeToolbar);
-        addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
-        if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
-        overview_->setFixedHeight(overviewPanelHeight);
-        traces_->setFixedHeight(tracePanelHeight);
-        overviewDock->show();traceDock_->setVisible(traces_->has_traces());
-        motifDock_->hide();update_toolbar_layout();
-    })->setObjectName("restoreDefaultLayout");
     auto* help = menuBar()->addMenu("&Help");
     auto* about = help->addAction("About Kleiotide");
     about->setObjectName("aboutKleiotide");
@@ -537,7 +600,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
             .arg(QString::fromLatin1(version)));box.setTextInteractionFlags(Qt::TextBrowserInteraction);for(auto* label:box.findChildren<QLabel*>())label->setOpenExternalLinks(true);box.setStandardButtons(QMessageBox::Ok);box.exec();
     });
     translation_=new TranslationUI(this);
-    view->removeAction(fontAction);view->addSeparator();view->addAction(fontAction);
+    view->addSeparator();
+    action(view,"Restore default layout",{},[this,toolbar,sizeToolbar,overviewDock]{
+        auto* translationBar=findChild<QToolBar*>("translationToolbar");const bool translationVisible=translationBar&&!translationBar->isHidden();
+        if(translationBar){removeToolBarBreak(translationBar);removeToolBar(translationBar);}
+        removeToolBar(toolbar);removeToolBar(sizeToolbar);
+        addToolBar(Qt::TopToolBarArea,toolbar);addToolBar(Qt::TopToolBarArea,sizeToolbar);toolbar->show();
+        if(translationBar){addToolBarBreak(Qt::TopToolBarArea);addToolBar(Qt::TopToolBarArea,translationBar);translationBar->setVisible(translationVisible);}
+        overview_->setFixedHeight(overviewPanelHeight);
+        traces_->setFixedHeight(tracePanelHeight);
+        overviewDock->show();traceDock_->setVisible(traces_->has_traces());
+        motifDock_->hide();update_toolbar_layout();
+    })->setObjectName("restoreDefaultLayout");
+    view->addSeparator();
+    action(view,"Alignment &font…",{},[this]{choose_font();})->setObjectName("alignmentFont");
     sequence->removeAction(sequenceSelection->menuAction());sequence->removeAction(sort->menuAction());
     sequence->addSeparator();sequence->addMenu(sequenceSelection);sequence->addMenu(sort);
     apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
@@ -622,9 +698,12 @@ void MainWindow::offer_recovery(bool startup){
 }
 AppPreferences MainWindow::current_appearance()const {
     auto p=AppSettings::instance().values();p.font=view_->font();p.palette=view_->residue_palette();p.display=view_->residue_display();p.identityDots=view_->identity_dots();p.viewOnly=view_->mode()==AlignmentView::Mode::View;p.insert=editMode_==1;p.rightClick=gapMode_;
+    p.customResidueColors=view_->custom_residue_colors();
     p.overviewVisible=!overview_->parentWidget()->isHidden();p.traceVisible=traces_->has_traces()?!traceDock_->isHidden():p.traceVisible;return p;
 }
 void MainWindow::apply_appearance(const AppPreferences& p){
+    view_->set_custom_residue_colors(p.customResidueColors);
+    view_->set_wheel_steps(p.wheelRows,p.wheelColumns);
     view_->setFont(p.font);set_residue_palette(p.palette);set_residue_display(p.display);findChild<QAction*>("identityDots")->setChecked(p.identityDots);
     editMode_=p.insert?1:2;gapMode_=p.rightClick;
     view_->set_mode(p.viewOnly?AlignmentView::Mode::View:p.insert?AlignmentView::Mode::Insert:AlignmentView::Mode::Rewrite);
@@ -633,15 +712,17 @@ void MainWindow::apply_appearance(const AppPreferences& p){
 void MainWindow::apply_operational_preferences(){
     if(busy_)return;
     const auto& p=AppSettings::instance().values();
+    view_->set_wheel_steps(p.wheelRows,p.wheelColumns);
     document_->set_bulk_edit_memory_limit(AppSettings::bytes(p.bulkMiB));document_->set_history_budget(AppSettings::bytes(p.undoMiB));
     overview_->set_limits(AppSettings::bytes(p.overviewMiB),p.scanDelayMs);
 }
 void MainWindow::set_residue_palette(ResiduePalette palette){
-    view_->set_residue_palette(palette);traces_->set_residue_palette(palette);
+    const auto& colors=view_->custom_residue_colors();
+    view_->set_residue_palette(palette);traces_->set_residue_palette(palette,colors);
     findChild<QAction*>("residuePalette."+palette_id(palette))->setChecked(true);
-    findChild<QAction*>("identityDots")->setIcon(view_icon(0,palette));findChild<QAction*>("chromatogramView")->setIcon(view_icon(1,palette));
-    findChild<QAction*>("residueDisplay.backgrounds")->setIcon(view_icon(4,palette));
-    auto* button=findChild<QToolButton*>("residuePaletteButton");button->setIcon(view_icon(5,palette));button->setToolTip("Residue palette: "+palette_label(palette)+". Choose colors for alignment symbols/cells and trace channels.");
+    findChild<QAction*>("identityDots")->setIcon(view_icon(0,palette,&colors));findChild<QAction*>("chromatogramView")->setIcon(view_icon(1,palette,&colors));
+    findChild<QAction*>("residueDisplay.backgrounds")->setIcon(view_icon(4,palette,&colors));
+    auto* button=findChild<QToolButton*>("residuePaletteButton");button->setIcon(view_icon(5,palette,&colors));button->setToolTip("Residue palette: "+palette_label(palette)+". Choose colors for alignment symbols/cells and trace channels.");
 }
 void MainWindow::set_residue_display(ResidueDisplay display){view_->set_residue_display(display);findChild<QAction*>("residueDisplay."+display_id(display))->setChecked(true);}
 void MainWindow::update_state() {
@@ -678,6 +759,7 @@ void MainWindow::update_state() {
     if(auto* toggle=findChild<QAction*>("chromatogramView"))toggle->setEnabled(traces_->has_traces());
     if(auto* exportAbif=findChild<QAction*>("exportAbif"))exportAbif->setEnabled(!busy_&&traces_->has_traces());
     if(auto* exportBatch=findChild<QAction*>("exportAbifBatch"))exportBatch->setEnabled(!busy_&&traces_->has_traces());
+    if(auto* doublePeaks=findChild<QAction*>("doublePeakCalling"))doublePeaks->setEnabled(!busy_&&traces_->has_traces());
     const bool dirty = document_->state_id() != savedState_;
     const auto title = path_.isEmpty() ? (resultLabel_.isEmpty()?QString("Untitled"):resultLabel_) : QFileInfo(path_).fileName();
     setWindowTitle(title + (dirty ? " *" : "") + " — Kleiotide");
@@ -687,6 +769,7 @@ void MainWindow::update_selection_state() {
     overview_->update();
     if(translation_)translation_->update_selection();
     const bool edit=view_->mode()!=AlignmentView::Mode::View;
+    traces_->canvas()->set_editable(edit&&!busy_);
     const auto selected=view_->selected_ids();
     if(motif_)motif_->set_document(document_,selected);
     if(traces_&&traces_->has_traces()){
@@ -1240,6 +1323,7 @@ std::string MainWindow::session_view()const {
     state["identityDots"]=view_->identity_dots();
     if(translation_)state["translation"]=translation_->state();
     state["residuePalette"]=palette_id(view_->residue_palette());state["residueDisplay"]=display_id(view_->residue_display());
+    state["customResidueColors"]=encode_residue_colors(view_->custom_residue_colors());
     state["column"]=view_->horizontalScrollBar()->value();state["row"]=view_->verticalScrollBar()->value();state["traceVisible"]=!traceDock_->isHidden();
     if(auto* dock=findChild<QWidget*>("alignmentOverview"))state["overviewVisible"]=!dock->parentWidget()->isHidden();
     state["trace"]=QString::number(traces_->canvas()->sequence_id());state["traceColumn"]=QString::number(static_cast<qulonglong>(traces_->canvas()->focused_column()));
@@ -1251,9 +1335,17 @@ std::string MainWindow::session_view()const {
 }
 void MainWindow::restore_view(const std::string& bytes){
     apply_appearance(AppPreferences::defaults());
-    const auto state=QJsonDocument::fromJson(QByteArray::fromStdString(bytes)).object();if(state["version"].toInt()!=1){set_residue_palette(ResiduePalette::Classic);set_residue_display(ResidueDisplay::Letters);return;}
+    const auto& preferences=AppSettings::instance().values();
+    view_->set_wheel_steps(preferences.wheelRows,preferences.wheelColumns);
+    const auto state=QJsonDocument::fromJson(QByteArray::fromStdString(bytes)).object();
+    if(state["version"].toInt()!=1){
+        view_->set_custom_residue_colors(preferences.customResidueColors);
+        set_residue_palette(ResiduePalette::Classic);set_residue_display(ResidueDisplay::Letters);return;
+    }
     if(highlighter_)highlighter_->restore(state["highlight"].toObject());
     findChild<QAction*>("identityDots")->setChecked(state["identityDots"].toBool(false));
+    view_->set_custom_residue_colors(state["customResidueColors"].isObject()
+        ?decode_residue_colors(state["customResidueColors"].toObject()):preferences.customResidueColors);
     set_residue_palette(palette_from_id(state["residuePalette"].toString()));set_residue_display(display_from_id(state["residueDisplay"].toString()));
     auto ids=[&](const QJsonArray& values){std::vector<SequenceId> result;for(const auto& v:values){const auto id=v.toString().toULongLong();for(const auto& row:document_->rows())if(row.id==id){if(std::find(result.begin(),result.end(),id)==result.end())result.push_back(id);break;}}return result;};
     QFont font;if(!state["font"].toString().isEmpty()&&font.fromString(state["font"].toString())&&font.pointSize()>=6&&font.pointSize()<=48)view_->setFont(font);

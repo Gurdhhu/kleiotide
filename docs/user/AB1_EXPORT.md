@@ -34,7 +34,13 @@ reported as success even if a late cancellation arrives afterward.
 
 ## Peaks and signal
 
-Surviving original calls retain their recorded sample positions. Terminal additions with signal-supported inferred anchors use those positions; they remain synthetic calls with Q0. Internal inserted runs interpolate between surviving anchors. Unsupported terminal runs extrapolate local spacing instead of stretching across the entire remaining trace. Rounding or crowded regions may give coincident positions. No channel is resampled to invent signal or separate calls artificially. See [trace linking](TRACES.md).
+Manually adjusted calls and calls inserted at a chosen trace sample export
+at their chosen sample positions. Other surviving original calls keep their
+recorded sample positions. Terminal additions with inferred anchors use those
+positions, with Q0. Internal inserted runs interpolate between neighboring
+anchors. Unsupported terminal runs use local spacing. Rounding or crowded
+regions may give coincident positions. The export preserves the original
+signal samples. See [trace linking](TRACES.md).
 
 A reverse-complemented row exports in its current left-to-right sequence order.
 Each channel is reversed in sample order and complementary channels are swapped

@@ -61,7 +61,7 @@ protected:
         const auto first=std::size_t(horizontalScrollBar()->value());const auto end=std::min(plan_->symbols.size(),first+std::size_t(std::max(0,viewport()->width()-names)/cell+1));
         p.setPen(Qt::darkGray);p.drawText(4,line-fm.descent(),"Result column");
         for(auto c=first;c<end;++c)if((c+1)%10==0)p.drawText(names+int(c-first)*cell,line-fm.descent(),QString::number(c+1));
-        const auto label=QString::number(first+1);const int labelWidth=fm.horizontalAdvance(label)+12;p.fillRect(names,0,labelWidth,line,Qt::white);p.setPen(Qt::darkGray);p.drawText(names+4,line-fm.descent(),label);
+        const auto firstColumnLabel=QString::number(first+1);const int labelWidth=fm.horizontalAdvance(firstColumnLabel)+12;p.fillRect(names,0,labelWidth,line,Qt::white);p.setPen(Qt::darkGray);p.drawText(names+4,line-fm.descent(),firstColumnLabel);
         const auto top=std::size_t(verticalScrollBar()->value());const auto bottom=std::min(plan_->alignment.size()+1,top+std::size_t(std::max(0,viewport()->height()/line)));
         for(auto row=top;row<bottom;++row){
             const int y=int(row-top+1)*line;const auto label=row?text(source_->sequence(plan_->alignment[row-1].id).name):QString("Merged result");

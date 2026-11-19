@@ -4,7 +4,7 @@
 
 I started Kleiotide to build a practical tool for the daily work of myself and my colleagues: checking sequences against chromatograms, preparing and refining alignments, comparing specimens, and organizing molecular data for taxonomic and phylogenetic studies. Although shaped by these needs, I hope it will also prove useful to a broader community of biologists.
 
-Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.29.6, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
+Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.30.1, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
 
 The interface follows a straightforward principle: common tasks should be easy to start. Open an alignment directly, inspect a chromatogram, or align two sequences without first creating a project, defining a pipeline, or completing a multistep import procedure. Alignments open in independent main windows, avoiding differently sized document windows nested inside another window.
 
@@ -29,7 +29,7 @@ Native **`.kleio` sessions** preserve the alignment together with linked trace e
 
 ## Getting started
 
-Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.29.6**. Earlier sessions load, but new format-5 sessions require Kleiotide 0.29.2 or later.
+Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.30.1**. Kleiotide 0.30.1 reads earlier sessions and saves in format 6, which adds manually positioned trace calls.
 
 - [User guides](docs/README.md#user-guides)
 - [Build from source](docs/development/BUILDING.md)
@@ -41,7 +41,7 @@ Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main wi
 
 - **Windows:** x64 Windows 10 version 1809 (build 17763) or later and x64 Windows 11. Windows 11 on ARM can run the x64 build through x64 emulation. The selected Qt kit must also support the target Windows version.
 - **Linux:** Debian 13 (trixie), amd64, is the initial test target. See [building and installing the Debian package](docs/development/DEBIAN_PACKAGE.md).
-- **macOS:** experimental, untested build from source. See the instructions below.
+- **macOS:** experimental build from source. See the instructions below.
 
 ## Build and test
 
@@ -54,19 +54,21 @@ cmake --build build --target release-check --parallel 2
 
 The full release suite currently registers **49 tests**. Automated remote BLAST checks use loopback HTTP and do not submit sequences to NCBI. See [building](docs/development/BUILDING.md) for core-only builds and platform details.
 
-### Build on macOS (experimental and untested)
+### Build on macOS (experimental)
 
 Download the Kleiotide source archive and open its extracted directory in
 Terminal. Install Apple's free Command Line Tools with `xcode-select --install`
 if needed. With Homebrew installed, run:
 
 ```sh
-brew install cmake qtbase
+brew install cmake qtbase  # optional: brew install mafft
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)"
 cmake --build build --target kleiotide --parallel 2
 open build/kleiotide.app
 ```
+
+A tester verified launch, AB1 editing, session saving, FASTA export and MAFFT on an Apple Silicon M2 after applying the two build fixes included here. If the build fails, fix the reported compile error before opening the app bundle. Kleiotide also checks the usual Homebrew locations for MAFFT when launched from Finder.
 
 The local app uses the Qt libraries installed on your Mac. Open your files from
 **File → Open**. A local build requires no paid developer membership, signing
@@ -74,7 +76,7 @@ certificate or notarization.
 
 ## Acknowledgments
 
-Thank you to Martin Schnittler, Dmytro Leontyev and Kristina Kuprina for testing Kleiotide and suggesting features.
+Many thanks to Martin Schnittler, Dmytro Leontyev, Maho Inoue and Kristina Kuprina for testing Kleiotide and suggesting how to make it more intuitive and what features to add.
 
 ## Source, citation and licensing
 

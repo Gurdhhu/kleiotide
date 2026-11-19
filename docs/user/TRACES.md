@@ -65,7 +65,55 @@ Linked evidence is embedded and deduplicated in native sessions. Confirming Link
 
 When linking an edited sequence, supported concrete terminal residues can receive inferred signal positions. A bounded sequence/spacing/dominance search preserves monotone peak order; homopolymers require distinct signal maxima. Unsupported or ambiguous additions remain unassigned. This heuristic does not create an original call index or a measured Phred score.
 
-The viewer and AB1 exporter use these positions consistently. Unsupported terminal runs use local spacing rather than being stretched across the entire remaining signal. Undo, edits, reverse complement and native sessions preserve the distinction between original-call anchors and inferred sample positions. New sessions use format 5. Relink the original AB1 to recalculate an older mapping; opening a previously exported AB1 does not silently rewrite its stored peak positions.
+The viewer and AB1 exporter use these positions consistently. Unsupported terminal runs use local spacing. Undo, edits, reverse complement and native sessions preserve the distinction between original-call anchors and inferred sample positions. Relink the original AB1 to recalculate an older mapping.
+
+## Manually positioning calls
+
+In Edit mode, drag a letter in the **Current** line to position it between its
+neighboring calls. Sample spacing shows the adjusted position directly over the
+original trace. The alignment letters and gaps stay in place. Select a range
+in the alignment to highlight it in the chromatogram.
+
+Click a deleted letter in **Imported** to place an insertion caret at its
+original sample. For another location, click the signal plot or an open space
+in **Current**, including between calls and in either flank. Type a nucleotide
+to insert it at the indicated sample, before the next current base or after the
+last one. The alignment caret shows where the base will be inserted. You can
+drag the new call afterwards. Edited AB1 exports use its selected sample and
+Q0. The original calls and their measured Q remain available in the trace.
+Undo/Redo and format-6 sessions retain the edited positions.
+
+## Double peak calling
+
+Open **Sequence → Double peak calling** or use the sequence-name context menu.
+Choose selected sequences or all sequences with chromatograms. The preview
+examines non-gap residues in the **Current** row with an imported, inferred
+or manually placed sample anchor. Positions with only an interpolated
+location are counted in the status line.
+
+The default secondary peak threshold is **60%** of the major peak height.
+Sites with a qualifying third peak at **30%** of the major peak height or
+higher are excluded. Peak tops may be separated by at most **20%** of the
+local base spacing by default. Displacement in samples counts the recorded
+signal points between the two tops.
+
+Kleiotide measures the peaks from the same zero line you see in the trace.
+It uses the surrounding signal to check whether a local maximum has a clear
+peak shape. If the tallest signal near the residue has no clear peak, the
+site is skipped. Phred scores do not enter the calculation.
+
+Select a proposed substitution to inspect its chromatogram. The table shows
+the one-based alignment column, current and proposed symbols, the two bases,
+the peak-height ratios, and the displacement. A proposal starts unchecked
+if the current symbol differs from the detected pair, including when it is
+a different ambiguity code. Review each such site before checking it.
+**Apply** makes the checked substitutions in one undoable edit and preserves
+the original imported evidence.
+
+**Copy table** copies the calculation rules, Kleiotide version and preview
+as TSV. **Save table** offers XLSX, TSV and CSV with the same information,
+including which proposals are checked. The preview is a record of proposed
+changes, and its checked column indicates what would be substituted on Apply.
 
 ## Quality editing
 

@@ -30,7 +30,8 @@ QString position_text(const TracePosition& position,std::size_t column) {
         else if(position.quality)text+=QString(" · imported Q=%1").arg(*position.quality);
         else text+=" · quality unavailable";
     }else if(is_gap(position.current))text+=" · gap; no original peak or quality";
-    else text+=position.inferred?" · inserted symbol; inferred signal position; no original call or measured quality":" · inserted symbol; interpolated position; no original call or quality";
+    else text+=position.inferred?" · inserted symbol; inferred signal position; no original call or measured quality":" · inserted symbol; no original call or measured quality";
+    if(position.adjusted)text+=" · manually positioned";
     return text;
 }
 }
@@ -40,34 +41,38 @@ TraceCanvas::TraceCanvas(QWidget* parent):QAbstractScrollArea(parent) {
     viewport()->setMouseTracking(true);setFocusPolicy(Qt::ClickFocus);
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
     connect(horizontalScrollBar(),&QScrollBar::valueChanged,this,[this]{invalidate_render_cache();});
+    update_scrollbar();
 }
 double TraceCanvas::raw_from_oriented(double sample)const {return row_.trace->reversed?static_cast<double>(row_.trace->original->channels[0].size()-1)-sample:sample;}
 double TraceCanvas::displayed(double sample)const {return aligned_?coordinates_->column_for_sample(sample):raw_from_oriented(sample);}
 double TraceCanvas::original(double coordinate)const {return aligned_?coordinates_->sample_for_column(coordinate):raw_from_oriented(coordinate);}
-double TraceCanvas::sample_x(double sample)const {return (displayed(sample)-origin())*pixels_per_unit()+80.-horizontalScrollBar()->value();}
-double TraceCanvas::column_x(std::size_t column)const {return aligned_?(static_cast<double>(column)+.5-origin())*pixels_per_unit()+80.-horizontalScrollBar()->value():sample_x(position(column).sample);}
-int TraceCanvas::label_gutter()const {auto font=this->font();font.setPointSize(9);return QFontMetrics(font).horizontalAdvance("Original Q:")+12;}
+int TraceCanvas::plot_left()const {return std::max(80,labelGutter_+6);}
+double TraceCanvas::coordinate_at(double x)const {return (horizontalScrollBar()->value()+x-plot_left())/pixels_per_unit()+origin();}
+double TraceCanvas::sample_x(double sample)const {return (displayed(sample)-origin())*pixels_per_unit()+plot_left()-horizontalScrollBar()->value();}
+double TraceCanvas::sample_at(double x)const {return original(coordinate_at(x));}
+double TraceCanvas::column_x(std::size_t column)const {return aligned_?(static_cast<double>(column)+.5-origin())*pixels_per_unit()+plot_left()-horizontalScrollBar()->value():sample_x(position(column).sample);}
 void TraceCanvas::set_alignment_spacing(bool enabled){if(aligned_==enabled)return;aligned_=enabled;update_scrollbar();center_column(column_);invalidate_render_cache();}
 void TraceCanvas::set_alignment_columns(std::size_t columns){if(alignmentColumns_==columns)return;alignmentColumns_=columns;update_scrollbar();}
 void TraceCanvas::set_selection(std::size_t start,std::size_t width,bool blue){if(selectionStart_==start&&selectionWidth_==width&&blue_==blue)return;selectionStart_=start;selectionWidth_=width;blue_=blue;viewport()->update(QRect(0,0,viewport()->width(),18));}
 void TraceCanvas::set_sequence(const Sequence* row) {
-    if(!row||!row->trace){if(!active_)return;active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();anchorOrdinals_.clear();originalColumns_.clear();dragAnchor_.reset();pickedCall_.reset();update_scrollbar();invalidate_render_cache();return;}
+    if(!row||!row->trace){if(!active_)return;active_=false;row_=Sequence{};coordinates_.reset();currentColumns_.clear();currentSamples_.clear();originalColumns_.clear();draggedOrdinal_.reset();draggedSample_.reset();insertionSample_.reset();pickedCall_.reset();interacting_=false;update_scrollbar();invalidate_render_cache();return;}
     if(active_&&row_.id==row->id&&row_.trace==row->trace&&row_.symbols.text()==row->symbols.text())return;
     const bool newSignal=!active_||row_.trace->original!=row->trace->original;
     const bool newRow=!active_||row_.id!=row->id;
     row_=*row;active_=true;coordinates_.emplace(row_);currentColumns_.clear();
     rebuild_positions();
-    pickedCall_.reset();column_=newRow?0:std::min(column_,row_.symbols.size());
+    pickedCall_.reset();insertionSample_.reset();draggedOrdinal_.reset();draggedSample_.reset();
+    column_=newRow?0:std::min(column_,row_.symbols.size());
     if(newSignal){maximum_=1.;for(const auto& channel:row_.trace->original->channels)for(auto value:channel)maximum_=std::max(maximum_,static_cast<double>(value));}
     update_scrollbar();if(newRow)center_column(column_);invalidate_render_cache();
 }
 void TraceCanvas::rebuild_positions(){
-    currentColumns_.clear();anchorOrdinals_.clear();
+    currentColumns_.clear();
     const auto& link=*row_.trace;const auto& evidence=*link.original;
-    originalColumns_.assign(evidence.calls.size(),{});currentSamples_.resize(link.originalCalls.size());
+    originalColumns_.assign(evidence.calls.size(),{});
     for(std::size_t c=0;c<row_.symbols.size();++c)if(!is_gap(row_.symbols.text()[c])){
         const auto ordinal=currentColumns_.size();currentColumns_.push_back(c);const auto call=link.originalCalls[ordinal];
-        if(call>=0){anchorOrdinals_.push_back(ordinal);originalColumns_[static_cast<std::size_t>(call)]=c;currentSamples_[ordinal]=evidence.peaks[static_cast<std::size_t>(call)];}
+        if(call>=0)originalColumns_[static_cast<std::size_t>(call)]=c;
     }
     currentSamples_=trace_sample_positions(link);
 
@@ -78,7 +83,9 @@ TracePosition TraceCanvas::position(std::size_t column)const {
     const auto ordinal=static_cast<std::size_t>(std::lower_bound(currentColumns_.begin(),currentColumns_.end(),column)-currentColumns_.begin());
     result.current=column<row_.symbols.size()?row_.symbols.text()[column]:'~';
     if(!is_gap(result.current)){
-        result.sample=currentSamples_[ordinal];result.inferred=!link.inferredPeaks.empty()&&link.inferredPeaks[ordinal]>=0;const auto call=link.originalCalls[ordinal];
+        result.sample=currentSamples_[ordinal];
+        result.adjusted=!link.adjustedPeaks.empty()&&link.adjustedPeaks[ordinal]>=0;
+        result.inferred=!result.adjusted&&!link.inferredPeaks.empty()&&link.inferredPeaks[ordinal]>=0;const auto call=link.originalCalls[ordinal];
         if(call>=0){const auto index=static_cast<std::size_t>(call);result.originalCall=index;result.imported=link.reversed?trace_complement(evidence.calls[index]):evidence.calls[index];
             result.edited=std::toupper(static_cast<unsigned char>(result.current))!=std::toupper(static_cast<unsigned char>(result.imported));
             if(!result.edited&&!evidence.quality.empty())result.quality=evidence.quality[index];}
@@ -91,10 +98,12 @@ TracePosition TraceCanvas::position(std::size_t column)const {
     return result;
 }
 void TraceCanvas::update_scrollbar() {
+    auto labelFont=font();labelFont.setPointSize(9);
+    labelGutter_=QFontMetrics(labelFont,viewport()).horizontalAdvance("Original Q:")+12;
     const auto units=active_?(aligned_?static_cast<double>(std::max(alignmentColumns_,row_.symbols.size()))+1.5:static_cast<double>(row_.trace->original->channels[0].size())):0.;
     const int width=viewport()->width();
     horizontalScrollBar()->setPageStep(std::max(1,width));horizontalScrollBar()->setSingleStep(40);
-    horizontalScrollBar()->setRange(0,std::max(0,static_cast<int>(std::min<double>(std::numeric_limits<int>::max(),std::ceil(units*pixels_per_unit()+80.)))-width));
+    horizontalScrollBar()->setRange(0,std::max(0,static_cast<int>(std::min<double>(std::numeric_limits<int>::max(),std::ceil(units*pixels_per_unit()+plot_left())))-width));
 }
 void TraceCanvas::scroll_to(double position){horizontalScrollBar()->setValue(static_cast<int>(std::clamp(position,0.,static_cast<double>(horizontalScrollBar()->maximum()))));}
 void TraceCanvas::center_column(std::size_t column) {
@@ -102,23 +111,23 @@ void TraceCanvas::center_column(std::size_t column) {
     scroll_to(horizontalScrollBar()->value()+column_x(column)-viewport()->width()/2.);
 }
 void TraceCanvas::focus_column(std::size_t column,bool center) {
-    if(column_==column&&!pickedCall_){if(center)center_column(column);return;}
-    if(!interacting_&&column_!=column)selectionOrigin_=column;
+    if(!interacting_&&(!hasFocus()||column_!=column))insertionSample_.reset();
+    if(column_==column&&!pickedCall_){if(center&&!insertionSample_)center_column(column);viewport()->update();return;}
     column_=column;pickedCall_.reset();if(center)center_column(column);viewport()->update();
 }
 void TraceCanvas::set_zoom(int percent) {
-    const double center=(horizontalScrollBar()->value()+viewport()->width()/2.-80.)/pixels_per_unit()+origin();
+    const double center=coordinate_at(viewport()->width()/2.);
     zoom_=std::clamp(percent,25,400)/100.;update_scrollbar();
-    scroll_to((center-origin())*pixels_per_unit()+80.-viewport()->width()/2.);invalidate_render_cache();
+    scroll_to((center-origin())*pixels_per_unit()+plot_left()-viewport()->width()/2.);invalidate_render_cache();
 }
 void TraceCanvas::set_gain(int percent) {gain_=std::clamp(percent,50,400)/100.;invalidate_render_cache();}
 std::pair<double,double> TraceCanvas::visible_samples()const {
     if(!active_)return {0.,0.};
-    const auto a=(horizontalScrollBar()->value()-80.)/pixels_per_unit()+origin(),b=(horizontalScrollBar()->value()+viewport()->width()-80.)/pixels_per_unit()+origin();
+    const auto a=coordinate_at(0.),b=coordinate_at(viewport()->width());
     return {std::max(0.,raw_from_oriented(original(a))),std::max(0.,raw_from_oriented(original(b)))};
 }
 void TraceCanvas::resizeEvent(QResizeEvent* event) {QAbstractScrollArea::resizeEvent(event);update_scrollbar();invalidate_render_cache();}
-void TraceCanvas::changeEvent(QEvent* event){QAbstractScrollArea::changeEvent(event);if(event->type()==QEvent::FontChange)invalidate_render_cache();}
+void TraceCanvas::changeEvent(QEvent* event){QAbstractScrollArea::changeEvent(event);if(event->type()==QEvent::FontChange){update_scrollbar();invalidate_render_cache();}}
 void TraceCanvas::invalidate_render_cache(){renderDirty_=true;viewport()->update();}
 void TraceCanvas::render_trace_layers() {
     const auto dpr=viewport()->devicePixelRatioF();
@@ -139,14 +148,14 @@ void TraceCanvas::render_trace_layers() {
     painter.save();painter.setClipRect(0,top,viewport()->width(),std::max(1,baseline-top));
     for(std::size_t channel=0;channel<4;++channel){
         const std::size_t signal=reverse?3-channel:channel; // A<->T and C<->G.
-        const auto& values=traceData.channels[signal];painter.setPen(QPen(residue_ink("ACGT"[channel],palette_),1.1));
+        const auto& values=traceData.channels[signal];painter.setPen(QPen(residue_ink("ACGT"[channel],palette_,&customColors_),1.1));
         if(aligned_){
             // Inverse-map each display pixel. Keep every original extremum in its interval.
             auto value=[&](double oriented){const auto a=static_cast<std::size_t>(std::floor(oriented)),b=std::min(a+1,count-1);const auto fraction=oriented-static_cast<double>(a);
                 return values[reverse?count-1-a:a]*(1.-fraction)+values[reverse?count-1-b:b]*fraction;};
             QPainterPath path;bool started=false;
             for(int pixel=0;pixel<viewport()->width();++pixel){
-                const auto left=(horizontalScrollBar()->value()+pixel-80.)/pixels_per_unit()+origin();
+                const auto left=coordinate_at(pixel);
                 double a=raw_from_oriented(original(left)),b=raw_from_oriented(original(left+1./pixels_per_unit()));
                 if(b<0.||a>static_cast<double>(count-1))continue;
                 a=std::max(0.,a);b=std::min(static_cast<double>(count-1),b);
@@ -158,14 +167,14 @@ void TraceCanvas::render_trace_layers() {
         }else if(zoom_>=1.){
             QPainterPath path;bool started=false;
             for(std::size_t display=begin;display<end;++display){const auto sample=reverse?count-1-display:display;
-                const QPointF point(static_cast<double>(display)*zoom_+80.-horizontalScrollBar()->value(),baseline-values[sample]*scale);
+                const QPointF point(x(sample),baseline-values[sample]*scale);
                 if(!started){path.moveTo(point);started=true;}else path.lineTo(point);
             }painter.drawPath(path);
         }else{
             // A min/max envelope retains narrow peaks when several samples share a pixel.
             for(int pixel=0;pixel<viewport()->width();++pixel){
-                const auto a=std::min(count,static_cast<std::size_t>(std::max(0.,(horizontalScrollBar()->value()+pixel-80.)/zoom_)));
-                const auto b=std::min(count,std::max(a+1,static_cast<std::size_t>(std::max(0.,std::ceil((horizontalScrollBar()->value()+pixel+1-80.)/zoom_)))));
+                const auto a=std::min(count,static_cast<std::size_t>(std::max(0.,coordinate_at(pixel))));
+                const auto b=std::min(count,std::max(a+1,static_cast<std::size_t>(std::max(0.,std::ceil(coordinate_at(pixel+1))))));
                 if(a>=b)continue;
                 std::int32_t lo=values[reverse?count-1-a:a],hi=lo;
                 for(auto d=a+1;d<b;++d){const auto value=values[reverse?count-1-d:d];lo=std::min(lo,value);hi=std::max(hi,value);}
@@ -189,6 +198,7 @@ void TraceCanvas::render_trace_layers() {
     }
     QPainter current(&currentLayer_);current.setFont(font);current.setRenderHint(QPainter::Antialiasing);
     for(const auto& label:current_labels()){
+        if(draggedOrdinal_&&label.column==currentColumns_[*draggedOrdinal_])continue;
         const auto px=aligned_?column_x(label.column):sample_x(label.sample);current.setPen(label.edited?QColor(155,50,145):Qt::black);current.drawText(QPointF(px-4,12),QString(QChar(label.symbol)));
         if(label.edited)current.drawLine(QPointF(px-4,15),QPointF(px+4,15));
     }
@@ -201,11 +211,20 @@ void TraceCanvas::paintEvent(QPaintEvent*) {
     painter.setRenderHint(QPainter::Antialiasing);auto labelFont=font();labelFont.setPointSize(9);painter.setFont(labelFont);
     if(selectionWidth_){const auto a=column_x(selectionStart_),b=column_x(selectionStart_+selectionWidth_-1);painter.fillRect(QRectF(std::min(a,b)-6,0,std::max(12.,std::abs(b-a)+12.),17),blue_?QColor(225,235,251):QColor(250,235,191));}
     painter.drawPixmap(0,0,currentLayer_);
-    const auto focus=position(column_);const double px=pickedCall_?sample_x(row_.trace->original->peaks[*pickedCall_]):column_x(column_);
-    painter.setPen(QPen(QColor(20,140,180),1.5,focus.originalCall||pickedCall_?Qt::SolidLine:Qt::DashLine));
+    if(draggedOrdinal_){
+        const auto ordinal=*draggedOrdinal_;
+        const double x=draggedSample_?sample_x(*draggedSample_):column_x(currentColumns_[ordinal]);
+        painter.setPen(Qt::black);
+        painter.drawText(QPointF(x-4,12),QString(QChar(row_.symbols.text()[currentColumns_[ordinal]])));
+    }
+    const auto focus=position(column_);
+    const double px=draggedSample_?sample_x(*draggedSample_):insertionSample_?sample_x(*insertionSample_):
+        pickedCall_?sample_x(row_.trace->original->peaks[*pickedCall_]):column_x(column_);
+    const bool solid=!insertionSample_&&(focus.originalCall||pickedCall_);
+    painter.setPen(QPen(QColor(20,140,180),1.5,solid?Qt::SolidLine:Qt::DashLine));
     painter.drawLine(QPointF(px,0),QPointF(px,viewport()->height()-20));
     // Sticky row labels sit above residues, quality and caret graphics.
-    painter.fillRect(QRect(0,0,label_gutter(),50),Qt::white);painter.setPen(Qt::darkGray);
+    painter.fillRect(QRect(0,0,labelGutter_,50),Qt::white);painter.setPen(Qt::darkGray);
     painter.drawText(5,12,"Current:");painter.drawText(5,30,"Imported:");painter.drawText(5,45,"Original Q:");
 }
 std::vector<TraceCanvas::Label> TraceCanvas::current_labels()const {
@@ -215,12 +234,12 @@ std::vector<TraceCanvas::Label> TraceCanvas::current_labels()const {
         if(px>=-5&&px<=viewport()->width()+5){const auto symbol=row_.symbols.text()[c];const bool inserted=!gap&&call<0;bool edited=inserted;
             if(!gap&&call>=0){const auto imported=link.reversed?trace_complement(link.original->calls[static_cast<std::size_t>(call)]):link.original->calls[static_cast<std::size_t>(call)];edited=std::toupper(static_cast<unsigned char>(symbol))!=std::toupper(static_cast<unsigned char>(imported));}
             labels.push_back({c,sample,symbol,inserted,edited});}};
-    if(aligned_){const auto first=static_cast<std::size_t>(std::clamp(std::floor((horizontalScrollBar()->value()-85.)/pixels_per_unit()+origin()),0.,static_cast<double>(row_.symbols.size())));
-        const auto last=static_cast<std::size_t>(std::clamp(std::ceil((horizontalScrollBar()->value()+viewport()->width()-75.)/pixels_per_unit()+origin())+1.,0.,static_cast<double>(row_.symbols.size())));
+    if(aligned_){const auto first=static_cast<std::size_t>(std::clamp(std::floor(coordinate_at(-5.)),0.,static_cast<double>(row_.symbols.size())));
+        const auto last=static_cast<std::size_t>(std::clamp(std::ceil(coordinate_at(viewport()->width()+5.))+1.,0.,static_cast<double>(row_.symbols.size())));
         auto ordinal=static_cast<std::size_t>(std::lower_bound(currentColumns_.begin(),currentColumns_.end(),first)-currentColumns_.begin());
         for(auto c=first;c<last;++c){const bool gap=is_gap(row_.symbols.text()[c]);add(c,ordinal,gap);if(!gap)++ordinal;}
     }else{
-        const auto first=(horizontalScrollBar()->value()-85.)/zoom_,last=(horizontalScrollBar()->value()+viewport()->width()-75.)/zoom_;
+        const auto first=coordinate_at(-5.),last=coordinate_at(viewport()->width()+5.);
         const auto begin=std::lower_bound(currentSamples_.begin(),currentSamples_.end(),first,[&](double sample,double value){return raw_from_oriented(sample)<value;});
         const auto end=std::upper_bound(begin,currentSamples_.end(),last,[&](double value,double sample){return value<raw_from_oriented(sample);});
         for(auto it=begin;it!=end;++it){const auto ordinal=static_cast<std::size_t>(it-currentSamples_.begin());add(currentColumns_[ordinal],ordinal,false);}
@@ -229,6 +248,7 @@ std::vector<TraceCanvas::Label> TraceCanvas::current_labels()const {
 }
 void TraceCanvas::select_call(std::size_t call) {
     if(!active_)return;
+    insertionSample_.reset();
     pickedCall_=call;viewport()->update();
     if(const auto column=trace_column(row_,call)){
         column_=*column;if(cell_requested)cell_requested(row_.id,*column);
@@ -243,37 +263,138 @@ void TraceCanvas::step_call(int delta) {
 }
 std::optional<std::size_t> TraceCanvas::column_at(double px)const {
     if(!active_)return {};
-    if(aligned_){const auto column=(horizontalScrollBar()->value()+px-80.)/pixels_per_unit()+origin();return static_cast<std::size_t>(std::clamp(std::floor(column),0.,static_cast<double>(row_.symbols.size())));}
     const auto labels=current_labels();std::optional<std::size_t> best;double distance=std::numeric_limits<double>::max();
-    for(const auto& label:labels){const auto delta=std::abs(column_x(label.column)-px);if(delta<distance){best=label.column;distance=delta;}}
+    for(const auto& label:labels){
+        const auto delta=std::abs(column_x(label.column)-px);
+        if(delta<=6.&&delta<distance){best=label.column;distance=delta;}
+    }
     return best;
+}
+void TraceCanvas::select_sample(double sample,std::optional<std::size_t> deletedCall) {
+    const double last=static_cast<double>(row_.trace->original->channels[0].size()-1);
+    if(sample<0.||sample>last)return;
+    const double oriented=raw_from_oriented(sample);
+    // Alignment spacing can introduce small rounding errors when converting pixels back to samples.
+    constexpr double tolerance=1e-7;
+    const auto next=std::lower_bound(currentSamples_.begin(),currentSamples_.end(),oriented-tolerance,
+        [this](double current,double target){return raw_from_oriented(current)<target;});
+    const auto ordinal=static_cast<std::size_t>(next-currentSamples_.begin());
+    if(next!=currentSamples_.end()&&std::abs(*next-sample)<=tolerance){
+        insertionSample_.reset();
+        pickedCall_.reset();
+        column_=currentColumns_[ordinal];
+        if(cell_requested)cell_requested(row_.id,column_);
+        viewport()->update();
+        return;
+    }
+    const double lo=ordinal?std::floor(raw_from_oriented(currentSamples_[ordinal-1]))+1.:0.;
+    const double hi=next!=currentSamples_.end()?std::ceil(raw_from_oriented(*next))-1.:last;
+    if(lo>hi)return;
+    // Use the boundary before the next base, leaving any intervening alignment gaps in place.
+    const auto boundary=next!=currentSamples_.end()?currentColumns_[ordinal]:
+        currentColumns_.empty()?std::size_t{0}:currentColumns_.back()+1;
+    const auto selected=static_cast<std::uint32_t>(raw_from_oriented(std::clamp(std::round(oriented),lo,hi)));
+    pickedCall_.reset();
+    column_=boundary;
+    insertionSample_=selected;
+    if(boundary_requested)boundary_requested(row_.id,boundary);
+    if(evidence_selected){
+        const auto evidence=deletedCall?QString("Deleted imported call %1 · ").arg(static_cast<qulonglong>(*deletedCall+1)):QString{};
+        evidence_selected(evidence+QString("Insertion point · sample %1 · %2").arg(selected).arg(
+            editable_?"Type a nucleotide to insert here":"Switch to Edit to insert here"));
+    }
+    viewport()->update();
 }
 void TraceCanvas::mousePressEvent(QMouseEvent* event) {
     if(!active_||event->button()!=Qt::LeftButton){QAbstractScrollArea::mousePressEvent(event);return;}
-    if(event->position().x()<label_gutter()&&event->position().y()<50){event->accept();return;}
+    const auto x=event->position().x(),y=event->position().y();
+    if(x<labelGutter_&&y<50){event->accept();return;}
     interacting_=true;setFocus();
-    if(event->position().y()<18){if(const auto column=column_at(event->position().x())){
-        if(!event->modifiers().testFlag(Qt::ShiftModifier)||!selectionOrigin_)selectionOrigin_=*column;
-        dragAnchor_=*selectionOrigin_;pickedCall_.reset();
-        if(*column==row_.symbols.size()){dragAnchor_.reset();if(cell_requested)cell_requested(row_.id,*column);}
-        else if(range_requested){const auto start=std::min(*column,*dragAnchor_);range_requested(row_.id,start,std::min(row_.symbols.size()-start,std::max(*column,*dragAnchor_)-start+1));}
-        else if(cell_requested)cell_requested(row_.id,*column);
-        event->accept();return;
-    }}
-    const auto& peaks=row_.trace->original->peaks;const auto sample=original((horizontalScrollBar()->value()+event->position().x()-80.)/pixels_per_unit()+origin());
-    auto it=std::lower_bound(peaks.begin(),peaks.end(),sample);std::size_t call=it==peaks.end()?peaks.size()-1:static_cast<std::size_t>(it-peaks.begin());
-    if(call&&std::abs(static_cast<double>(peaks[call-1])-sample)<std::abs(static_cast<double>(peaks[call])-sample))--call;
-    select_call(call);interacting_=false;event->accept();
+    if(y<18){
+        const auto column=column_at(x);
+        if(column&&!is_gap(row_.symbols.text()[*column])){
+            pickedCall_.reset();insertionSample_.reset();
+            column_=*column;
+            if(editable_&&peak_moved){
+                draggedOrdinal_=static_cast<std::size_t>(std::lower_bound(currentColumns_.begin(),currentColumns_.end(),*column)-currentColumns_.begin());
+                dragStartX_=x;dragOffsetX_=column_x(*column)-x;
+                invalidate_render_cache();
+            }
+            if(cell_requested)cell_requested(row_.id,*column);
+            event->accept();return;
+        }
+    }
+    const double sample=sample_at(x);
+    if(y>=18&&y<50){
+        const auto& peaks=row_.trace->original->peaks;
+        const auto it=std::lower_bound(peaks.begin(),peaks.end(),sample);
+        auto call=it==peaks.end()?peaks.size()-1:static_cast<std::size_t>(it-peaks.begin());
+        auto distance=[&](std::size_t index){return std::abs(sample_x(peaks[index])-x);};
+        if(call&&distance(call-1)<distance(call))--call;
+        if(distance(call)<=6.){
+            if(originalColumns_[call])select_call(call);
+            else select_sample(peaks[call],call);
+            event->accept();return;
+        }
+    }
+    select_sample(sample);
+    event->accept();
 }
 void TraceCanvas::mouseMoveEvent(QMouseEvent* event){
-    if(dragAnchor_&&event->buttons().testFlag(Qt::LeftButton))if(const auto column=column_at(event->position().x())){
-        const auto start=std::min(*column,*dragAnchor_),end=std::min(row_.symbols.size(),std::max(*column,*dragAnchor_)+1);
-        if(end>start&&range_requested)range_requested(row_.id,start,end-start);
+    if(draggedOrdinal_&&event->buttons().testFlag(Qt::LeftButton)){
+        const double x=event->position().x();
+        if(draggedSample_||std::abs(x-dragStartX_)>=2.)
+            draggedSample_=bounded_trace_adjustment(*row_.trace,currentSamples_,*draggedOrdinal_,sample_at(x+dragOffsetX_));
+        viewport()->update();
         event->accept();return;
     }QAbstractScrollArea::mouseMoveEvent(event);
 }
-void TraceCanvas::mouseReleaseEvent(QMouseEvent* event){dragAnchor_.reset();interacting_=false;QAbstractScrollArea::mouseReleaseEvent(event);}
+void TraceCanvas::mouseReleaseEvent(QMouseEvent* event){
+    if(event->button()!=Qt::LeftButton){QAbstractScrollArea::mouseReleaseEvent(event);return;}
+    const auto ordinal=draggedOrdinal_;
+    const auto x=event->position().x();
+    const auto sample=ordinal&&(draggedSample_||std::abs(x-dragStartX_)>=2.)
+        ?bounded_trace_adjustment(*row_.trace,currentSamples_,*ordinal,sample_at(x+dragOffsetX_))
+        :std::optional<std::uint32_t>{};
+    draggedOrdinal_.reset();draggedSample_.reset();
+    if(ordinal){
+        invalidate_render_cache();
+        if(sample&&peak_moved)peak_moved(row_.id,*ordinal,*sample);
+    }
+    interacting_=false;
+    event->accept();
+}
+bool TraceCanvas::viewportEvent(QEvent* event){
+    if(event->type()==QEvent::UngrabMouse||event->type()==QEvent::Hide){
+        interacting_=false;
+        if(draggedOrdinal_){
+            draggedOrdinal_.reset();draggedSample_.reset();
+            invalidate_render_cache();
+        }
+    }
+    return QAbstractScrollArea::viewportEvent(event);
+}
 void TraceCanvas::keyPressEvent(QKeyEvent* event){
+    if(insertionSample_){
+        switch(event->key()){
+        case Qt::Key_Shift: case Qt::Key_Control: case Qt::Key_Alt:
+        case Qt::Key_Meta: case Qt::Key_AltGr: case Qt::Key_CapsLock:
+            event->accept();return;
+        default:break;
+        }
+        const auto text=event->text().toLatin1();
+        const bool command=(event->modifiers()&(Qt::ControlModifier|Qt::AltModifier|Qt::MetaModifier))!=Qt::NoModifier;
+        if(!command&&text.size()==1&&is_nucleotide_symbol(text.front())&&!is_gap(text.front())){
+            if(editable_&&insertion_base_typed){
+                interacting_=true;
+                insertion_base_typed(row_.id,column_,*insertionSample_,text.front());
+                interacting_=false;
+            }
+            event->accept();return;
+        }
+        if(event->key()==Qt::Key_Delete||event->key()==Qt::Key_Backspace){event->accept();return;}
+        insertionSample_.reset();viewport()->update();
+    }
     if(active_&&key_requested&&(!pickedCall_||trace_column(row_,*pickedCall_))){key_requested(event);return;}
     QAbstractScrollArea::keyPressEvent(event);
 }
@@ -302,15 +423,14 @@ ChromatogramPanel::ChromatogramPanel(QWidget* parent):QWidget(parent) {
     connect(gain,qOverload<int>(&QSpinBox::valueChanged),canvas_,&TraceCanvas::set_gain);
     connect(choices_,qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{update_row();if(const auto* row=current_row()){update_position(0);if(cell_requested)cell_requested(row->id,0);}});
     canvas_->cell_requested=[this](SequenceId id,std::size_t column){update_position(column);if(cell_requested)cell_requested(id,column);};
-    canvas_->range_requested=[this](SequenceId id,std::size_t start,std::size_t width){if(range_requested)range_requested(id,start,width);};
     canvas_->key_requested=[this](QKeyEvent* event){if(key_requested)key_requested(event);};
-    canvas_->setToolTip("Click or drag Current to select/edit using the toolbar mode. Imported calls and Original Q are immutable. Arrows move the caret; Ctrl+Left/Right slides the selection one column; Shift+Left/Right slides it as far as possible within existing gap/lock rules in Edit.");
+    canvas_->setToolTip("In Edit, drag a Current call to move it. Click a deleted imported call or an open signal position and type a nucleotide to insert it there.");
     canvas_->evidence_selected=[this](const QString& text){position_->setText(text);};
     set_residue_palette(ResiduePalette::Classic);
 }
-void ChromatogramPanel::set_residue_palette(ResiduePalette palette){
-    canvas_->set_residue_palette(palette);QString legend;
-    for(char base:std::string("ACGT"))legend+=QString("<span style='color:%1'>%2</span>  ").arg(residue_ink(base,palette).name()).arg(QChar(base));
+void ChromatogramPanel::set_residue_palette(ResiduePalette palette,const CustomResidueColors& colors){
+    canvas_->set_residue_palette(palette,colors);QString legend;
+    for(char base:std::string("ACGT"))legend+=QString("<span style='color:%1'>%2</span>  ").arg(residue_ink(base,palette,&colors).name()).arg(QChar(base));
     legend_->setText(legend);legend_->setToolTip(palette_label(palette));
 }
 bool ChromatogramPanel::has_traces()const {return choices_->count()!=0;}
@@ -355,7 +475,7 @@ void ChromatogramPanel::follow_selection(const std::vector<SequenceId>& ids,std:
     const auto eligible=[&](SequenceId id){
         if(!column||!traceChoices_.contains(id))return false;
         const auto* row=document_->find_sequence(id);
-        return row&&*column<row->symbols.size();
+        return row&&*column<=row->symbols.size();
     };
     SequenceId next=0;
     if(std::find(ids.begin(),ids.end(),current)!=ids.end()&&eligible(current))next=current;

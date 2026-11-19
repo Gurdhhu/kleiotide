@@ -20,12 +20,16 @@ public:
     void center_column(std::size_t column);
     void set_zoom(int percent);
     void set_gain(int percent);
-    void set_residue_palette(ResiduePalette palette){if(palette_==palette)return;palette_=palette;invalidate_render_cache();}
+    void set_residue_palette(ResiduePalette palette,const CustomResidueColors& colors=default_residue_colors()){
+        if(palette_==palette&&customColors_==colors)return;
+        palette_=palette;customColors_=colors;invalidate_render_cache();
+    }
     ResiduePalette residue_palette()const{return palette_;}
     void set_alignment_spacing(bool enabled);
     bool alignment_spacing() const {return aligned_;}
     void set_alignment_columns(std::size_t columns);
     void set_selection(std::size_t start,std::size_t width,bool blue);
+    void set_editable(bool editable){editable_=editable;}
     bool interaction_active() const {return interacting_;}
     bool accepts_editing() const {return active_&&(!pickedCall_||trace_column(row_,*pickedCall_).has_value());}
     double column_x(std::size_t column) const;
@@ -38,9 +42,12 @@ public:
     std::pair<double,double> visible_samples() const;
     std::function<void(SequenceId,std::size_t)> cell_requested;
     std::function<void(const QString&)> evidence_selected;
-    std::function<void(SequenceId,std::size_t,std::size_t)> range_requested;
+    std::function<void(SequenceId,std::size_t)> boundary_requested;
+    std::function<void(SequenceId,std::size_t,std::uint32_t)> peak_moved;
+    std::function<void(SequenceId,std::size_t,std::uint32_t,char)> insertion_base_typed;
     std::function<void(QKeyEvent*)> key_requested;
 protected:
+    bool viewportEvent(QEvent*) override;
     void paintEvent(QPaintEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void changeEvent(QEvent*) override;
@@ -55,30 +62,36 @@ private:
     double raw_from_oriented(double sample) const;
     double pixels_per_unit() const {return aligned_?20.*zoom_:zoom_;}
     double origin() const {return aligned_?-.5:0.;}
+    int plot_left() const;
+    double coordinate_at(double x) const;
     double sample_x(double sample) const;
-    int label_gutter() const;
+    double sample_at(double x) const;
     std::optional<std::size_t> column_at(double x) const;
     void update_scrollbar();
     void scroll_to(double position);
     void select_call(std::size_t call);
+    void select_sample(double sample,std::optional<std::size_t> deletedCall={});
     void rebuild_positions();
     void invalidate_render_cache();
     void render_trace_layers();
     Sequence row_;
     ResiduePalette palette_=ResiduePalette::Classic;
+    CustomResidueColors customColors_=default_residue_colors();
     bool active_=false;
     std::size_t column_=0;
     std::optional<std::size_t> pickedCall_;
     double zoom_=1.,gain_=1.,maximum_=1.;
-    bool aligned_=false,interacting_=false,blue_=false;
+    bool aligned_=false,interacting_=false,blue_=false,editable_=true;
+    int labelGutter_=0;
     std::size_t alignmentColumns_=0,selectionStart_=0,selectionWidth_=0;
-    std::optional<std::size_t> dragAnchor_,selectionOrigin_;
+    std::optional<std::size_t> draggedOrdinal_;
+    std::optional<std::uint32_t> draggedSample_,insertionSample_;
+    double dragStartX_=0.,dragOffsetX_=0.;
     std::optional<TraceCoordinates> coordinates_;
     std::vector<std::size_t> currentColumns_;
     // Rebuilt only when sequence text/trace mapping changes. Samples retain the
     // model's interpolation for inserted calls; they are never new evidence.
     std::vector<double> currentSamples_;
-    std::vector<std::size_t> anchorOrdinals_;
     std::vector<std::optional<std::size_t>> originalColumns_;
     QPixmap traceLayer_,currentLayer_;
     // Only viewport-sized layers; selection and caret are drawn independently.
@@ -92,10 +105,9 @@ public:
     void follow_selection(const std::vector<SequenceId>& ids,std::optional<std::size_t> column);
     void follow_viewport(std::size_t begin,std::size_t end);
     void choose_sequence(SequenceId id);
-    void set_residue_palette(ResiduePalette palette);
+    void set_residue_palette(ResiduePalette palette,const CustomResidueColors& colors=default_residue_colors());
     TraceCanvas* canvas() const {return canvas_;}
     std::function<void(SequenceId,std::size_t)> cell_requested;
-    std::function<void(SequenceId,std::size_t,std::size_t)> range_requested;
     std::function<void(QKeyEvent*)> key_requested;
 private:
     const Sequence* current_row() const;

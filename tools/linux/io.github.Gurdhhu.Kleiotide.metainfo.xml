@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Gurdhhu.Kleiotide</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Kleiotide</name>
+  <summary>Edit nucleotide alignments and inspect Sanger chromatograms</summary>
+  <description>
+    <p>Kleiotide is a desktop sequence and chromatogram editor for molecular taxonomy and phylogenetics. Edit nucleotide alignments, inspect original signal and quality, and save sequences and their linked traces in a single session.</p>
+  </description>
+  <launchable type="desktop-id">io.github.Gurdhhu.Kleiotide.desktop</launchable>
+  <url type="homepage">https://github.com/Gurdhhu/kleiotide</url>
+</component>

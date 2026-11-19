@@ -68,7 +68,7 @@ Native whole-sequence clipboard preserves protein types, groups and provenance;
 fragment clipboard uses ordinary alignment text, including independently selected
 gaps. See [MAFFT](MAFFT.md) for protein alignment.
 
-New native sessions use format 5. Old format-4 translated rows with bound codon
+New native sessions use format 6. Old format-4 translated rows with bound codon
 spans are validated, recentered and converted to ordinary protein rows on load.
 Their old label preferences are ignored; provenance is retained. Existing ordinary
 protein rows remain unchanged. Formats 1–4 remain readable. New saves contain

@@ -14,7 +14,7 @@ jobs:
       - name: Install Debian build dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git build-essential cmake ninja-build dpkg-dev qt6-base-dev qt6-qpa-plugins fonts-dejavu-core desktop-file-utils shared-mime-info
+          apt-get install -y --no-install-recommends ca-certificates git build-essential cmake ninja-build dpkg-dev qt6-base-dev qt6-qpa-plugins fonts-dejavu-core desktop-file-utils shared-mime-info appstream
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -31,6 +31,8 @@ jobs:
           apt-get install -y ./packages/*.deb
           dpkg-query -W kleiotide
           test -x /usr/bin/kleiotide
+          appstreamcli validate --no-net /usr/share/metainfo/io.github.Gurdhhu.Kleiotide.metainfo.xml
+          test -f /usr/share/doc/kleiotide/copyright
           grep -q '^application/x-kleiotide-session=.*io.github.Gurdhhu.Kleiotide.desktop' /usr/share/applications/mimeinfo.cache
           grep -Eq '^[0-9]+:application/x-abif:\*\.ab1$' /usr/share/mime/globs2
       - name: Upload the testing installer and test log

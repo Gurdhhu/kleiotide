@@ -66,7 +66,12 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     view->select_ids({1,2});workflow(window,"mergeSelectedSequences",[&](QDialog& d){if(!child<QPushButton>(d,"mergeApply")->isEnabled())return false;d.reject();return true;});need(window.current_document().state_id()==before,"Cancel does not mutate source");
 
     // Refined menu structure and tolerant/partial workflows.
-    auto* menu=qobject_cast<QMenu*>(child<QAction>(window,"setSequenceType")->parent());need(menu,"Sequence menu owner");const auto actions=menu->actions();need(actions.size()>8&&actions[0]->objectName()=="setSequenceType"&&actions[1]->isSeparator()&&actions[2]->objectName()=="linkTrace"&&actions[3]->objectName()=="deleteTrace"&&actions[4]->isSeparator()&&actions[5]->objectName()=="mergeSelectedSequences"&&actions[6]->objectName()=="findOverlapAndMerge"&&actions[7]->objectName()=="collapseIdentical"&&actions[8]->isSeparator(),"Type, trace and merge subsections");
+    auto* menu=qobject_cast<QMenu*>(child<QAction>(window,"setSequenceType")->parent());need(menu,"Sequence menu owner");const auto actions=menu->actions();
+    need(actions.size()>10&&actions[0]->objectName()=="setSequenceType"&&actions[1]->isSeparator()&&
+        actions[2]->objectName()=="linkTrace"&&actions[3]->objectName()=="deleteTrace"&&actions[4]->isSeparator()&&
+        actions[5]->objectName()=="doublePeakCalling"&&actions[6]->isSeparator()&&
+        actions[7]->objectName()=="mergeSelectedSequences"&&actions[8]->objectName()=="findOverlapAndMerge"&&
+        actions[9]->objectName()=="collapseIdentical"&&actions[10]->isSeparator(),"Type, trace, double peak and merge subsections");
     Document expanded;expanded.load({{"left","acgtACGTTAGC"},{"substitution","ACGCTAGCttaa"},{"insertion","ACGATTAGCttaa"},{"isolated",std::string(40,'T')},{"exact_right","ACGTTAGCttaa"},{"other_left","TTTTCCCCCTTTTCCC"},{"other_right","CCCTTTTCCCCAAA"}});
     const auto expandedPath=directory.filePath("refined.kleio");{std::ofstream out(expandedPath.toStdString(),std::ios::binary);write_session(out,expanded);}
     MainWindow refined;refined.resize(1400,1000);refined.show();refined.open_path(expandedPath);auto* refinedView=dynamic_cast<AlignmentView*>(refined.centralWidget());until(app,[&]{return refinedView->isEnabled()&&refined.current_document().rows().size()==7;});const auto cleanState=refined.current_document().state_id();

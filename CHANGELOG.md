@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.30.1 — testing
+
+- Measure double peak heights from the common chromatogram zero line. Skip sites where the tallest signal has no clear peak.
+- Set the default secondary peak threshold to 60%. Explain the settings and preview columns in tooltips, and clarify the review note when the pair excludes the current symbol.
+
+## 0.30.0 — testing
+
+- Preview double peaks at anchored residues in linked chromatograms and apply checked IUPAC substitutions. Review the signal at each site and copy or save the calculation rules and complete preview.
+
+## 0.29.10 — testing
+
+- Keep the chromatogram insertion caret at the selected signal sample when a modifier key is pressed. Type uppercase calls with Shift.
+- Carry manual and low-quality marks with surviving cells when rows, residues and gaps move. Insertions start unmarked, deleted cells lose their marks, and Undo/Redo restores their locations.
+- Increase contrast on the overview and chromatogram resize handles in light and dark desktop themes.
+- Add Debian AppStream license metadata and a package copyright file. Make the fixture-only BLAST and file chooser tests independent of locally installed BLAST+ and remembered folders.
+
+## 0.29.9 — testing
+
+- Edit nucleotide and IUPAC colors directly in Settings → Residue palette.
+- Insert a nucleotide at a deleted imported call or at an open chromatogram sample, including between current calls. Native sessions and edited AB1 exports retain these positions.
+
+## 0.29.8 — testing
+
+- Drag current chromatogram calls between adjacent calls and insert at a chosen signal sample in either flank. Native sessions and edited AB1 exports retain these positions.
+- Keep leading trace samples accessible when the chromatogram labels need a wider gutter.
+- Restore live chromatogram scrolling with the alignment overview. Stabilize the two bottom-panel resize grips and prevent vertical autoscroll during selections within visible rows.
+- Use one set of base marks for gap, residue and low-quality highlighting. Rerunning the low-quality command adds all calls that currently qualify.
+- Add custom nucleotide and IUPAC palettes, opposite colors for selected cells in Colored residue backgrounds, and separate wheel steps for rows and columns.
+- Add the Motif search toolbar toggle and update the Flush alignment label and colored-background tooltip.
+- Fix two type-deduction errors on macOS and look for Homebrew MAFFT when Finder's search path omits it.
+
+## 0.29.7 — testing
+
+- Give manually highlighted residues a pale fill and a border. Use shading alone for column highlights in every residue display mode.
+- Save manual base marks and low-quality exclusions in native sessions alongside the existing column and low-quality rules.
+- Keep the alignment moving during overview drags and recenter the chromatogram on release. Draw selection borders only at their actual column boundaries.
+- Remove the inactive dock separator above the chromatogram grip and move Restore default layout into its own View section above Alignment font.
+- Resolve the shadowed-variable build warning in the merge preview.
+
 ## 0.29.6 — testing
 
 - Keep the chromatogram and alignment overview at their own heights when either panel is resized, hidden or shown. Return the space from a hidden panel to the alignment.

@@ -113,7 +113,7 @@ DistanceResult calculate_distances(const Document& d,DistanceOptions options,Dis
     }return out;
 }
 SimilarityOrder similarity_order(const Document& d,DistanceOptions options,const DistanceCancel& stop,const DistanceProgress& progress){
-    options.method=DistanceMethod::Differences;Input in(d,options,stop);const auto n=in.rows.size(),pairs=distance_pair_count(n);if(pairs>std::numeric_limits<std::uint64_t>::max()/2)throw std::length_error("Too many similarity comparisons.");std::uint64_t done=0;const auto total=2*pairs;std::vector<unsigned char> partner(n),used(n);if(progress)progress(0,total);
+    options.method=DistanceMethod::Differences;Input in(d,options,stop);const auto n=in.rows.size();const auto pairs=distance_pair_count(n);if(pairs>std::numeric_limits<std::uint64_t>::max()/2)throw std::length_error("Too many similarity comparisons.");std::uint64_t done=0;const auto total=2*pairs;std::vector<unsigned char> partner(n),used(n);if(progress)progress(0,total);
     // A first streaming pass identifies rows with no valid comparison anywhere.
     // This keeps them last without retaining a quadratic matrix.
     for(std::size_t i=0;i<n;++i)for(std::size_t j=0;j<i;++j){if(in.pair(i,j,stop).valid())partner[i]=partner[j]=1;++done;if(progress)progress(done,total);}

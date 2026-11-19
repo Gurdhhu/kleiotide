@@ -38,8 +38,12 @@ void raster_checks(){Document d;d.load({{"reference","ACGTURYN?~-"},{"identical"
     for(int palette=0;palette<residue_palette_count;++palette)for(int style=0;style<3;++style){v.set_residue_palette(static_cast<ResiduePalette>(palette));v.set_residue_display(static_cast<ResidueDisplay>(style));v.set_identity_dots(false);key(v,Qt::Key_Escape);
         for(int col=0;col<11;++col){const auto paint=residue_paint(d.sequence(1).symbols.text()[static_cast<std::size_t>(col)],v.residue_palette(),v.residue_display());require(background(v,0,col)==(paint.background.alpha()?paint.background:QColor(Qt::white)),"Raster cell background follows style");}require(cell(v,2,0)==mask,"Mask raster remains neutral in all modes");
         v.set_identity_dots(true);require(background(v,1,0)==background(v,0,0)&&cell(v,1,0)!=cell(v,0,0),"Dots retain underlying cell color and differ from letters");
-        v.set_mode(AlignmentView::Mode::Insert);v.select_fragment({{1},1,1});require(background(v,0,1)==QColor(225,235,251),"Single Insert caret remains blue");v.select_fragment({{1},1,3});require(background(v,0,2)==QColor(250,235,191),"Wide Insert selection remains yellow");
-        v.set_mode(AlignmentView::Mode::Rewrite);require(background(v,0,2)==QColor(225,235,251),"Single-row Overwrite selection remains blue");v.select_fragment({{1,2},1,3});require(background(v,1,2)==QColor(250,235,191),"Multirow Overwrite block remains yellow");
+        const auto selectedColor=[&](char symbol,QColor ordinary){
+            return v.residue_display()==ResidueDisplay::Backgrounds
+                ?opposite_color(residue_paint(symbol,v.residue_palette(),v.residue_display()).background):ordinary;
+        };
+        v.set_mode(AlignmentView::Mode::Insert);v.select_fragment({{1},1,1});require(background(v,0,1)==selectedColor('C',QColor(225,235,251)),"Single Insert selection uses the current display style");v.select_fragment({{1},1,3});require(background(v,0,2)==selectedColor('G',QColor(250,235,191)),"Wide Insert selection uses the current display style");
+        v.set_mode(AlignmentView::Mode::Rewrite);require(background(v,0,2)==selectedColor('G',QColor(225,235,251)),"Single-row Overwrite selection uses the current display style");v.select_fragment({{1,2},1,3});require(background(v,1,2)==selectedColor('G',QColor(250,235,191)),"Multirow Overwrite selection uses the current display style");
         key(v,Qt::Key_Escape);v.select_fragment({{2},0,4});require(v.selected_residue_text()==QString("ACGT"),"Every display copies actual residues");key(v,Qt::Key_Escape);
     }
     v.set_identity_dots(false);v.set_residue_display(ResidueDisplay::Letters);v.set_residue_palette(ResiduePalette::Classic);require(cell(v,0,0)==original&&d.state_id()==state&&!d.can_undo(),"Restore legacy pixels; displays never edit data/history");

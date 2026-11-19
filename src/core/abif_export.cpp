@@ -31,7 +31,7 @@ AbifExport prepare_abif_export(const Sequence& row,AbifCancel cancel){
     result.calls.reserve(anchors.size());result.quality.reserve(anchors.size());positions.reserve(anchors.size());
     for(char c:row.symbols.text()){if((ordinal&4095)==0)check(cancel);if(is_gap(c)){++result.omittedGaps;continue;}result.calls+=c;const auto originalCall=anchors.at(ordinal++);std::uint8_t q=0;
         if(originalCall<0){++result.inserted;const auto sample=signalPositions[ordinal-1];positions.push_back(static_cast<std::uint32_t>(std::llround(result.reversed?samples-1-sample:sample)));}
-        else{const auto call=static_cast<std::size_t>(originalCall);const auto peak=original.peaks[call];positions.push_back(static_cast<std::uint32_t>(result.reversed?samples-1-peak:peak));
+        else{const auto call=static_cast<std::size_t>(originalCall);const auto peak=*trace_sample_anchor(*row.trace,ordinal-1);positions.push_back(static_cast<std::uint32_t>(result.reversed?samples-1-peak:peak));
             const auto expected=result.reversed?trace_complement(original.calls[call]):original.calls[call];
             if(upper(c)!=upper(expected))++result.substituted;
             else if(!original.quality.empty()){q=original.quality[call];++result.measuredQuality;}

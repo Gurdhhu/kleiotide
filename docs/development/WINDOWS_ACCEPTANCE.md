@@ -2,6 +2,52 @@
 
 This record summarizes reported native testing; it is distinct from automated fixture results. Tests not expressly reported remain unestablished.
 
+## 0.30.0 RC 1 testing
+
+The Windows x64 laptop passed all 51 automatic tests. The tester confirmed
+the double peak menus, preview, scope changes, copy and export, and the undo
+and session workflows. The report noted peak-height ratios that appeared too
+high and proposals drawn from two smaller peaks in a noisy chromatogram.
+
+## 0.29.10 RC 1 testing
+
+The Windows x64 laptop passed all 49 automatic tests. The tester confirmed
+that modifier keys keep the insertion caret in place and that marks follow
+cells through edits, undo, reversal and session save/reload. Native Debian
+license display and resize-handle checks are pending.
+
+## 0.29.9 RC 1 testing
+
+The Windows x64 laptop passed 49/49 automatic tests. The tester confirmed
+the Settings palette controls and native and AB1 round trips for deleted-call
+and open-sample insertion. The report identified modifier keys cancelling
+the insertion caret and highlights staying behind when cells moved.
+
+On Debian 13 GNOME, the tester reported successful package installation, file
+associations, HTTPS and local BLAST, and local MAFFT. The 0.29.9 release target
+stopped at two automatic test failures. The report also identified missing
+license metadata and low-contrast resize handles.
+
+## 0.29.7 RC 2 testing
+
+All 49 automatic tests passed on the Windows x64 testing laptop. The tester
+confirmed the merge warning was resolved and highlighting rendered as intended.
+The tester requested a return to simultaneous overview and chromatogram scrolling,
+and reported jumps during panel resizing. Layout and highlight persistence
+checks were partially accepted. Windows fresh-install/upgrade and Debian desktop
+checks are pending.
+
+## 0.29.6 RC 1 testing
+
+All 49 automatic tests passed on the Windows x64 laptop. The tester confirmed
+that the two bottom panels resize, hide, and reopen independently and that
+Restore default layout places the overview below the chromatogram. Manual
+highlight borders left the letters clear, but were hard to see on colored
+cells. The report also identified striped column highlights, overview drag
+lag when the selection extended offscreen, a dead resize cursor above the
+trace grip and a shadowed-variable MSVC warning in the merge preview.
+Windows fresh-install/upgrade and Debian desktop checks are pending.
+
 ## 0.29.5 RC 1 testing
 
 The Windows x64 laptop passed all 49 automatic tests. The tester confirmed
@@ -50,4 +96,4 @@ The principal testing laptop runs Windows 11 x64 with an AMD Ryzen 7 6800H and 3
 
 On an ARM64 Windows 11 Snapdragon laptop, x64-emulated installation/basic editing was reported for 0.26.11 test 2. MAFFT 7.526 with explicit Threads=1 worked; Automatic/core-detection previously failed. Current ARM MAFFT Automatic/fallback, broader ARM workflows and changed-version acceptance remain outstanding. See [ARM64_COMPATIBILITY.md](ARM64_COMPATIBILITY.md).
 
-Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The native 0.29.6 build and focused checks are pending.
+Clean-machine HTTPS/TLS and current clean-machine install/uninstall require their own results. The 0.30.1 native Windows build and focused checks are pending.

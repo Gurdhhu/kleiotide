@@ -7,6 +7,7 @@
 #include "core/session.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -63,6 +64,54 @@ int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDi
     const auto persisted=service.values();
     settings(*existing,[&](QDialog* d){d->findChild<QPushButton*>("settingsUseAppearance")->click();need(d->findChild<QSpinBox*>("settingsFontSize")->value()==11&&d->findChild<QComboBox*>("settingsPalette")->currentIndex()==int(ResiduePalette::Classic),"Current appearance fills draft");d->findChild<QPushButton*>("settingsUseCode")->click();need(d->findChild<QComboBox*>("settingsCode")->currentData().toUInt()==1,"Current code fills draft");d->reject();});need(service.values()==persisted,"Draft copy does not commit implicitly");
     settings(*existing,[&](QDialog* d){d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::RestoreDefaults)->click();d->reject();});need(service.values()==persisted,"Restore defaults is draft-only until Apply/OK");
+    const auto pickColor=[](QDialog* settingsDialog,const QString& symbol,const QColor& color,bool accept){
+        auto* tabs=settingsDialog->findChild<QTabWidget*>();
+        for(int i=0;i<tabs->count();++i)if(tabs->tabText(i)=="Residue palette")tabs->setCurrentIndex(i);
+        auto* swatch=settingsDialog->findChild<QPushButton*>("residueColor."+symbol);
+        need(swatch&&swatch->isVisible(),"Custom palette swatch is directly available in Settings");
+        bool opened=false;
+        QTimer::singleShot(0,[&]{
+            auto* modal=qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if(auto* picker=qobject_cast<QColorDialog*>(modal)){
+                opened=true;
+                picker->setCurrentColor(color);
+                modal->done(accept?QDialog::Accepted:QDialog::Rejected);
+            }else if(modal&&modal!=settingsDialog)modal->reject();
+        });
+        swatch->click();
+        need(opened,"Swatch opens its color picker");
+        if(accept)need(swatch->styleSheet().contains(color.name()),"Swatch shows the chosen color");
+    };
+    settings(*existing,[&](QDialog* dialog){
+        pickColor(dialog,"U",QColor("#416283"),false);
+        auto* palette=dialog->findChild<QComboBox*>("settingsPalette");
+        need(palette->currentIndex()==int(persisted.palette),"Cancelling the color picker keeps the draft palette");
+        pickColor(dialog,"U",QColor("#416283"),true);
+        need(palette->currentIndex()==int(ResiduePalette::Custom),"Editing a swatch selects Custom");
+        dialog->reject();
+    });
+    need(service.values()==persisted,"Cancelling Settings discards the draft color");
+    settings(*existing,[&](QDialog* dialog){
+        pickColor(dialog,"U",QColor("#416283"),true);
+        pickColor(dialog,"R",QColor("#653926"),true);
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();
+        dialog->reject();
+    });
+    service.reload();
+    auto customColors=persisted.customResidueColors;
+    customColors[custom_palette_symbols.find('U')]=QColor("#416283");
+    customColors[custom_palette_symbols.find('R')]=QColor("#653926");
+    need(service.values().palette==ResiduePalette::Custom&&service.values().customResidueColors==customColors,
+         "Both nucleotide and IUPAC colors persist across reload");
+    settings(*existing,[&](QDialog* dialog){
+        auto* swatch=dialog->findChild<QPushButton*>("residueColor.U");
+        need(swatch&&swatch->styleSheet().contains("#416283"),"Settings reloads the saved swatches");
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::RestoreDefaults)->click();
+        need(swatch->styleSheet().contains(default_residue_colors()[custom_palette_symbols.find('U')].name()),
+             "Restore Defaults resets the draft swatches");
+        dialog->reject();
+    });
+    need(service.values().customResidueColors==customColors&&service.apply(persisted),"Resetting draft colors preserves saved settings");
     settings(*existing,[&](QDialog* d){if(argc>1){QDir().mkpath(QString::fromLocal8Bit(argv[1]));auto* tabs=d->findChild<QTabWidget*>();for(int i=0;i<tabs->count();++i){tabs->setCurrentIndex(i);QApplication::processEvents();QApplication::sendPostedEvents(nullptr,QEvent::LayoutRequest);QApplication::processEvents();need(d->grab().save(QDir(QString::fromLocal8Bit(argv[1])).filePath("settings-"+QString::number(i)+".png")),"Settings capture");}}d->reject();});
     if(argc>2){QTimer::singleShot(0,[&]{auto* d=dynamic_cast<QDialog*>(QApplication::activeModalWidget());d->findChild<QSpinBox*>("mafftThreads")->setValue(4);d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();});auto chosen=choose_mafft(existing.get(),{});need(chosen&&chosen->options.threads==4&&service.values().mafftThreads==0,"Per-job MAFFT overrides do not replace global defaults");
         settings(*existing,[&](QDialog* d){QTimer dismissFailure;dismissFailure.setInterval(10);QObject::connect(&dismissFailure,&QTimer::timeout,d,[]{if(auto* progress=dynamic_cast<QDialog*>(QApplication::activeModalWidget()))if(progress->objectName()=="mafftProgress")if(auto* close=progress->findChild<QPushButton*>("mafftCancel");close&&close->text()=="Close")close->click();});dismissFailure.start();d->findChild<QPushButton*>("settingsMafftTest")->click();dismissFailure.stop();need(d->findChild<QPlainTextEdit*>("settingsMafftReport")->toPlainText().startsWith("Small alignment succeeded."),"MAFFT Test performs an alignment");d->reject();});}

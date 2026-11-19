@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QJsonArray>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
@@ -50,11 +51,11 @@ AlignmentView::AlignmentView(QWidget* parent) : QAbstractScrollArea(parent) {
         }
         if (!dragAnchor_ || !isEnabled()) { dragScroll_->stop(); return; }
         auto* h = horizontalScrollBar(); auto* v = verticalScrollBar();
-        if (dragPoint_.x() < nameWidth_ + cellWidth_) h->setValue(h->value() - 3);
-        else if (dragPoint_.x() > viewport()->width() - cellWidth_) h->setValue(h->value() + 3);
+        if (dragPoint_.x() < nameWidth_) h->setValue(h->value() - 3);
+        else if (dragPoint_.x() >= viewport()->width()) h->setValue(h->value() + 3);
         if (!rulerDrag_) {
-            if (dragPoint_.y() < rulerHeight_ + rowHeight_) v->setValue(v->value() - 1);
-            else if (dragPoint_.y() > viewport()->height() - rowHeight_) v->setValue(v->value() + 1);
+            if (dragPoint_.y() < rulerHeight_) v->setValue(v->value() - 1);
+            else if (dragPoint_.y() >= viewport()->height()) v->setValue(v->value() + 1);
         }
         update_fragment_drag(dragPoint_);
     });
@@ -68,7 +69,6 @@ void AlignmentView::set_document(Document* document) {
     searchMatch_.reset();
     searchResults_.reset();
     siteHighlights_.reset();
-    clear_base_highlights();
     fragmentHistory_.clear();
     clear_render_cache();
     clear_fragment(false);
@@ -101,7 +101,6 @@ void AlignmentView::refresh() {
     for (const auto& row : document_->rows()) live.insert(row.id);
     std::erase_if(selected_, [&](auto id) { return !live.contains(id); });
     if (caretId_ && !live.contains(*caretId_)) caretId_.reset();
-    std::erase_if(baseMarks_,[&](const auto& mark){return !live.contains(mark.first);});
     if(selectionAnchorId_){auto it=std::find_if(document_->rows().begin(),document_->rows().end(),[&](const auto& row){return row.id==*selectionAnchorId_;});
         if(it!=document_->rows().end())selectionAnchor_=static_cast<std::size_t>(it-document_->rows().begin());else selectionAnchorId_.reset();}
     if (fragment_) {
@@ -179,7 +178,7 @@ void AlignmentView::ensure_render_cache() {
     cacheDpr_ = dpr;
     // Rasterize once per font/DPI/style, including dot and selection variants.
     for (std::size_t c = 0; c < glyphs_.size(); ++c) {
-        const auto style=residue_paint(static_cast<char>(c),residuePalette_,residueDisplay_);
+        const auto style=residue_paint(static_cast<char>(c),residuePalette_,residueDisplay_,false,&customColors_);
         auto render=[&](QPixmap& glyph,char symbol,QColor foreground,QColor background){
             glyph=QPixmap(static_cast<int>(std::ceil(cellWidth_*dpr)),static_cast<int>(std::ceil(rowHeight_*dpr)));
             glyph.setDevicePixelRatio(dpr);glyph.fill(background);
@@ -192,10 +191,16 @@ void AlignmentView::ensure_render_cache() {
         render(plainGlyphs_[c],static_cast<char>(c),QColor(32,32,32),Qt::transparent);
         render(searchGlyphs_[c],static_cast<char>(c),QColor(32,32,32),QColor(231,164,255));
         render(dotGlyphs_[c],'.',residueDisplay_==ResidueDisplay::Backgrounds?style.foreground:residueDisplay_==ResidueDisplay::Monochrome?QColor(32,32,32):QColor(65,70,75),style.background);
+        if(residueDisplay_==ResidueDisplay::Backgrounds){
+            const auto background=opposite_color(style.background),foreground=opposite_color(style.foreground);
+            render(invertedGlyphs_[c],static_cast<char>(c),foreground,background);
+            render(invertedDotGlyphs_[c],'.',foreground,background);
+        }
     }
 }
-const QPixmap& AlignmentView::row_tile(const Sequence& row, std::size_t tile,bool selectedStyle) {
-    const auto key = QString::number(row.id) + ':' + QString::number(static_cast<qulonglong>(tile))+(selectedStyle?":selection":"");
+const QPixmap& AlignmentView::row_tile(const Sequence& row,std::size_t tile,TileStyle style) {
+    const bool darkText=style==TileStyle::DarkText,inverted=style==TileStyle::Inverted;
+    const auto key=QString::number(row.id)+':'+QString::number(static_cast<qulonglong>(tile))+':'+QString::number(static_cast<int>(style));
     if (const auto* cached = tiles_.object(key)) return *cached;
     const int width = static_cast<int>(tileColumns_) * cellWidth_;
     auto* pixmap = new QPixmap(static_cast<int>(std::ceil(width * cacheDpr_)),
@@ -211,15 +216,15 @@ const QPixmap& AlignmentView::row_tile(const Sequence& row, std::size_t tile,boo
         const auto upper = [](char c) { return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c; };
         const auto start = tile * tileColumns_;
         const auto end = std::min(start + tileColumns_, symbols.size());
-        const auto searchCells=!selectedStyle&&residueDisplay_==ResidueDisplay::Backgrounds&&searchResults_
+        const auto searchCells=style==TileStyle::Normal&&residueDisplay_==ResidueDisplay::Backgrounds&&searchResults_
             ?searchResults_->coverage(row.id,start,end):std::vector<unsigned char>{};
         const auto* translated=translationEnabled_&&translation_&&translation_->content==document_->content_id()?translation_->row(row.id):nullptr;
         for (auto c = start; c < end; ++c) {
             const auto x=static_cast<int>(c-start)*cellWidth_;
             if(translated&&(c>=translation_->map.at.size()||translation_->map.at[c]<0)){
                 const auto symbol=static_cast<unsigned char>(symbols[c]);const bool partial=c<translation_->map.partial.size()&&translation_->map.partial[c];
-                if(partial&&!selectedStyle)painter.setOpacity(0.55);
-                if(symbol<glyphs_.size())painter.drawPixmap(QPoint(x,0),selectedStyle?plainGlyphs_[symbol]:glyphs_[symbol]);
+                if(partial&&style==TileStyle::Normal)painter.setOpacity(0.55);
+                if(symbol<glyphs_.size())painter.drawPixmap(QPoint(x,0),darkText?plainGlyphs_[symbol]:inverted?invertedGlyphs_[symbol]:glyphs_[symbol]);
                 painter.setOpacity(1);
                 if(partial){painter.setPen(QColor(165,65,20));painter.drawLine(x+1,rowHeight_-2,x+cellWidth_-2,rowHeight_-2);}continue;
             }
@@ -234,8 +239,11 @@ const QPixmap& AlignmentView::row_tile(const Sequence& row, std::size_t tile,boo
                 }else {label=QString(QChar::fromLatin1(symbols[c]));if(translated&&c<translation_->map.partial.size()&&translation_->map.partial[c])flag=true;}
                 rgb=amino_acid_color(amino);
                 const bool background=translated||residueDisplay_==ResidueDisplay::Backgrounds;
-                if(!selectedStyle&&rgb&&residueDisplay_!=ResidueDisplay::Monochrome&&background)painter.fillRect(x,0,cellWidth_,rowHeight_,QColor::fromRgb(rgb));
-                const auto& paint=aa_paints()[static_cast<unsigned char>(amino)<128?static_cast<unsigned char>(amino):static_cast<unsigned char>('X')];painter.setPen(selectedStyle||residueDisplay_==ResidueDisplay::Monochrome?QColor(25,25,25):background?paint.onFill:paint.ink);painter.drawText(QRect(x,0,cellWidth_,rowHeight_),Qt::AlignCenter,label);
+                if(inverted) painter.fillRect(x,0,cellWidth_,rowHeight_,opposite_color(rgb?QColor::fromRgb(rgb):QColor(Qt::white)));
+                else if(!darkText&&rgb&&residueDisplay_!=ResidueDisplay::Monochrome&&background)painter.fillRect(x,0,cellWidth_,rowHeight_,QColor::fromRgb(rgb));
+                const auto& paint=aa_paints()[static_cast<unsigned char>(amino)<128?static_cast<unsigned char>(amino):static_cast<unsigned char>('X')];
+                const auto ink=darkText||residueDisplay_==ResidueDisplay::Monochrome?QColor(25,25,25):background?paint.onFill:paint.ink;
+                painter.setPen(inverted?opposite_color(ink):ink);painter.drawText(QRect(x,0,cellWidth_,rowHeight_),Qt::AlignCenter,label);
                 if(flag){painter.setPen(QColor(130,50,0));painter.drawLine(x+1,rowHeight_-2,x+cellWidth_-2,rowHeight_-2);}
                 continue;
             }
@@ -243,8 +251,15 @@ const QPixmap& AlignmentView::row_tile(const Sequence& row, std::size_t tile,boo
                 upper(symbols[c]) == upper((*reference)[c]);
             const auto symbol=static_cast<unsigned char>(symbols[c]);
             if(symbol<glyphs_.size()){
+                if(inverted&&row.kind==RowKind::Mask){
+                    painter.fillRect(x,0,cellWidth_,rowHeight_,Qt::black);
+                    painter.setPen(opposite_color(QColor(65,70,75)));
+                    painter.drawText(QRect(x,0,cellWidth_,rowHeight_),Qt::AlignCenter,QString(QChar::fromLatin1(symbols[c])));
+                    continue;
+                }
                 const auto plainSymbol=identical?static_cast<unsigned char>('.'):symbol;
-                const auto& glyph=row.kind==RowKind::Mask?maskGlyphs_[symbol]:row.kind==RowKind::Protein?maskGlyphs_[plainSymbol]:selectedStyle?plainGlyphs_[plainSymbol]
+                const auto& glyph=row.kind==RowKind::Mask?maskGlyphs_[symbol]:darkText?plainGlyphs_[plainSymbol]
+                    :inverted?(identical?invertedDotGlyphs_[symbol]:invertedGlyphs_[symbol])
                     :!searchCells.empty()&&(searchCells[c-start]&1)?searchGlyphs_[plainSymbol]:identical?dotGlyphs_[symbol]:glyphs_[symbol];
                 painter.drawPixmap(QPoint(static_cast<int>(c-start)*cellWidth_,0),glyph);
             }
@@ -269,6 +284,11 @@ void AlignmentView::set_residue_palette(ResiduePalette palette) {
     if(residuePalette_==palette)return;
     residuePalette_=palette;clear_render_cache();viewport()->update();
 }
+void AlignmentView::set_custom_residue_colors(const CustomResidueColors& colors) {
+    if(customColors_==colors)return;
+    customColors_=colors;
+    if(residuePalette_==ResiduePalette::Custom){clear_render_cache();viewport()->update();}
+}
 void AlignmentView::set_residue_display(ResidueDisplay display) {
     if(residueDisplay_==display)return;
     residueDisplay_=display;clear_render_cache();viewport()->update();
@@ -286,10 +306,8 @@ void AlignmentView::scrollContentsBy(int dx, int dy) {
     if (area.isEmpty()) return;
     if (std::abs(shift) >= (dx ? area.width() : area.height())) viewport()->update(area);
     else viewport()->scroll(dx ? static_cast<int>(shift) : 0, dy ? static_cast<int>(shift) : 0, area);
-    // A wide selection has a clipped left outline fixed at the body edge.
-    // Redraw both its new position and any copy shifted into the body. Keep
-    // this strip beside the exposed pixels rather than spanning the viewport.
-    if(dx&&fragment_)viewport()->update(QRect(nameWidth_,rulerHeight_,
+    // The block-move preview still has a clipped edge at the name divider.
+    if(dx&&draggingBlock_&&dragOffset_)viewport()->update(QRect(nameWidth_,rulerHeight_,
         static_cast<int>(std::min<qint64>(area.width(),std::abs(shift)+2)),area.height()));
 }
 void AlignmentView::paintEvent(QPaintEvent* event) {
@@ -312,6 +330,9 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
     const auto rowStart = firstRow + static_cast<std::size_t>(topRow);
     const auto lastRow = std::min(document_->rows().size(), firstRow + static_cast<std::size_t>(bottomRow));
     const auto columnEnd = firstCol + static_cast<std::size_t>(visible_columns() + 1);
+    const bool visibleFragment=fragment_&&fragment_->start<columnEnd&&fragment_->start+fragment_->width>firstCol;
+    const bool blueSelection=visibleFragment&&blue_fragment();
+    const QColor selectionColor=blueSelection?QColor(225,235,251):QColor(250,235,191);
     p.setPen(QColor(90, 95, 105));
     p.drawText(QRect(6, 0, nameWidth_ - 12, rulerHeight_), Qt::AlignVCenter, "Sequence name");
     p.save();
@@ -319,11 +340,15 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
     auto rulerFont = font(); rulerFont.setPointSize(std::max(6, font().pointSize()-2));
     p.setFont(rulerFont);
     const bool sitesCurrent=siteHighlights_&&siteRevision_==document_->content_id();
-    const std::unordered_set<SequenceId> fragmentRows=fragment_?std::unordered_set<SequenceId>(fragment_->ids.begin(),fragment_->ids.end()):std::unordered_set<SequenceId>{};
-    if(sitesCurrent)for(auto c=firstCol;c<std::min(columnEnd,siteHighlights_->size());++c)if((*siteHighlights_)[c]){
-        const int x=nameWidth_+static_cast<int>(c-firstCol)*cellWidth_;
-        p.fillRect(x,0,cellWidth_,4,siteColor_.darker(160));
-        auto shade=siteColor_;shade.setAlpha(70);p.fillRect(x,4,cellWidth_,rulerHeight_-4,shade);
+    const std::unordered_set<SequenceId> fragmentRows=fragment_&&(visibleFragment||draggingBlock_)
+        ?std::unordered_set<SequenceId>(fragment_->ids.begin(),fragment_->ids.end()):std::unordered_set<SequenceId>{};
+    if(sitesCurrent){
+        auto shade=siteColor_;
+        shade.setAlpha(70);
+        for(auto c=firstCol;c<std::min(columnEnd,siteHighlights_->size());++c)if((*siteHighlights_)[c]){
+            const int x=nameWidth_+static_cast<int>(c-firstCol)*cellWidth_;
+            p.fillRect(x,0,cellWidth_,rulerHeight_,shade);
+        }
     }
     for (std::size_t c = firstCol>=10?firstCol-10:0; c < columnEnd+10; ++c) {
         const int center = nameWidth_ + (static_cast<int>(c)-static_cast<int>(firstCol))*cellWidth_ + cellWidth_/2;
@@ -370,12 +395,12 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
                                  y, static_cast<int>(b - a) * cellWidth_, rowHeight_) : QRect{};
         };
         const auto selectedRect = fragment_rect(0);
-        if (!selectedRect.isEmpty()) p.fillRect(selectedRect, blue_fragment() ? QColor(225, 235, 251) : QColor(250, 235, 191));
+        if (!selectedRect.isEmpty()) p.fillRect(selectedRect,selectionColor);
         if (!fragment_ && caretId_ && *caretId_ == row.id && caretColumn_ >= firstCol && caretColumn_ < columnEnd) {
             p.fillRect(QRect(nameWidth_ + static_cast<int>(caretColumn_ - firstCol) * cellWidth_,
                              y, cellWidth_, rowHeight_), QColor(225, 235, 251));
         }
-        auto paint_tiles=[&](const QRect& dirty,bool selection){
+        auto paint_tiles=[&](const QRect& dirty,TileStyle style){
             if(dirty.isEmpty())return;
             // Scrolling a selected block can expose two separated edge strips.
             // Visit their tiles separately instead of their full-width bounds.
@@ -390,56 +415,82 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
                 if(std::find(painted.begin(),painted.end(),tile)!=painted.end())continue;
                 painted.push_back(tile);
                 const auto offset=static_cast<qint64>(tile*tileColumns_)-static_cast<qint64>(firstCol);
-                p.drawPixmap(QPoint(nameWidth_+static_cast<int>(offset)*cellWidth_,y),row_tile(row,tile,selection));
+                p.drawPixmap(QPoint(nameWidth_+static_cast<int>(offset)*cellWidth_,y),row_tile(row,tile,style));
             }
             }
         };
-        paint_tiles(bodyDirty,false);
+        paint_tiles(bodyDirty,TileStyle::Normal);
+        const bool invertSelection=residueDisplay_==ResidueDisplay::Backgrounds;
         if((residueDisplay_==ResidueDisplay::Backgrounds||translationEnabled_||row.kind==RowKind::Protein)&&!selectedRect.isEmpty()){
             p.save();p.setClipRect(selectedRect,Qt::IntersectClip);
-            p.fillRect(selectedRect,blue_fragment()?QColor(225,235,251):QColor(250,235,191));
-            paint_tiles(bodyDirty.intersected(selectedRect),true);p.restore();
+            p.fillRect(selectedRect,selectionColor);
+            paint_tiles(bodyDirty.intersected(selectedRect),invertSelection?TileStyle::Inverted:TileStyle::DarkText);p.restore();
         }
-        if(sitesCurrent&&row.kind==siteMolecule_&&(!siteRows_||siteRows_->contains(row.id))){
+        if(sitesCurrent&&row.kind==siteMolecule_&&(!siteRowsRestricted_||siteRows_.contains(row.id))){
             // Paint only visible bands, after residue tiles and outside selection.
-            // The opaque edge + white halo survives all residue palettes/styles.
             QRegion selectionRegion(selectedRect);
             if(!fragment_&&caretId_&&*caretId_==row.id&&caretColumn_>=firstCol&&caretColumn_<columnEnd)
                 selectionRegion+=QRect(nameWidth_+static_cast<int>(caretColumn_-firstCol)*cellWidth_,y,cellWidth_,rowHeight_);
             p.save();p.setClipRegion(QRegion(QRect(nameWidth_,y,std::max(0,viewport()->width()-nameWidth_),rowHeight_)).subtracted(selectionRegion),Qt::IntersectClip);
+            auto shade=siteColor_;
+            shade.setAlpha(residueDisplay_==ResidueDisplay::Backgrounds?115:80);
             for(auto c=firstCol;c<std::min({columnEnd,row.symbols.size(),siteHighlights_->size()});){
                 if(!(*siteHighlights_)[c]){++c;continue;}const auto begin=c;
                 while(c<std::min({columnEnd,row.symbols.size(),siteHighlights_->size()})&&(*siteHighlights_)[c])++c;
                 const QRect band(nameWidth_+static_cast<int>(begin-firstCol)*cellWidth_,y,static_cast<int>(c-begin)*cellWidth_,rowHeight_);
-                auto shade=siteColor_;shade.setAlpha(residueDisplay_==ResidueDisplay::Backgrounds?115:80);if(translationEnabled_||row.kind==RowKind::Protein){p.setPen(QPen(siteColor_.darker(150),2));p.drawRect(band.adjusted(1,1,-1,-1));}else p.fillRect(band,shade);
-                p.setPen(QPen(Qt::white,3));p.drawLine(band.left(),y+1,band.right(),y+1);p.drawLine(band.left(),y+rowHeight_-2,band.right(),y+rowHeight_-2);
-                p.setPen(siteColor_.darker(180));p.drawLine(band.left(),y+1,band.right(),y+1);p.drawLine(band.left(),y+rowHeight_-2,band.right(),y+rowHeight_-2);
+                p.fillRect(band,shade);
             }
             p.restore();
         }
         const auto baseDirty=bodyDirty.intersected(QRect(nameWidth_,y,viewport()->width()-nameWidth_,rowHeight_));
-        if(!baseDirty.isEmpty()&&((qualityThreshold_&&row.trace)||baseMarks_.contains(row.id))){
+        if(!baseDirty.isEmpty()&&!row.cellMarks.empty()){
             p.save();
             p.setClipRect(baseDirty,Qt::IntersectClip);
-            p.setBrush(Qt::NoBrush);
-            p.setPen(baseHighlightColor_.darker(165));
             const auto begin=firstCol+static_cast<std::size_t>((baseDirty.left()-nameWidth_)/cellWidth_);
             const auto end=firstCol+static_cast<std::size_t>((baseDirty.right()-nameWidth_)/cellWidth_+1);
+            QRegion manual;
+            std::vector<QRect> outlines;
             for(auto c=begin;c<std::min({end,columnEnd,row.symbols.size()});++c){
                 if(!base_highlighted(row,c))continue;
                 const QRect cell(nameWidth_+static_cast<int>(c-firstCol)*cellWidth_,y,cellWidth_,rowHeight_);
-                p.drawRect(cell.adjusted(0,0,-1,-1));
+                if(!invertSelection||!selectedRect.intersects(cell))manual+=cell;
+                outlines.push_back(cell.adjusted(0,0,-1,-1));
+            }
+            if(!manual.isEmpty()){
+                // Replace the fill and redraw the glyph with dark ink so white
+                // letters from the residue palette stay readable on pale cells.
+                p.save();
+                p.setClipRegion(manual,Qt::IntersectClip);
+                const auto bounds=manual.boundingRect();
+                auto shade=baseHighlightColor_;
+                shade.setAlpha(112);
+                p.fillRect(bounds,Qt::white);
+                if(selectedRect.intersects(bounds))p.fillRect(selectedRect.intersected(bounds),selectionColor);
+                p.fillRect(bounds,shade);
+                paint_tiles(bounds,TileStyle::DarkText);
+                p.restore();
+            }
+            if(!outlines.empty()){
+                p.setBrush(Qt::NoBrush);
+                p.setPen(baseHighlightColor_.darker(165));
+                p.drawRects(outlines.data(),static_cast<int>(outlines.size()));
             }
             p.restore();
         }
         if (!fragment_ && caretId_ && *caretId_ == row.id && caretColumn_ >= firstCol && caretColumn_ < columnEnd) {
             p.setPen(QPen(mode_ == Mode::View ? QColor(145, 155, 170) : QColor(25, 85, 200), 1));
-            p.drawRect(QRect(nameWidth_ + static_cast<int>(caretColumn_ - firstCol) * cellWidth_,
-                             y, cellWidth_, rowHeight_).adjusted(0, 0, -1, -1));
+            const int x=nameWidth_+static_cast<int>(caretColumn_-firstCol)*cellWidth_;
+            if(insertionBoundary_)p.drawLine(x,y,x,y+rowHeight_-1);
+            else p.drawRect(QRect(x,y,cellWidth_,rowHeight_).adjusted(0,0,-1,-1));
         }
         if (!selectedRect.isEmpty()) {
-            p.setPen(QPen(blue_fragment() ? QColor(25, 85, 200) : QColor(130, 85, 0), 1));
-            p.drawRect(selectedRect.adjusted(0, 0, -1, -1));
+            p.setPen(QPen(blueSelection ? QColor(25, 85, 200) : QColor(130, 85, 0), 1));
+            p.drawLine(selectedRect.topLeft(),selectedRect.topRight());
+            p.drawLine(selectedRect.bottomLeft(),selectedRect.bottomRight());
+            // Clipping a selection must not introduce a border fixed to the
+            // viewport edge or leave a stale line during horizontal scrolling.
+            if(fragment_->start>=firstCol)p.drawLine(selectedRect.topLeft(),selectedRect.bottomLeft());
+            if(fragment_->start+fragment_->width<=columnEnd)p.drawLine(selectedRect.topRight(),selectedRect.bottomRight());
         }
         if(searchResults_){
             // One bitmask per visible row, not a scan/draw call for every hit.
@@ -505,6 +556,7 @@ void AlignmentView::notify_selection() {
 void AlignmentView::clear_fragment(bool notify) {
     if (dragScroll_) dragScroll_->stop();
     fragment_.reset(); dragAnchor_.reset(); selectionOrigin_.reset(); dragRows_.clear();
+    insertionBoundary_=false;
     draggingBlock_ = false; rulerDrag_ = false; dragOffset_ = 0;
     if (notify&&selection_changed) selection_changed();
 }
@@ -533,7 +585,7 @@ void AlignmentView::select_fragment(Fragment fragment) {
     for (auto id : fragment.ids) if(!liveIds_.contains(id))throw std::out_of_range("Unknown sequence ID.");
         if(fragment_&&*fragment_==fragment)return;
     const auto before=selection_paint_regions();const bool wasBlue=fragment_?blue_fragment():caretId_.has_value();
-    fragment_ = std::move(fragment); sync_fragment_caret();
+    fragment_ = std::move(fragment); insertionBoundary_=false; sync_fragment_caret();
     const auto after=selection_paint_regions();
     // Interior cells shared by equal-colored selections do not change. Include
     // every row outline, since old borders can become interior pixels.
@@ -694,11 +746,13 @@ void AlignmentView::set_search_match(std::optional<Fragment> match){
     }
     viewport()->update();
 }
-void AlignmentView::navigate_to_cell(SequenceId id,std::size_t column) {
+void AlignmentView::navigate_to_cell(SequenceId id,std::size_t column,bool insertionBoundary) {
     if(!document_)return;
     for(std::size_t index=0;index<document_->rows().size();++index)if(document_->rows()[index].id==id){
         if(column>document_->rows()[index].symbols.size())return;
-        if(column==document_->rows()[index].symbols.size()){clear_fragment();caretId_=id;caretColumn_=column;notify_selection();}
+        if(insertionBoundary||column==document_->rows()[index].symbols.size()){
+            clear_fragment(false);caretId_=id;caretColumn_=column;insertionBoundary_=insertionBoundary;notify_selection();
+        }
         else select_fragment({{id},column,1});
         const auto first=static_cast<std::size_t>(verticalScrollBar()->value());
         if(index<first||index>=first+static_cast<std::size_t>(visible_rows()))verticalScrollBar()->setValue(static_cast<int>(index));
@@ -786,7 +840,7 @@ void AlignmentView::mousePressEvent(QMouseEvent* event) {
         rulerDrag_ = true;
         for (const auto& row : document_->rows()) dragRows_.push_back(row.id);
         select_fragment({dragRows_, std::min(anchor,column), std::max(anchor,column)-std::min(anchor,column)+1,true});
-        dragPoint_ = point; dragScroll_->start();
+        dragPoint_ = point;
     } else if (auto cell = cell_at(point)) {
         if (cell->column < document_->columns()) {
             if (event->modifiers().testFlag(Qt::ShiftModifier) && fragment_) {
@@ -812,7 +866,7 @@ void AlignmentView::mousePressEvent(QMouseEvent* event) {
                 dragRows_ = {id};
                 select_fragment({dragRows_, cell->column, 1});
             }
-            dragPoint_ = point; dragScroll_->start();
+            dragPoint_ = point;
             viewport()->update(); return;
         }
         clear_fragment(false);
@@ -863,7 +917,13 @@ void AlignmentView::mouseMoveEvent(QMouseEvent* event) {
     if(!event->buttons().testFlag(Qt::LeftButton)&&on_name_border(point.x())){viewport()->setCursor(Qt::SplitHCursor);QToolTip::hideText();return;}
     viewport()->unsetCursor();
     if (dragAnchor_ && event->buttons().testFlag(Qt::LeftButton)) {
-        QToolTip::hideText(); update_fragment_drag(point); event->accept(); return;
+        QToolTip::hideText();
+        update_fragment_drag(point);
+        const bool outside=point.x()<nameWidth_||point.x()>=viewport()->width()||
+            (!rulerDrag_&&(point.y()<rulerHeight_||point.y()>=viewport()->height()));
+        if(outside){if(!dragScroll_->isActive())dragScroll_->start();}
+        else dragScroll_->stop();
+        event->accept();return;
     }
     if (const auto cell = cell_at(point)) {
         const auto& row = document_->rows()[cell->row];
@@ -968,17 +1028,14 @@ void AlignmentView::reveal_first_selected() {
 }
 bool AlignmentView::has_base_selection() const {
     if(!document_)return false;
-    const auto selected_base=[this](SequenceId id,std::size_t start,std::size_t width){
+    const auto has_cell=[&](SequenceId id,std::size_t column){
         const auto* row=document_->find_sequence(id);
-        if(!row||row->kind==RowKind::Mask||start>=row->symbols.size())return false;
-        const auto end=start+std::min(width,row->symbols.size()-start);
-        const auto text=std::string_view(row->symbols.text()).substr(start,end-start);
-        return std::any_of(text.begin(),text.end(),[](char symbol){return !is_gap(symbol);});
+        return row&&row->kind!=RowKind::Mask&&column<row->symbols.size();
     };
     if(fragment_)return std::any_of(fragment_->ids.begin(),fragment_->ids.end(),[&](SequenceId id){
-        return selected_base(id,fragment_->start,fragment_->width);
+        return has_cell(id,fragment_->start);
     });
-    return caretId_&&selected_base(*caretId_,caretColumn_,1);
+    return !insertionBoundary_&&caretId_&&has_cell(*caretId_,caretColumn_);
 }
 
 void AlignmentView::highlight_selected_bases(bool highlight) {
@@ -987,77 +1044,90 @@ void AlignmentView::highlight_selected_bases(bool highlight) {
         const auto* row=document_->find_sequence(id);
         if(!row||row->kind==RowKind::Mask||start>=row->symbols.size())return;
         const auto end=start+std::min(width,row->symbols.size()-start);
-        const auto text=std::string_view(row->symbols.text()).substr(start,end-start);
-        if(std::all_of(text.begin(),text.end(),is_gap))return;
-        const bool retain=highlight||qualityThreshold_>0;
-        auto found=baseMarks_.find(id);
-        if(found==baseMarks_.end()&&!retain)return;
-        auto& marks=baseMarks_[id];
-        std::vector<BaseMark> next;
-        next.reserve(marks.size()+2);
-        for(const auto& mark:marks){
-            if(mark.end<=start||mark.start>=end)next.push_back(mark);
-            else{
-                if(mark.start<start)next.push_back({mark.start,start,mark.highlighted});
-                if(mark.end>end)next.push_back({end,mark.end,mark.highlighted});
-            }
-        }
-        if(retain)next.push_back({start,end,highlight});
-        std::sort(next.begin(),next.end(),[](const auto& a,const auto& b){return a.start<b.start;});
-        marks.clear();
-        for(const auto& mark:next){
-            if(!marks.empty()&&marks.back().end==mark.start&&marks.back().highlighted==mark.highlighted)
-                marks.back().end=mark.end;
-            else marks.push_back(mark);
-        }
-        if(marks.empty())baseMarks_.erase(id);
+        if(highlight)document_->mark_cells(id,{{start,end}});
+        else document_->unmark_cells(id,{start,end});
     };
-    if(fragment_){
-        for(auto id:fragment_->ids)mark_row(id,fragment_->start,fragment_->width);
-    }else if(caretId_)mark_row(*caretId_,caretColumn_,1);
+    if(fragment_)for(auto id:fragment_->ids)mark_row(id,fragment_->start,fragment_->width);
+    else if(caretId_&&!insertionBoundary_)mark_row(*caretId_,caretColumn_,1);
     viewport()->update();
 }
 
-void AlignmentView::set_quality_highlight(unsigned threshold,
-    std::optional<std::unordered_set<SequenceId>> rows,const QColor& color) {
-    if(threshold!=qualityThreshold_||rows!=qualityRows_){
-        for(auto& entry:baseMarks_)std::erase_if(entry.second,[](const BaseMark& mark){return !mark.highlighted;});
-        std::erase_if(baseMarks_,[](const auto& entry){return entry.second.empty();});
+void AlignmentView::mark_low_quality(unsigned threshold,
+    const std::optional<std::unordered_set<SequenceId>>& rows) {
+    if(!document_||!threshold)return;
+    for(const auto& row:document_->rows()){
+        if(!row.trace||(rows&&!rows->contains(row.id)))continue;
+        const auto& link=*row.trace;
+        const auto& evidence=*link.original;
+        if(evidence.quality.empty())continue;
+        std::vector<CellRange> ranges;
+        std::size_t ordinal=0;
+        for(std::size_t column=0;column<row.symbols.size();++column){
+            const auto symbol=row.symbols.text()[column];
+            if(is_gap(symbol))continue;
+            const auto call=link.originalCalls[ordinal++];
+            if(call<0)continue;
+            const auto index=static_cast<std::size_t>(call);
+            const auto original=link.reversed?trace_complement(evidence.calls[index]):evidence.calls[index];
+            if(evidence.quality[index]>=threshold||
+               std::toupper(static_cast<unsigned char>(symbol))!=std::toupper(static_cast<unsigned char>(original)))continue;
+            if(!ranges.empty()&&ranges.back().end==column)ranges.back().end=column+1;
+            else ranges.push_back({column,column+1});
+        }
+        if(!ranges.empty())document_->mark_cells(row.id,std::move(ranges));
     }
-    qualityThreshold_=threshold;
-    qualityRows_=std::move(rows);
-    baseHighlightColor_=color;
     viewport()->update();
 }
 
 void AlignmentView::clear_base_highlights() {
-    baseMarks_.clear();
-    set_quality_highlight(0,{},baseHighlightColor_);
+    if(document_)document_->clear_cell_marks();
+    viewport()->update();
 }
 
 bool AlignmentView::base_highlighted(const Sequence& row,std::size_t column) const {
     if(row.kind==RowKind::Mask||column>=row.symbols.size())return false;
-    const auto symbol=static_cast<unsigned char>(row.symbols.text()[column]);
-    if(is_gap(static_cast<char>(symbol)))return false;
-    if(const auto found=baseMarks_.find(row.id);found!=baseMarks_.end()){
-        const auto& marks=found->second;
-        const auto mark=std::upper_bound(marks.begin(),marks.end(),column,
-            [](std::size_t position,const BaseMark& range){return position<range.start;});
-        if(mark!=marks.begin()&&column<std::prev(mark)->end)return std::prev(mark)->highlighted;
+    const auto& marks=row.cellMarks;
+    const auto mark=std::upper_bound(marks.begin(),marks.end(),column,
+        [](std::size_t position,const CellRange& range){return position<range.start;});
+    return mark!=marks.begin()&&column<std::prev(mark)->end;
+}
+
+QJsonArray AlignmentView::base_highlight_state() const {
+    QJsonArray rows;
+    if(document_)for(const auto& row:document_->rows()){
+        if(row.cellMarks.empty())continue;
+        QJsonArray ranges;
+        for(const auto& mark:row.cellMarks)ranges.append(QJsonArray{
+            QString::number(static_cast<qulonglong>(mark.start)),
+            QString::number(static_cast<qulonglong>(mark.end)),true});
+        rows.append(QJsonArray{QString::number(row.id),ranges});
     }
-    if(!qualityThreshold_||!row.trace||(qualityRows_&&!qualityRows_->contains(row.id)))return false;
-    const auto& link=*row.trace;
-    const auto& evidence=*link.original;
-    if(evidence.quality.empty())return false;
-    const auto ordinal=row.symbols.residue_rank(column);
-    if(ordinal>=link.originalCalls.size())return false;
-    const auto mapped=link.originalCalls[ordinal];
-    if(mapped<0)return false;
-    const auto index=static_cast<std::size_t>(mapped);
-    if(index>=evidence.quality.size()||index>=evidence.calls.size())return false;
-    const char original=link.reversed?trace_complement(evidence.calls[index]):evidence.calls[index];
-    return evidence.quality[index]<qualityThreshold_&&
-        std::toupper(symbol)==std::toupper(static_cast<unsigned char>(original));
+    return rows;
+}
+
+void AlignmentView::restore_base_highlights(const QJsonArray& state) {
+    if(document_)for(const auto& savedRow:state){
+        const auto entry=savedRow.toArray();
+        if(entry.size()!=2||!entry[1].isArray())continue;
+        const auto id=entry[0].toString().toULongLong();
+        const auto* row=document_->find_sequence(id);
+        if(!row||row->kind==RowKind::Mask)continue;
+        const auto rowLength=static_cast<qulonglong>(row->symbols.size());
+        std::vector<CellRange> marks;
+        for(const auto& savedRange:entry[1].toArray()){
+            const auto range=savedRange.toArray();
+            if(range.size()!=3||!range[2].isBool())continue;
+            bool startOk=false,endOk=false;
+            const auto start=range[0].toString().toULongLong(&startOk);
+            const auto end=std::min(range[1].toString().toULongLong(&endOk),rowLength);
+            if(!startOk||!endOk||start>=end)continue;
+            const CellRange mark{static_cast<std::size_t>(start),static_cast<std::size_t>(end)};
+            if(range[2].toBool())marks.push_back(mark);
+            else document_->unmark_cells(id,mark); // legacy low-Q exclusion
+        }
+        if(!marks.empty())document_->mark_cells(id,std::move(marks));
+    }
+    viewport()->update();
 }
 
 void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
@@ -1122,6 +1192,11 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
     menu.addSeparator();
     auto* link=menu.addAction("Link trace (AB1)…",[this]{if(link_trace_requested)link_trace_requested();});link->setEnabled(!selected_.empty());
     auto* unlink=menu.addAction("Delete trace…",[this]{if(delete_trace_requested)delete_trace_requested();});unlink->setEnabled(!selected_.empty());menu.addSeparator();
+    auto* doublePeaks=menu.addAction("Double peak calling…",[this]{if(double_peak_requested)double_peak_requested();});
+    doublePeaks->setToolTip("Preview IUPAC substitutions supported by two peaks in linked chromatograms.");
+    doublePeaks->setEnabled(document_&&double_peak_requested&&
+        std::any_of(document_->rows().begin(),document_->rows().end(),[](const auto& row){return bool(row.trace);}));
+    menu.addSeparator();
     menu.addAction("NCBI nucleotide BLAST…",[this]{if(blast_requested)blast_requested(false);})->setEnabled(!selected_.empty());
     menu.addSeparator();
     auto* addGroup=menu.addAction("Add to group…",[this]{if(add_group_requested)add_group_requested();});addGroup->setEnabled(!selected_.empty());
@@ -1131,17 +1206,18 @@ void AlignmentView::contextMenuEvent(QContextMenuEvent* event) {
 void AlignmentView::wheelEvent(QWheelEvent* event) {
     const auto angle = event->angleDelta();
     const auto pixel = event->pixelDelta();
-    int delta = angle.y() != 0 ? angle.y() : angle.x();
-    int step = delta == 0 ? 0 : -static_cast<int>(std::round(static_cast<double>(delta) / 120.0 * 3.0));
-    if (delta != 0 && step == 0) step = delta > 0 ? -1 : 1;
-    if (delta == 0) {
-        const auto movement = pixel.y() != 0 ? pixel.y() : pixel.x();
-        if (movement) step = movement > 0 ? -1 : 1;
-    }
-    auto* bar = event->modifiers().testFlag(Qt::ControlModifier) || (angle.y() == 0 && angle.x() != 0)
-        ? horizontalScrollBar() : verticalScrollBar();
-    if(event->modifiers().testFlag(Qt::ControlModifier))step*=2;
-    bar->setValue(bar->value() + step);
+    const bool sideways=event->modifiers().testFlag(Qt::ControlModifier)||
+        (angle.isNull()?(!pixel.y()&&pixel.x()):(!angle.y()&&angle.x()));
+    const auto delta=angle.y()?angle.y():angle.x();
+    const auto movement=pixel.y()?pixel.y():pixel.x();
+    qint64 step=0;
+    if(delta){
+        const auto units=sideways?wheelColumns_:wheelRows_;
+        step=std::llround(-static_cast<double>(delta)*units/120.);
+        if(!step)step=delta>0?-1:1;
+    }else if(movement)step=movement>0?-1:1;
+    auto* bar=sideways?horizontalScrollBar():verticalScrollBar();
+    bar->setValue(static_cast<int>(std::clamp<qint64>(bar->value()+step,0,bar->maximum())));
     event->accept();
 }
 void AlignmentView::ensure_caret_visible() {
