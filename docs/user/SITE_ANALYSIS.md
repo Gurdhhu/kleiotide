@@ -52,8 +52,10 @@ highlights on all calls that now qualify.
 
 **Highlight selected bases** and **Unhighlight selected bases** are also
 available in the selected-residue context menu. They apply to residues and
-gaps. Both marking commands use alignment coordinates and the same pale fill
-and border. Save a `.kleio` session to keep these marks and column rules.
+gaps. Manual marks and low-quality snapshots use the same pale fill and border.
+Marks move with their cells when an edit shifts or reverses them. Inserted cells
+start unmarked. Deleting a marked cell removes the mark, and Undo can restore it
+with the cell. Save a `.kleio` session to keep these marks and column rules.
 **Clear highlighting** removes both cell marks and column highlighting.
 
 ## Alignment statistics

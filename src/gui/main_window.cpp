@@ -170,12 +170,20 @@ public:
 protected:
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
-        painter.fillRect(rect(),palette().window());
-        painter.setPen(palette().mid().color());
+        const auto background=palette().window().color();
+        const QColor contrast=black_or_white(background);
+        painter.fillRect(rect(),background);
+        const float strength=underMouse()?0.65f:0.46f;
+        painter.setPen(QColor::fromRgbF(
+            background.redF()*(1-strength)+contrast.redF()*strength,
+            background.greenF()*(1-strength)+contrast.greenF()*strength,
+            background.blueF()*(1-strength)+contrast.blueF()*strength));
         const int center=width()/2;
         painter.drawLine(center-18,2,center+18,2);
         painter.drawLine(center-18,4,center+18,4);
     }
+    void enterEvent(QEnterEvent* event) override { QWidget::enterEvent(event);update(); }
+    void leaveEvent(QEvent* event) override { QWidget::leaveEvent(event);update(); }
     void mousePressEvent(QMouseEvent* event) override {
         if(event->button()!=Qt::LeftButton){event->ignore();return;}
         startY_=event->globalPosition().y();

@@ -13,6 +13,11 @@ set(CPACK_DEBIAN_PACKAGE_SECTION science)
 set(CPACK_DEBIAN_PACKAGE_RELEASE "1~deb13")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-qpa-plugins, qt6-wayland, ca-certificates, shared-mime-info, desktop-file-utils")
+# The Debian 13 Qt runtime is also required when the build kit was extracted
+# into a prefix whose libraries dpkg-shlibdeps cannot associate with packages.
+string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS
+  "libqt6core6t64 (>= 6.8.2)" "libqt6gui6 (>= 6.8.2)"
+  "libqt6widgets6 (>= 6.8.2)" "libqt6network6 (>= 6.8.2)"
+  "qt6-qpa-plugins" "qt6-wayland" "ca-certificates" "shared-mime-info" "desktop-file-utils")
 set(CPACK_DEBIAN_PACKAGE_SUGGESTS "mafft, ncbi-blast+")
 include(CPack)

@@ -58,7 +58,7 @@ void SiteHighlighter::set_document(const Document* source){
     if(source_!=source){
         source_=source;scope_=AnalysisScope{};rules_=HighlightRules{};
         qualityThreshold_=20;selectedQualityScope_=false;
-        view_->clear_base_highlights();view_->set_base_highlight_color(color_);sync_actions();invalidate();
+        view_->set_base_highlight_color(color_);sync_actions();invalidate();
     }
     else if(source&&revision_!=source->content_id())invalidate();
 }

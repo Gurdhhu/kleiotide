@@ -46,6 +46,15 @@ int main(int argc, char **argv) {
     settings.blastpLauncher = QStandardPaths::findExecutable("blastp");
     settings.makeblastdbLauncher =
         QStandardPaths::findExecutable("makeblastdb");
+    if (!real) {
+      // This mode inspects launcher selection without starting a process.
+      settings.blastnLauncher = temp.filePath("blastn");
+      settings.blastpLauncher = temp.filePath("blastp");
+      settings.blastxLauncher = temp.filePath("blastx");
+      settings.tblastnLauncher = temp.filePath("tblastn");
+      settings.tblastxLauncher = temp.filePath("tblastx");
+      settings.makeblastdbLauncher = temp.filePath("makeblastdb");
+    }
     need(AppSettings::instance().apply(settings), "Local tool settings");
     const QString protein = "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQL"
                             "EDGRTLSDYNIQKESTLHLVLRLRGG";

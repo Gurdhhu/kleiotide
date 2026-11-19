@@ -1,0 +1,25 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Kleiotide
+Source: https://github.com/Gurdhhu/kleiotide
+
+Files: *
+Copyright: 2026 Oleg Shchepin
+License: GPL-3
+
+Files: third_party/miniz/*
+Copyright: 2013-2014 RAD Game Tools and Valve Software
+           2010-2014 Rich Geldreich and Tenacious Software LLC
+License: MIT
+ See third-party/miniz/LICENSE in the installed package for the complete notice.
+
+Files: tools/linux/io.github.Gurdhhu.Kleiotide.metainfo.xml
+Copyright: 2026 Oleg Shchepin
+License: CC0-1.0
+ https://creativecommons.org/publicdomain/zero/1.0/
+
+License: GPL-3
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of version 3 of the GNU General Public License as published
+ by the Free Software Foundation.
+ .
+ The complete license text is in /usr/share/common-licenses/GPL-3.

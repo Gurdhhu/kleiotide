@@ -69,7 +69,6 @@ void AlignmentView::set_document(Document* document) {
     searchMatch_.reset();
     searchResults_.reset();
     siteHighlights_.reset();
-    clear_base_highlights();
     fragmentHistory_.clear();
     clear_render_cache();
     clear_fragment(false);
@@ -102,7 +101,6 @@ void AlignmentView::refresh() {
     for (const auto& row : document_->rows()) live.insert(row.id);
     std::erase_if(selected_, [&](auto id) { return !live.contains(id); });
     if (caretId_ && !live.contains(*caretId_)) caretId_.reset();
-    std::erase_if(baseMarks_,[&](const auto& mark){return !live.contains(mark.first);});
     if(selectionAnchorId_){auto it=std::find_if(document_->rows().begin(),document_->rows().end(),[&](const auto& row){return row.id==*selectionAnchorId_;});
         if(it!=document_->rows().end())selectionAnchor_=static_cast<std::size_t>(it-document_->rows().begin());else selectionAnchorId_.reset();}
     if (fragment_) {
@@ -428,7 +426,7 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
             p.fillRect(selectedRect,selectionColor);
             paint_tiles(bodyDirty.intersected(selectedRect),invertSelection?TileStyle::Inverted:TileStyle::DarkText);p.restore();
         }
-        if(sitesCurrent&&row.kind==siteMolecule_&&(!siteRows_||siteRows_->contains(row.id))){
+        if(sitesCurrent&&row.kind==siteMolecule_&&(!siteRowsRestricted_||siteRows_.contains(row.id))){
             // Paint only visible bands, after residue tiles and outside selection.
             QRegion selectionRegion(selectedRect);
             if(!fragment_&&caretId_&&*caretId_==row.id&&caretColumn_>=firstCol&&caretColumn_<columnEnd)
@@ -445,7 +443,7 @@ void AlignmentView::paintEvent(QPaintEvent* event) {
             p.restore();
         }
         const auto baseDirty=bodyDirty.intersected(QRect(nameWidth_,y,viewport()->width()-nameWidth_,rowHeight_));
-        if(!baseDirty.isEmpty()&&baseMarks_.contains(row.id)){
+        if(!baseDirty.isEmpty()&&!row.cellMarks.empty()){
             p.save();
             p.setClipRect(baseDirty,Qt::IntersectClip);
             const auto begin=firstCol+static_cast<std::size_t>((baseDirty.left()-nameWidth_)/cellWidth_);
@@ -1040,42 +1038,14 @@ bool AlignmentView::has_base_selection() const {
     return !insertionBoundary_&&caretId_&&has_cell(*caretId_,caretColumn_);
 }
 
-void AlignmentView::merge_base_marks(std::vector<BaseMark>& marks) {
-    std::sort(marks.begin(),marks.end(),[](const auto& a,const auto& b){return a.start<b.start;});
-    std::size_t count=0;
-    for(const auto& mark:marks){
-        if(count&&marks[count-1].end>=mark.start)marks[count-1].end=std::max(marks[count-1].end,mark.end);
-        else marks[count++]=mark;
-    }
-    marks.resize(count);
-}
-
-void AlignmentView::remove_base_mark(SequenceId id,std::size_t start,std::size_t end) {
-    const auto found=baseMarks_.find(id);
-    if(found==baseMarks_.end())return;
-    std::vector<BaseMark> remaining;
-    for(const auto& mark:found->second){
-        if(mark.end<=start||mark.start>=end)remaining.push_back(mark);
-        else{
-            if(mark.start<start)remaining.push_back({mark.start,start});
-            if(mark.end>end)remaining.push_back({end,mark.end});
-        }
-    }
-    if(remaining.empty())baseMarks_.erase(found);
-    else found->second=std::move(remaining);
-}
-
 void AlignmentView::highlight_selected_bases(bool highlight) {
     if(!document_)return;
     const auto mark_row=[&](SequenceId id,std::size_t start,std::size_t width){
         const auto* row=document_->find_sequence(id);
         if(!row||row->kind==RowKind::Mask||start>=row->symbols.size())return;
         const auto end=start+std::min(width,row->symbols.size()-start);
-        if(highlight){
-            auto& marks=baseMarks_[id];
-            marks.push_back({start,end});
-            merge_base_marks(marks);
-        }else remove_base_mark(id,start,end);
+        if(highlight)document_->mark_cells(id,{{start,end}});
+        else document_->unmark_cells(id,{start,end});
     };
     if(fragment_)for(auto id:fragment_->ids)mark_row(id,fragment_->start,fragment_->width);
     else if(caretId_&&!insertionBoundary_)mark_row(*caretId_,caretColumn_,1);
@@ -1090,7 +1060,7 @@ void AlignmentView::mark_low_quality(unsigned threshold,
         const auto& link=*row.trace;
         const auto& evidence=*link.original;
         if(evidence.quality.empty())continue;
-        std::vector<BaseMark> ranges;
+        std::vector<CellRange> ranges;
         std::size_t ordinal=0;
         for(std::size_t column=0;column<row.symbols.size();++column){
             const auto symbol=row.symbols.text()[column];
@@ -1104,38 +1074,33 @@ void AlignmentView::mark_low_quality(unsigned threshold,
             if(!ranges.empty()&&ranges.back().end==column)ranges.back().end=column+1;
             else ranges.push_back({column,column+1});
         }
-        if(!ranges.empty()){
-            auto& marks=baseMarks_[row.id];
-            marks.insert(marks.end(),ranges.begin(),ranges.end());
-            merge_base_marks(marks);
-        }
+        if(!ranges.empty())document_->mark_cells(row.id,std::move(ranges));
     }
     viewport()->update();
 }
 
 void AlignmentView::clear_base_highlights() {
-    baseMarks_.clear();
+    if(document_)document_->clear_cell_marks();
     viewport()->update();
 }
 
 bool AlignmentView::base_highlighted(const Sequence& row,std::size_t column) const {
     if(row.kind==RowKind::Mask||column>=row.symbols.size())return false;
-    const auto found=baseMarks_.find(row.id);
-    if(found==baseMarks_.end())return false;
-    const auto& marks=found->second;
+    const auto& marks=row.cellMarks;
     const auto mark=std::upper_bound(marks.begin(),marks.end(),column,
-        [](std::size_t position,const BaseMark& range){return position<range.start;});
+        [](std::size_t position,const CellRange& range){return position<range.start;});
     return mark!=marks.begin()&&column<std::prev(mark)->end;
 }
 
 QJsonArray AlignmentView::base_highlight_state() const {
     QJsonArray rows;
-    for(const auto& [id,marks]:baseMarks_){
+    if(document_)for(const auto& row:document_->rows()){
+        if(row.cellMarks.empty())continue;
         QJsonArray ranges;
-        for(const auto& mark:marks)ranges.append(QJsonArray{
+        for(const auto& mark:row.cellMarks)ranges.append(QJsonArray{
             QString::number(static_cast<qulonglong>(mark.start)),
             QString::number(static_cast<qulonglong>(mark.end)),true});
-        rows.append(QJsonArray{QString::number(id),ranges});
+        rows.append(QJsonArray{QString::number(row.id),ranges});
     }
     return rows;
 }
@@ -1148,7 +1113,7 @@ void AlignmentView::restore_base_highlights(const QJsonArray& state) {
         const auto* row=document_->find_sequence(id);
         if(!row||row->kind==RowKind::Mask)continue;
         const auto rowLength=static_cast<qulonglong>(row->symbols.size());
-        std::vector<BaseMark> marks;
+        std::vector<CellRange> marks;
         for(const auto& savedRange:entry[1].toArray()){
             const auto range=savedRange.toArray();
             if(range.size()!=3||!range[2].isBool())continue;
@@ -1156,15 +1121,11 @@ void AlignmentView::restore_base_highlights(const QJsonArray& state) {
             const auto start=range[0].toString().toULongLong(&startOk);
             const auto end=std::min(range[1].toString().toULongLong(&endOk),rowLength);
             if(!startOk||!endOk||start>=end)continue;
-            const BaseMark mark{static_cast<std::size_t>(start),static_cast<std::size_t>(end)};
+            const CellRange mark{static_cast<std::size_t>(start),static_cast<std::size_t>(end)};
             if(range[2].toBool())marks.push_back(mark);
-            else remove_base_mark(id,mark.start,mark.end); // legacy low-Q exclusion
+            else document_->unmark_cells(id,mark); // legacy low-Q exclusion
         }
-        if(!marks.empty()){
-            auto& current=baseMarks_[id];
-            current.insert(current.end(),marks.begin(),marks.end());
-            merge_base_marks(current);
-        }
+        if(!marks.empty())document_->mark_cells(id,std::move(marks));
     }
     viewport()->update();
 }

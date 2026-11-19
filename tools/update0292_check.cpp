@@ -19,6 +19,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QLabel>
@@ -348,16 +349,21 @@ int main(int argc, char **argv) {
     QObject::connect(&picker, &QTimer::timeout, [&] {
       if (auto *file =
               qobject_cast<QFileDialog *>(QApplication::activeModalWidget())) {
-        file->selectFile(ab1Path);
-        QMetaObject::invokeMethod(file, "accept", Qt::QueuedConnection);
+        file->setDirectory(QFileInfo(ab1Path).absolutePath());
+        child<QLineEdit>(file,"fileNameEdit")->setText(QFileInfo(ab1Path).fileName());
+        QMetaObject::invokeMethod(file, "accept", Qt::DirectConnection);
       }
     });
     picker.start();
     QTimer linker;
+    QElapsedTimer linkDeadline;
+    linkDeadline.start();
     linker.setInterval(10);
     QObject::connect(&linker, &QTimer::timeout, [&] {
       try {
         auto *d = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if(linkDeadline.elapsed()>10000)
+          throw std::runtime_error(QString("Trace linking timed out in %1").arg(d?d->windowTitle():"no dialog").toStdString());
         if (auto *scope = qobject_cast<QInputDialog *>(d)) {
           scope->accept();
           return;
@@ -377,8 +383,11 @@ int main(int argc, char **argv) {
         failure = e.what();
         linker.stop();
         if (auto *d =
-                qobject_cast<QDialog *>(QApplication::activeModalWidget()))
+                qobject_cast<QDialog *>(QApplication::activeModalWidget())) {
+          auto* parent=qobject_cast<QDialog*>(d->parentWidget());
           d->reject();
+          if(parent)parent->reject();
+        }
       }
     });
     linker.start();
@@ -394,6 +403,12 @@ int main(int argc, char **argv) {
     for (const auto &extension : QStringList{"csv", "xlsx", "tsv"}) {
       const auto path = temp.filePath("groups." + extension);
       QTimer savePicker;
+      QTimer saveDeadline;
+      saveDeadline.setSingleShot(true);
+      QObject::connect(&saveDeadline,&QTimer::timeout,[&]{
+        failure="Group file chooser timed out for "+extension;
+        if(auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget()))dialog->reject();
+      });
       savePicker.setInterval(5);
       QObject::connect(&savePicker, &QTimer::timeout, [&] {
         if (auto *file = qobject_cast<QFileDialog *>(
@@ -403,12 +418,15 @@ int main(int argc, char **argv) {
               extension == "csv"    ? "Comma-separated table (*.csv)"
               : extension == "xlsx" ? "Excel workbook (*.xlsx)"
                                     : "Tab-separated table (*.tsv)");
-          file->selectFile(path);
-          QMetaObject::invokeMethod(file, "accept", Qt::QueuedConnection);
+          file->setDirectory(QFileInfo(path).absolutePath());
+          child<QLineEdit>(file,"fileNameEdit")->setText(QFileInfo(path).fileName());
+          QMetaObject::invokeMethod(file, "accept", Qt::DirectConnection);
         }
       });
       savePicker.start();
+      saveDeadline.start(10000);
       export_sequence_groups(groupSource, &owner);
+      need(failure.isEmpty(),qPrintable(failure));
       TextTable table;
       if (extension == "xlsx")
         table = read_xlsx_table(path);

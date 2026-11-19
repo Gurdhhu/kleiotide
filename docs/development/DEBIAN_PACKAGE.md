@@ -21,22 +21,24 @@ cmake --build build-debian --target release-check --parallel 2
 cpack --config build-debian/CPackConfig.cmake -B packages
 ```
 
-The package is `packages/kleiotide_0.29.9-1~deb13_amd64.deb`. The workflow
-also installs it in its Debian build container to verify the dependencies and
-desktop registration. A native desktop test is still needed.
+The package is `packages/kleiotide_0.29.10-1~deb13_amd64.deb`. The workflow
+also installs it in its Debian build container to verify dependencies, desktop
+registration and AppStream metadata. The default release tests use BLAST fixtures.
+The optional installed BLAST+ check is described in [TESTING.md](TESTING.md#automatic-suite).
 
 ## Install and test
 
 ```sh
-sudo apt install ./kleiotide_0.29.9-1~deb13_amd64.deb
+sudo apt install ./kleiotide_0.29.10-1~deb13_amd64.deb
 ```
 
 1. Launch Kleiotide from the desktop menu and from a terminal with `kleiotide`.
 2. Use **Open With → Kleiotide** from the file manager for FASTA, AB1 and .kleio.
    Include paths with spaces and Unicode. Check both first launch and an already
    open app. Shared FASTA and AB1 defaults follow the desktop's settings.
-3. Open and edit a small disposable alignment, inspect and resize the
-   chromatogram and overview panels, then save and reopen the native session.
+3. Confirm that GNOME Software shows the GPL version 3 license for Kleiotide.
+   Open a disposable alignment, inspect the resize handles in a light and a dark
+   theme, then save and reopen the native session.
 4. Test MAFFT and local BLAST+ if installed. Test one small public NCBI nucleotide
    search to verify the HTTPS backend and system certificates.
 5. Remove the package with `sudo apt remove kleiotide`. Confirm the launcher and

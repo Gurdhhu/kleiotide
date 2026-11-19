@@ -32,6 +32,11 @@ bool is_row_symbol(char symbol,RowKind kind) noexcept;
 RowKind inferred_row_kind(std::string_view symbols) noexcept; // Legacy nucleotide/mask inference only.
 std::string_view row_kind_name(RowKind kind) noexcept;
 
+struct CellRange {
+    std::size_t start=0,end=0;
+    bool operator==(const CellRange&) const=default;
+};
+
 struct Record {
     std::string name; // Complete UTF-8 FASTA header, without '>'.
     std::string symbols;
@@ -70,6 +75,7 @@ struct Sequence {
     RowRepresentation representation = RowRepresentation::AlignedSymbols;
     GroupId groupId=0;
     std::shared_ptr<const ProteinLayout> protein={};
+    std::vector<CellRange> cellMarks={};
 };
 
 class Document {
@@ -107,9 +113,21 @@ public:
     void collapse_identical(const std::vector<CollapseGroup>&);
     void replace(SequenceId id, std::size_t start, std::size_t count,
                  std::string_view replacement);
+    // Ranges are zero-based and half-open. Marking cells is a display edit.
+    void mark_cells(SequenceId,std::vector<CellRange> ranges);
+    void unmark_cells(SequenceId,CellRange range);
+    void clear_cell_marks();
+    struct CellTransfer {
+        std::size_t before,after,length;
+        bool reverse=false;
+    };
     struct Replacement { SequenceId id; std::size_t start, count; std::string text;
         std::optional<std::shared_ptr<const TraceLink>> trace = {};
-        std::optional<std::shared_ptr<const ProteinLayout>> protein={}; };
+        std::optional<std::shared_ptr<const ProteinLayout>> protein={};
+        // Relative to the start of the edit, sorted and disjoint on both axes.
+        // Empty pointer uses positional
+        // correspondence for equal-length edits. An empty list transfers nothing.
+        std::shared_ptr<const std::vector<CellTransfer>> transfers={}; };
     enum class Transform { LockGaps, UnlockGaps, Degap, Unalign, Uppercase, Lowercase, ReverseComplement };
     struct ColumnRange { std::size_t start=0,width=0; };
     void replace_many(const std::vector<Replacement>& edits,std::optional<ColumnRange> erasedColumns={});
@@ -161,6 +179,8 @@ private:
         std::string after;
         std::shared_ptr<const TraceLink> beforeTrace = {}, afterTrace = {};
         std::shared_ptr<const ProteinLayout> beforeProtein={},afterProtein={};
+        std::shared_ptr<const std::vector<CellTransfer>> transfers={};
+        std::vector<CellRange> parkedMarks={};
     };
     // Rows move between the document and parked buffers; history does not
     // duplicate the entire document or duplicate inserted rows.
@@ -191,11 +211,20 @@ private:
     Sequence& mutable_sequence(SequenceId id);
     void execute(Command command);
     using RowIndex = std::unordered_map<SequenceId,std::size_t>;
+    struct MarkUpdate {
+        TextPatch* patch;
+        std::vector<CellRange> live,parked;
+    };
+    struct PreparedEdit {
+        std::optional<RowIndex> index;
+        std::vector<MarkUpdate> marks;
+    };
+    static MarkUpdate prepare_marks(TextPatch&,const Sequence&,bool forward);
     static RowIndex make_index(const std::vector<Sequence>& rows);
     // A structural transaction owns a fully allocated working index before any
     // row changes. Const lookups never rebuild or mutate the published index.
-    std::optional<RowIndex> prepare(Command& command, bool forward);
-    void apply(Command& command, bool forward, RowIndex* preparedIndex);
+    PreparedEdit prepare(Command& command, bool forward);
+    void apply(Command& command, bool forward, PreparedEdit&);
     void trim_history();
     struct ContentChange {std::uint64_t before=0,after=0;ContentRange range;bool full=true;};
     std::array<ContentChange,64> contentChanges_{};

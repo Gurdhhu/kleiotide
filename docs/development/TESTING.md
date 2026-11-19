@@ -11,6 +11,12 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.29.10 focused acceptance
+
+1. Click between calls in the chromatogram and press and release Ctrl or Shift. The insertion caret should stay at the clicked sample. Type a capital nucleotide with Shift. Check both trace spacing modes.
+2. Mark a mixture of gaps and residues manually and add low-quality marks on a linked read. Insert and delete gaps or bases before and inside the marked ranges. Drag a block through open gaps and slide it back. Check that surviving marks follow their cells, deleted ones disappear, and new cells start unmarked. Verify Undo/Redo, reverse complement, and save/reopen. Check that column shading still follows its rules.
+3. Build the Debian 13 package and run release-check without BLAST+ installed. Install the package and inspect its GPL-3.0-only metadata in GNOME Software. Check the two resize handles in light and dark themes, then run the remaining Debian desktop checks.
+
 ## 0.29.9 focused acceptance
 
 1. In File → Settings → Residue palette, click the U and R swatches and choose distinct colors. Check that Custom is selected under Appearance and editing and the preview reflects both changes. Test color-picker Cancel, Settings Cancel, Apply, Restore Defaults and reopened Settings. Check that new alignments use the saved defaults and that Apply to current session updates its alignment and trace legend.

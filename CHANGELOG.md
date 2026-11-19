@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.10 — testing
+
+- Keep the chromatogram insertion caret at the selected signal sample when a modifier key is pressed. Type uppercase calls with Shift.
+- Carry manual and low-quality marks with surviving cells when rows, residues and gaps move. Insertions start unmarked, deleted cells lose their marks, and Undo/Redo restores their locations.
+- Increase contrast on the overview and chromatogram resize handles in light and dark desktop themes.
+- Add Debian AppStream license metadata and a package copyright file. Make the fixture-only BLAST and file chooser tests independent of locally installed BLAST+ and remembered folders.
+
 ## 0.29.9 — testing
 
 - Edit nucleotide and IUPAC colors directly in Settings → Residue palette.

@@ -87,7 +87,10 @@ public:
     void set_residue_display(ResidueDisplay display);
     ResidueDisplay residue_display() const noexcept {return residueDisplay_;}
     void set_site_highlights(std::shared_ptr<const std::vector<unsigned char>> columns,QColor color,RowKind molecule,const std::vector<SequenceId>* rows=nullptr){
-        siteHighlights_=std::move(columns);siteColor_=color;siteMolecule_=molecule;siteRows_.reset();if(rows)siteRows_.emplace(rows->begin(),rows->end());siteRevision_=document_?document_->content_id():0;viewport()->update();
+        siteHighlights_=std::move(columns);siteColor_=color;siteMolecule_=molecule;
+        siteRows_.clear();siteRowsRestricted_=rows!=nullptr;
+        if(rows)siteRows_.insert(rows->begin(),rows->end());
+        siteRevision_=document_?document_->content_id():0;viewport()->update();
     }
     std::shared_ptr<const std::vector<unsigned char>> site_highlights()const{return siteHighlights_;}
     QColor site_highlight_color()const{return siteColor_;}
@@ -157,13 +160,10 @@ private:
     std::uint64_t searchRevision_=0;
     std::shared_ptr<const std::vector<unsigned char>> siteHighlights_;
     QColor siteColor_{198,173,242};
-    std::optional<std::unordered_set<SequenceId>> siteRows_;
+    std::unordered_set<SequenceId> siteRows_;
+    bool siteRowsRestricted_=false;
     RowKind siteMolecule_=RowKind::Nucleotide;
     std::uint64_t siteRevision_=0;
-    struct BaseMark { std::size_t start, end; };
-    static void merge_base_marks(std::vector<BaseMark>& marks);
-    void remove_base_mark(SequenceId id, std::size_t start, std::size_t end);
-    std::map<SequenceId,std::vector<BaseMark>> baseMarks_;
     QColor baseHighlightColor_{198,173,242};
     std::optional<Cell> dragAnchor_, selectionOrigin_;
     std::vector<SequenceId> dragRows_;

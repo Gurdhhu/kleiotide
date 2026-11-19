@@ -345,7 +345,17 @@ int main(int argc,char** argv) {
                     "An open sample places the alignment caret before the next current base");
             require(child<QLabel>(window,"tracePosition")->text().contains(QString("sample %1").arg(sample)),
                     "The trace status reports the intended sample");
-            QKeyEvent key(QEvent::KeyPress,Qt::Key_C,Qt::NoModifier,"C");
+            for(const auto& [key,modifier]:std::array<std::pair<Qt::Key,Qt::KeyboardModifier>,2>{{
+                    {Qt::Key_Control,Qt::ControlModifier},{Qt::Key_Shift,Qt::ShiftModifier}}}){
+                QKeyEvent press(QEvent::KeyPress,key,modifier);
+                QApplication::sendEvent(canvas,&press);
+                require(!view->fragment()&&view->caret()&&view->caret()->second==column&&
+                        child<QLabel>(window,"tracePosition")->text().contains(QString("sample %1").arg(sample)),
+                        "A modifier press keeps the trace insertion caret");
+                QKeyEvent release(QEvent::KeyRelease,key,Qt::NoModifier);
+                QApplication::sendEvent(canvas,&release);
+            }
+            QKeyEvent key(QEvent::KeyPress,Qt::Key_C,Qt::ShiftModifier,"C");
             QApplication::sendEvent(canvas,&key);
             const auto inserted=canvas->position(column);
             require(inserted.current=='C'&&inserted.sample==sample&&inserted.adjusted&&
@@ -453,6 +463,11 @@ int main(int argc,char** argv) {
                                QColor(238,240,244),shade);
         }
 
+        view->set_mode(AlignmentView::Mode::Insert);
+        view->navigate_to_cell(1,1,true);
+        require(view->paste_residues("~")&&marked(1,0)&&!marked(1,1)&&marked(1,2)&&!marked(1,3),
+                "An inserted gap stays unmarked and the previously highlighted gap moves");
+        const auto editedState=document.state_id();
         child<QAction>(window,"saveAlignment")->trigger();
         require(wait_for([&]{return view->isEnabled();}),"Save session with highlights");
         MainWindow reopened;
@@ -465,8 +480,9 @@ int main(int argc,char** argv) {
         require(restoredView->base_highlighted(restored.sequence(4),1)&&
                 !restoredView->base_highlighted(restored.sequence(4),2)&&
                 restoredView->base_highlighted(restored.sequence(1),0)&&
-                restoredView->base_highlighted(restored.sequence(1),1)&&
-                !restoredView->base_highlighted(restored.sequence(1),2)&&
+                !restoredView->base_highlighted(restored.sequence(1),1)&&
+                restoredView->base_highlighted(restored.sequence(1),2)&&
+                !restoredView->base_highlighted(restored.sequence(1),3)&&
                 !restoredView->base_highlighted(restored.sequence(5),0),
                 "Gap and residue highlights persist with the saved snapshot");
         require(wait_for([&]{const auto columns=restoredView->site_highlights();return columns&&(*columns)[0];}),
@@ -474,7 +490,7 @@ int main(int argc,char** argv) {
         reopened.close();
 
         trigger("highlightClear");
-        require(!marked(4,1)&&!marked(1,0)&&document.state_id()==state,"Clear removes both layers without editing");
+        require(!marked(4,1)&&!marked(1,0)&&document.state_id()==editedState,"Clear removes both layers without editing");
 
         const auto widthOnly=[](QDialog& dialog){
             const int width=dialog.width(),height=dialog.height();

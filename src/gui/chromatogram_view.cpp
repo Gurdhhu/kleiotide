@@ -376,6 +376,12 @@ bool TraceCanvas::viewportEvent(QEvent* event){
 }
 void TraceCanvas::keyPressEvent(QKeyEvent* event){
     if(insertionSample_){
+        switch(event->key()){
+        case Qt::Key_Shift: case Qt::Key_Control: case Qt::Key_Alt:
+        case Qt::Key_Meta: case Qt::Key_AltGr: case Qt::Key_CapsLock:
+            event->accept();return;
+        default:break;
+        }
         const auto text=event->text().toLatin1();
         const bool command=(event->modifiers()&(Qt::ControlModifier|Qt::AltModifier|Qt::MetaModifier))!=Qt::NoModifier;
         if(!command&&text.size()==1&&is_nucleotide_symbol(text.front())&&!is_gap(text.front())){
