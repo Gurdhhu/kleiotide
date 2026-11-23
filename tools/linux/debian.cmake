@@ -19,5 +19,5 @@ string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS
   "libqt6core6t64 (>= 6.8.2)" "libqt6gui6 (>= 6.8.2)"
   "libqt6widgets6 (>= 6.8.2)" "libqt6network6 (>= 6.8.2)"
   "qt6-qpa-plugins" "qt6-wayland" "ca-certificates" "shared-mime-info" "desktop-file-utils")
-set(CPACK_DEBIAN_PACKAGE_SUGGESTS "mafft, ncbi-blast+")
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "mafft, ncbi-blast+")
 include(CPack)

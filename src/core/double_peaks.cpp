@@ -16,6 +16,7 @@ constexpr double minimumProminence = 0.2;
 struct Site {
     std::size_t column;
     std::uint32_t sample;
+    bool protectedEdit;
 };
 
 struct Peak {
@@ -186,16 +187,20 @@ DoublePeakPlan plan_double_peaks(const Document& document, DoublePeakSettings se
             if ((column & 1023) == 0) check();
             if (is_gap(row.symbols.text()[column])) continue;
             ++plan.sites;
-            if (const auto anchor = trace_sample_anchor(*row.trace, ordinal++))
-                sites.push_back({column, *anchor});
-            else
+            const auto currentOrdinal = ordinal++;
+            if (const auto anchor = trace_sample_anchor(*row.trace, currentOrdinal)) {
+                const bool edited = manually_edited_call(*row.trace, currentOrdinal, row.symbols.text()[column]);
+                // Protected sites still bound the windows of their neighbors.
+                sites.push_back({column, *anchor, settings.excludeEdited && edited});
+            } else
                 ++plan.unanchored;
         }
         if (row.trace->reversed) std::reverse(sites.begin(), sites.end());
         const auto firstCall = plan.calls.size();
         for (std::size_t i = 0; i < sites.size(); ++i) {
             if ((i & 255) == 0) check();
-            examine_site(plan, row, sites, i);
+            if (sites[i].protectedEdit) ++plan.editedExcluded;
+            else examine_site(plan, row, sites, i);
         }
         if (row.trace->reversed)
             std::reverse(plan.calls.begin() + static_cast<std::ptrdiff_t>(firstCall), plan.calls.end());
@@ -223,7 +228,8 @@ void apply_double_peaks(Document& document, const DoublePeakPlan& plan, std::spa
             auto updated = row.symbols.text().substr(start, length);
             for (auto i = first; i <= last; ++i)
                 if (included[i]) updated.at(plan.calls[i].column - start) = plan.calls[i].proposed;
-            edits.push_back({id, start, length, std::move(updated), row.trace});
+            const auto link = edited_trace(row, start, length, updated, CallEdit::Automatic);
+            edits.push_back({id, start, length, std::move(updated), link});
         }
         first = end;
     }

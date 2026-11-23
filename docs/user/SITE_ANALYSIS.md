@@ -91,7 +91,7 @@ an existing completed summary. Composition uses a cancellable worker while the
 source is held immutable; its table supplies visible cells on demand.
 
 Optional view JSON stores highlighting rules, ranges, molecule, color and stable-ID
-scope snapshots. Current native sessions use format 6. Highlighting is optional view metadata. View settings do not change the
+scope snapshots. Current native sessions use format 6 or 7. Highlighting is optional view metadata. View settings do not change the
 document's sequence-data dirty flag; explicitly save a native session to retain
 them. New FASTA windows start without site highlights. Composition tables are
 transient; Copy/Export retain their results and method settings.

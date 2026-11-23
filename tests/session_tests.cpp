@@ -31,12 +31,12 @@ run("Independent version-1 fixture migrates without reclassifying old masks or l
     require(old.formatVersion==1&&old.document.rows().size()==4&&old.document.next_sequence_id()==20,"Legacy version/count/next-ID decoded");
     require(old.document.sequence(15).kind==RowKind::Mask&&old.document.sequence(16).kind==RowKind::Mask,"Nucleotide/protein-looking legacy masks stay masks");
     const auto trace=old.document.sequence(9).trace;require(trace&&trace->original->calls=="AC"&&trace->originalCalls==std::vector<std::int32_t>({0,-1,1})&&trace->original->quality==std::vector<std::uint8_t>({30,35}),"Old embedded signal/inserted-call provenance retained");
-    const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_version&&upgraded.document.sequence(15).kind==RowKind::Mask&&upgraded.document.sequence(16).kind==RowKind::Mask,"New save explicitly upgrades format without guessing types");
+    const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_base_version&&upgraded.document.sequence(15).kind==RowKind::Mask&&upgraded.document.sequence(16).kind==RowKind::Mask,"New save explicitly upgrades format without guessing types");
     require(upgraded.document.sequence(9).trace->original->channels==trace->original->channels&&upgraded.document.sequence(9).trace->originalCalls==trace->originalCalls,"Migration preserves exact samples/mapping");
 });
 run("Version-2 protein type, canonical representation, stops and ambiguities roundtrip",[]{
     auto d=example();d.append({{"overlapping alphabet","ACGT",RowKind::Protein},{"protein","MeFbzjxUO*?-~",RowKind::Protein}});const auto saved=parse(bytes(d));
-    require(saved.formatVersion==session_version&&saved.document.sequence(5).kind==RowKind::Protein&&saved.document.sequence(5).symbols.text()=="ACGT","Nucleotide-looking protein retains declared type");
+    require(saved.formatVersion==session_base_version&&saved.document.sequence(5).kind==RowKind::Protein&&saved.document.sequence(5).symbols.text()=="ACGT","Nucleotide-looking protein retains declared type");
     require(saved.document.sequence(6).representation==RowRepresentation::AlignedSymbols&&saved.document.sequence(6).symbols.text()=="MeFbzjxUO*?-~","One-letter canonical storage/case/gaps/stop retained");
     require(saved.document.sequence(1).trace->original->channels==d.sequence(1).trace->original->channels,"Mixed document preserves original trace samples");
 });
@@ -70,7 +70,7 @@ run("Adjusted calls and exact flank insertions preserve evidence, history and ex
     d.replace_many({{1,6,0,"N",trailing}});
     const auto saved=parse(bytes(d));
     const auto& row=saved.document.sequence(1);
-    require(saved.formatVersion==session_version&&row.symbols.text()=="~TA~CGN~","Both terminal inserts respect alignment gaps");
+    require(saved.formatVersion==session_base_version&&row.symbols.text()=="~TA~CGN~","Both terminal inserts respect alignment gaps");
     require(row.trace->adjustedPeaks==trailing->adjustedPeaks&&row.trace->original->peaks==evidence->peaks,"Session saves both sets of positions");
     auto forward=prepare_abif_export(row);
     require(forward.peaks==std::vector<std::uint16_t>({3,10,29,30,43})&&
@@ -102,7 +102,7 @@ run("Adjusted calls and exact flank insertions preserve evidence, history and ex
             "Reverse AB1 retains interior positions without transferring the original deleted Q");
 });
 
-run("Independent format-3 group/protein fixture migrates to current format",[]{std::ifstream file(std::filesystem::path(__FILE__).parent_path()/"fixtures/session_v3.kleio",std::ios::binary);const auto old=read_session(file);require(old.formatVersion==3&&old.document.groups().size()==1&&old.document.sequence(1).kind==RowKind::Protein&&old.document.sequence(2).kind==RowKind::Mask&&old.document.sequence(1).groupId==1,"Format 3 semantic migration");const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_version&&upgraded.document.groups()==old.document.groups(),"Upgrade preserves group catalog");});
+run("Independent format-3 group/protein fixture migrates to current format",[]{std::ifstream file(std::filesystem::path(__FILE__).parent_path()/"fixtures/session_v3.kleio",std::ios::binary);const auto old=read_session(file);require(old.formatVersion==3&&old.document.groups().size()==1&&old.document.sequence(1).kind==RowKind::Protein&&old.document.sequence(2).kind==RowKind::Mask&&old.document.sequence(1).groupId==1,"Format 3 semantic migration");const auto upgraded=parse(bytes(old.document));require(upgraded.formatVersion==session_base_version&&upgraded.document.groups()==old.document.groups(),"Upgrade preserves group catalog");});
 
 for(int i=1;i<argc;++i)run(argv[i],[&,i]{std::ifstream input(argv[i],std::ios::binary);require(bool(input),"Open supplied AB1");Document d;d.load({read_abif(input,"supplied",argv[i])});const auto original=d.rows()[0].trace->original;d.replace(1,20,0,"WR");d.replace(1,35,1,"");d.transform({1},Document::Transform::ReverseComplement);const auto session=parse(bytes(d));const auto restored=session.document.rows()[0].trace;require(restored->original->channels==original->channels&&restored->original->quality==original->quality&&restored->original->peaks==original->peaks&&restored->originalCalls==d.rows()[0].trace->originalCalls&&restored->reversed,"Real evidence/mapping roundtrip");});
 std::cout<<passed<<" passed; "<<failed<<" failed\n";return failed?1:0;}

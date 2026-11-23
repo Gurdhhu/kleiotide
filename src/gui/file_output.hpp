@@ -10,6 +10,8 @@ namespace kleiotide {
 QString remembered_file_directory();
 QString file_dialog_initial(const QString& suggested = {});
 void remember_file_directory(const QString& directory);
+QString output_directory(QWidget* parent);
+void remember_opened_file(const QString& path);
 void remember_file_path(const QString& path);
 QString choose_open_file(QWidget* parent = nullptr, const QString& caption = {}, const QString& initial = {},
                          const QString& filters = {}, QString* selectedFilter = nullptr, QFileDialog::Options options = {});

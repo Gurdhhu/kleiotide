@@ -1,3 +1,4 @@
+#include "gui/tool_discovery.hpp"
 #include "gui/app_settings.hpp"
 #include "gui/blast_data.hpp"
 #include "gui/dialog_policy.hpp"
@@ -15,11 +16,13 @@ AppPreferences AppPreferences::defaults() {
   AppPreferences p;
   p.font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
   p.font.setPointSize(11);
-  p.mafftLauncher = QStandardPaths::findExecutable("mafft");
-#ifdef Q_OS_MACOS
-  if (p.mafftLauncher.isEmpty())
-    p.mafftLauncher = QStandardPaths::findExecutable("mafft", {"/opt/homebrew/bin", "/usr/local/bin"});
-#endif
+  p.mafftLauncher = find_local_tool("mafft");
+  p.blastnLauncher = find_local_tool("blastn");
+  p.blastpLauncher = find_local_tool("blastp");
+  p.blastxLauncher = find_local_tool("blastx");
+  p.tblastnLauncher = find_local_tool("tblastn");
+  p.tblastxLauncher = find_local_tool("tblastx");
+  p.makeblastdbLauncher = find_local_tool("makeblastdb");
   return p;
 }
 TranslationSettings AppPreferences::translation() const {
@@ -191,15 +194,13 @@ AppPreferences decode(const QJsonObject &j) {
   p.overviewMiB = j["overviewMiB"].toInt(16);
   p.scanDelayMs = j["scanDelay"].toInt(150);
   const auto savedLauncher=j["mafft"].toString(p.mafftLauncher);
-#ifdef Q_OS_MACOS
   if(!savedLauncher.isEmpty())
-#endif
     p.mafftLauncher=savedLauncher;
   p.mafftThreads = j["threads"].toInt();
-  p.blastxLauncher = j["blastx"].toString();
-  p.tblastnLauncher = j["tblastn"].toString();
-  p.tblastxLauncher = j["tblastx"].toString();
-  p.makeblastdbLauncher = j["makeblastdb"].toString();
+  if (!j["blastx"].toString().isEmpty()) p.blastxLauncher = j["blastx"].toString();
+  if (!j["tblastn"].toString().isEmpty()) p.tblastnLauncher = j["tblastn"].toString();
+  if (!j["tblastx"].toString().isEmpty()) p.tblastxLauncher = j["tblastx"].toString();
+  if (!j["makeblastdb"].toString().isEmpty()) p.makeblastdbLauncher = j["makeblastdb"].toString();
   p.localBlastThreads = j["localThreads"].toInt(1);
   p.localBlastMinutes = j["localMinutes"].toInt(60);
   p.localBlastHits = j["localHits"].toInt(10);
@@ -209,8 +210,8 @@ AppPreferences decode(const QJsonObject &j) {
   p.localBlastNmask = j["localNmask"].toBool(true);
   p.localBlastPmask = j["localPmask"].toBool(false);
   p.blastEmail = j["blastEmail"].toString();
-  p.blastnLauncher = j["blastn"].toString();
-  p.blastpLauncher = j["blastp"].toString();
+  if (!j["blastn"].toString().isEmpty()) p.blastnLauncher = j["blastn"].toString();
+  if (!j["blastp"].toString().isEmpty()) p.blastpLauncher = j["blastp"].toString();
   p.blastNucleotideDatabase = j["blastNdb"].toString("core_nt");
   p.blastProteinDatabase = j["blastPdb"].toString("nr");
   p.blastNucleotideTask = j["blastNtask"].toString("megablast");
@@ -262,9 +263,7 @@ void AppSettings::reload() {
   else {
     values_ = AppPreferences::defaults();
     const auto savedLauncher=settings.value("mafft/launcher", values_.mafftLauncher).toString();
-#ifdef Q_OS_MACOS
     if(!savedLauncher.isEmpty())
-#endif
       values_.mafftLauncher=savedLauncher;
     values_.mafftThreads =
         std::max(0, settings.value("mafft/threads", -1).toInt());

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.30.1 LANGUAGES CXX)
+project(Kleiotide VERSION 0.30.2 LANGUAGES CXX)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()
@@ -128,6 +128,7 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/residue_clipboard.cpp
     src/gui/residue_palette_dialog.cpp
     src/gui/recovery.cpp
+    src/gui/tool_discovery.cpp
     src/gui/app_settings.cpp
     src/gui/settings_dialog.cpp
     src/gui/main_window.cpp
@@ -170,6 +171,12 @@ if(KLEIOTIDE_BUILD_GUI)
   qt_add_executable(kleiotide src/gui/main.cpp)
   target_link_libraries(kleiotide PRIVATE kleiotide_gui)
   set_target_properties(kleiotide PROPERTIES WIN32_EXECUTABLE TRUE MACOSX_BUNDLE TRUE)
+  if(APPLE)
+    set_target_properties(kleiotide PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/tools/macos/Info.plist.in"
+      MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+      MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}")
+  endif()
   if(KLEIOTIDE_PACKAGE_DEBIAN)
     install(TARGETS kleiotide RUNTIME DESTINATION bin)
     install(FILES tools/linux/io.github.Gurdhhu.Kleiotide.desktop DESTINATION share/applications)
@@ -188,13 +195,13 @@ if(KLEIOTIDE_BUILD_GUI)
   install(FILES README.md CHANGELOG.md CONTRIBUTING.md BRANDING.md LICENSE-STATUS.md LICENSE CITATION.cff DESTINATION ${doc_destination})
   install(DIRECTORY docs/ DESTINATION ${doc_destination}/docs FILES_MATCHING PATTERN "*.md")
   if(BUILD_TESTING)
-    foreach(test motif_search rename file_output preferences recovery blast_data exchange table_export)
+    foreach(test desktop_integration motif_search rename file_output preferences recovery blast_data exchange table_export)
       add_executable(kleiotide_${test}_tests tests/${test}_tests.cpp)
       target_link_libraries(kleiotide_${test}_tests PRIVATE kleiotide_gui)
       add_test(NAME ${test} COMMAND kleiotide_${test}_tests)
       kleiotide_qt_test_runtime(${test})
     endforeach()
-    set_property(TEST exchange file_output preferences recovery APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_property(TEST desktop_integration exchange file_output preferences recovery APPEND PROPERTY ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_executable(kleiotide_residue_style_tests tests/residue_style_tests.cpp)
     target_link_libraries(kleiotide_residue_style_tests PRIVATE kleiotide_gui)
     add_test(NAME residue_styles COMMAND kleiotide_residue_style_tests)

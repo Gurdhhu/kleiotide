@@ -876,7 +876,7 @@ void MainWindow::open_paths(const QStringList& paths) {
 void MainWindow::install_document(std::shared_ptr<Document> document, const QString& path, bool saved) {
     if (busy_ || !maybe_save([this, document, path, saved] { install_document(document, path, saved); })) return;
     retire_recovery();clear_recovered_claim();
-    document_ = std::move(document); path_ = path;nativePath_=false;resultLabel_.clear();mafftReport_.clear();
+    document_ = std::move(document); path_ = path;inputOrigin_.clear();nativePath_=false;resultLabel_.clear();mafftReport_.clear();
     savedState_ = saved ? document_->state_id() : 0;
     view_->set_document(document_.get());apply_appearance(AppSettings::instance().values());apply_operational_preferences();update_state();
 }
@@ -901,6 +901,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             } else {
                 retire_recovery();if(!openingRecovery_)clear_recovered_claim();
                 document_ = std::move(result->document);
+                inputOrigin_ = openingRecovery_ ? QString{} : QFileInfo(paths.front()).absoluteFilePath();
                 nativePath_=result->isSession;
                 path_ = paths.size() == 1 && (result->isSession||!result->hasTrace) ? paths.front() : QString{};
                 resultLabel_=paths.size()>1?QString("%1 imported files").arg(paths.size()):result->hasTrace?QFileInfo(paths.front()).fileName():QString{};mafftReport_=QString::fromUtf8(result->report.c_str());
@@ -921,7 +922,7 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             }
             traceDock_->show();
         }
-        if(!openingRecovery_)remember_file_path(paths.back());
+        if(!openingRecovery_)remember_opened_file(paths.back());
         if(result->isSession)restore_view(result->viewState);
         if(openingRecovery_){
             path_.clear();nativePath_=false;savedState_=0;resultLabel_="Recovered session";openingRecovery_=false;
@@ -1073,7 +1074,7 @@ void MainWindow::start_mafft(MafftConfiguration configuration,std::optional<Docu
     run->finished=[this,run,progress,sourceTitle](std::shared_ptr<Document> result,const QString& report,const QString& error,bool cancelled){
         mafftReport_="Source: "+sourceTitle+"\n"+report;set_busy(false);progress->completed(error);
         if(result&&!cancelled&&error.isEmpty()){
-            auto* window=new MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->install_document(std::move(result),{},false);window->resultLabel_="MAFFT — "+sourceTitle;window->mafftReport_=mafftReport_;window->update_state();window->show();
+            auto* window=new MainWindow;window->setAttribute(Qt::WA_DeleteOnClose);window->install_document(std::move(result),{},false);window->inputOrigin_=output_source_path();window->resultLabel_="MAFFT — "+sourceTitle;window->mafftReport_=mafftReport_;window->update_state();window->show();
             statusBar()->showMessage("MAFFT result opened in a new window.",5000);
         }else if(cancelled)statusBar()->showMessage("MAFFT cancelled; source unchanged.",5000);
         run->deleteLater();
@@ -1280,8 +1281,11 @@ void MainWindow::save(bool saveAs, std::function<void()> onSuccess, bool exportF
         const auto filters = native ? QString("Kleiotide session (*.kleio)") : exportFasta ?
             QString("FASTA (*.fasta *.fas *.fa *.fna)") :
             QString("FASTA (*.fasta *.fas *.fa *.fna);;Kleiotide session (*.kleio)");
+        const auto title = path_.isEmpty() ? resultLabel_ : QFileInfo(path_).fileName();
+        const auto base = QFileInfo(title).completeBaseName();
+        const auto suggested = (base.isEmpty() ? QStringLiteral("new_session") : base);
         destination = choose_output_filename(this,
-            native ? "Save editing session" : "Save FASTA (sequence text only)", {}, filters, &filter,
+            native ? "Save editing session" : "Save FASTA (sequence text only)", suggested, filters, &filter,
             QFileDialog::DontConfirmOverwrite);
         if (destination.isEmpty()) return;
         native = !exportFasta && (native || filter.startsWith("Kleiotide") ||

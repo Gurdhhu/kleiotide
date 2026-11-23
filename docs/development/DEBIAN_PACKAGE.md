@@ -5,7 +5,7 @@ Qt 6.8 through its own repositories. The package uses Debian's Qt runtime,
 including the X11 and Wayland platform plug-ins. It includes a desktop launcher
 and file associations for .kleio sessions, .ab1/.abi chromatograms and FASTA.
 Choose your default application in your desktop's file manager. MAFFT and NCBI
-BLAST+ are optional packages.
+BLAST+ are recommended packages installed by APT by default. Use `--no-install-recommends` for a minimal installation.
 
 ## Build the package
 
@@ -21,7 +21,7 @@ cmake --build build-debian --target release-check --parallel 2
 cpack --config build-debian/CPackConfig.cmake -B packages
 ```
 
-The package is `packages/kleiotide_0.30.1-1~deb13_amd64.deb`. The workflow
+The package is `packages/kleiotide_0.30.2-1~deb13_amd64.deb`. The workflow
 also installs it in its Debian build container to verify dependencies, desktop
 registration and AppStream metadata. The default release tests use BLAST fixtures.
 The optional installed BLAST+ check is described in [TESTING.md](TESTING.md#automatic-suite).
@@ -29,7 +29,7 @@ The optional installed BLAST+ check is described in [TESTING.md](TESTING.md#auto
 ## Install and test
 
 ```sh
-sudo apt install ./kleiotide_0.30.1-1~deb13_amd64.deb
+sudo apt install ./kleiotide_0.30.2-1~deb13_amd64.deb
 ```
 
 1. Launch Kleiotide from the desktop menu and from a terminal with `kleiotide`.

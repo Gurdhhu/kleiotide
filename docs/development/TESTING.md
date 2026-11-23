@@ -2,7 +2,7 @@
 
 ## Automatic suite
 
-Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 51 tests (21 core, nine Qt unit, 21 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
+Enable BUILD_TESTING and KLEIOTIDE_BUILD_RELEASE_CHECKS, build Release and run the release-check target. The current suite has 52 tests (21 core, ten Qt unit, 21 GUI workflows). It saves release-tests-Release.log and release-tests-Release.xml in the build directory. From Qt Creator, select release-check as the build target and build it; the Run button launches an executable and does not run CTest.
 
 ```sh
 cmake --build build --config Release --target release-check --parallel 2
@@ -10,6 +10,15 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
+
+## 0.30.2 focused acceptance
+
+1. On a clean Windows x64 installation, leave both optional tools selected and choose a desktop shortcut. Start Kleiotide as a standard user. Run MAFFT, create a local database and run local BLAST. Check the six tool paths under Settings. Repeat on Windows 11 ARM with x64 emulation. Test an offline or interrupted download, Retry, skip, an upgrade and uninstall. Check that test and RC shortcuts remain separate.
+2. On Debian and an M2 Mac, use Locate beside MAFFT and BLAST+ in Settings and the operation dialogs. Check a Finder launch with Homebrew tools, a manual override, a missing executable, and Settings Cancel.
+3. Open a session in folder A and import a read from B. Save As and FASTA, AB1, batch and table exports should start in A. Repeat with FASTA and AB1 inputs, two independent windows, and an untitled alignment. Save As to C and check the next export starts there. Open and BLAST Resume retain their own folder behavior.
+4. With a 600-column alignment, move the caret to either end, extend a block and drag the overview. Check that the lower arrow marks the caret column and the upper bracket marks the selection.
+5. Change a traced call’s case, replace another base, and insert one. Check that Double peak calling initially excludes them and that clearing the checkbox restores otherwise eligible proposals. Apply an automatic substitution, manually restore its original letter, then verify protection after Undo/Redo, reverse complementation and save/reopen. Check the setting and skipped count in a saved table.
+6. On macOS, put the rebuilt app in Applications. Double-click a session when cold and while another session is open, open several sessions at once, and drop a file on the Dock icon. Check Finder’s Open With and Change All, plus AB1 and FASTA as alternate types.
 
 ## 0.30.1 focused acceptance
 

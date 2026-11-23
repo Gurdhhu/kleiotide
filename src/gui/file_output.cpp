@@ -1,5 +1,6 @@
 #include "gui/file_output.hpp"
 #include "core/session.hpp"
+#include "gui/main_window.hpp"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -72,6 +73,26 @@ void remember_file_directory(const QString& path) {
 void remember_file_path(const QString& path) {
   if(!path.isEmpty())remember_file_directory(QFileInfo(path).absolutePath());
 }
+void remember_opened_file(const QString& path) {
+  if (path.isEmpty()) return;
+  const auto directory = QFileInfo(path).absolutePath();
+  remember_file_directory(directory);
+  QSettings settings(QSettings::defaultFormat(), QSettings::UserScope, "Kleiotide", "Kleiotide");
+  settings.setValue("files/lastOpenedDirectory", directory);
+}
+QString output_directory(QWidget* parent) {
+  for (auto* owner = parent; owner; owner = owner->parentWidget()) {
+    if (const auto* window = dynamic_cast<const MainWindow*>(owner)) {
+      const auto source = window->output_source_path();
+      if (!source.isEmpty() && QFileInfo(source).absoluteDir().exists())
+        return QFileInfo(source).absolutePath();
+      break;
+    }
+  }
+  QSettings settings(QSettings::defaultFormat(), QSettings::UserScope, "Kleiotide", "Kleiotide");
+  const auto opened = settings.value("files/lastOpenedDirectory").toString();
+  return QFileInfo(opened).isDir() ? opened : file_dialog_initial();
+}
 QString file_dialog_initial(const QString& suggested) {
   auto folder=remembered_file_directory();
   if(folder.isEmpty()) {
@@ -83,11 +104,11 @@ QString file_dialog_initial(const QString& suggested) {
 }
 QString choose_open_file(QWidget* parent,const QString& caption,const QString& initial,const QString& filters,QString* selectedFilter,QFileDialog::Options options) {
   const auto path=QFileDialog::getOpenFileName(parent,caption,file_dialog_initial(initial),filters,selectedFilter,options);
-  remember_file_path(path);return path;
+  remember_opened_file(path);return path;
 }
 QStringList choose_open_files(QWidget* parent,const QString& caption,const QString& initial,const QString& filters,QString* selectedFilter,QFileDialog::Options options) {
   const auto paths=QFileDialog::getOpenFileNames(parent,caption,file_dialog_initial(initial),filters,selectedFilter,options);
-  if(!paths.isEmpty())remember_file_path(paths.back());
+  if(!paths.isEmpty())remember_opened_file(paths.back());
   return paths;
 }
 QString choose_directory(QWidget* parent,const QString& caption,const QString& initial,QFileDialog::Options options) {
@@ -151,7 +172,7 @@ QString choose_output_filename(QWidget *parent, const QString &caption,
                                OutputNameRules rules) {
   QString selected = selectedFilter ? *selectedFilter : QString{};
   auto path =
-      raw_output_filename(parent, caption, file_dialog_initial(directory), filters, &selected,
+      raw_output_filename(parent, caption, QDir(output_directory(parent)).filePath(QFileInfo(directory).fileName()), filters, &selected,
                           options | QFileDialog::DontConfirmOverwrite, rules);
   if (selectedFilter)
     *selectedFilter = selected;

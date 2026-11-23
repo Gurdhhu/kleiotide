@@ -1,4 +1,7 @@
 #include "gui/open_requests.hpp"
+#include <QCoreApplication>
+#include <QFileOpenEvent>
+#include <QFileInfo>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -11,7 +14,7 @@ namespace kleiotide {
 QString OpenRequests::directory(const QString& key){return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)+"/open-requests/"+key;}
 OpenRequests::OpenRequests(QObject* parent):QObject(parent){
     timer_.setSingleShot(true);timer_.setInterval(500);poll_.setInterval(50);
-    connect(&timer_,&QTimer::timeout,this,[this]{if(pending_.isEmpty())return;const auto paths=std::move(pending_);pending_.clear();if(opened)opened(paths);});
+    connect(&timer_,&QTimer::timeout,this,[this]{if(pending_.isEmpty())return;const auto paths=take_pending();if(opened)opened(paths);});
     connect(&poll_,&QTimer::timeout,this,[this]{for(const auto& name:QDir(directory_).entryList({"*.request"},QDir::Files,QDir::Name)){
         const auto path=directory_+'/'+name;QFile file(path);QByteArray bytes;
         if(file.open(QIODevice::ReadOnly)&&file.size()<=1024*1024)bytes=file.readAll();
@@ -34,6 +37,21 @@ bool OpenRequests::forward(const QString& key,const QStringList& paths){
     const auto name=QString::number(QDateTime::currentMSecsSinceEpoch())+'-'+QUuid::createUuid().toString(QUuid::Id128)+".request";
     QSaveFile file(root+'/'+name);if(!file.open(QIODevice::WriteOnly))return false;file.setPermissions(QFile::ReadOwner|QFile::WriteOwner);
     return file.write(bytes)==bytes.size()&&file.commit();
+}
+QStringList OpenRequests::take_pending(){
+    timer_.stop();
+    QStringList result;
+    result.swap(pending_);
+    return result;
+}
+bool OpenRequests::eventFilter(QObject* target, QEvent* event){
+    if(target!=QCoreApplication::instance() || event->type()!=QEvent::FileOpen)
+        return QObject::eventFilter(target,event);
+    const auto* open=static_cast<QFileOpenEvent*>(event);
+    const auto path=open->file().isEmpty()?open->url().toLocalFile():open->file();
+    if(path.isEmpty())return false;
+    queue({QFileInfo(path).absoluteFilePath()});
+    return true;
 }
 void OpenRequests::queue(const QStringList& paths){for(const auto& path:paths)if(!pending_.contains(path))pending_.append(path);if(!pending_.isEmpty())timer_.start();}
 }

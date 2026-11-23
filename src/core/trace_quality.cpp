@@ -64,7 +64,7 @@ QualityPlan plan_trace_quality(const Document& document,QualitySettings settings
             }
         }
         if(!info.scored)info.status="No usable Q; unchanged";
-        if(info.changed){++plan.changedRows;plan.changedSymbols+=info.changed;plan.edits.push_back({row.id,0,text.size(),std::move(after)});}
+        if(info.changed){++plan.changedRows;plan.changedSymbols+=info.changed;const auto link=edited_trace(row,0,text.size(),after,CallEdit::Automatic);plan.edits.push_back({row.id,0,text.size(),std::move(after),link});}
         plan.rows.push_back(std::move(info));
     }
     check(cancel);return plan;

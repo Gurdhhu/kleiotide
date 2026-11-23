@@ -9,6 +9,7 @@
 #include <QAbstractTableModel>
 #include <QApplication>
 #include <QClipboard>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -62,6 +63,9 @@ TextTable calculation_rules(const DoublePeakPlan& plan) {
     return {{"Setting", "Value"},
         {"Kleiotide version", QString::fromLatin1(version)},
         {"Scope", settings.allTraces ? "All sequences with chromatograms" : "Selected sequences with chromatograms"},
+        {"Exclude edited bases", settings.excludeEdited ? "Yes" : "No"},
+        {"Edited bases", "Manual substitutions, case changes and inserted calls. For sites without recorded edit history, compare the current letter to the strand-oriented imported letter, including case. A call without an original index counts as edited."},
+        {"Anchored edited bases skipped", QString::number(qulonglong(plan.editedExcluded))},
         {"Secondary peak threshold (%)", QString::number(settings.secondaryPercent)},
         {"Third peak exclusion threshold (%)", QString::number(settings.thirdPercent)},
         {"Maximum peak displacement (% of local spacing)", QString::number(settings.displacementPercent)},
@@ -155,7 +159,7 @@ public:
         if (!plan || !index.isValid() || index.column() != 0 || role != Qt::CheckStateRole) return false;
         auto& checked = included[static_cast<std::size_t>(index.row())];
         const bool next = value.toInt() == Qt::Checked;
-        if (checked == next) return true;
+        if ((checked != 0) == next) return true;
         if (next) ++checkedCount;
         else --checkedCount;
         checked = next;
@@ -258,6 +262,12 @@ public:
         displacement_ = percent("doublePeakDisplacement", "Maximum peak displacement", defaults.displacementPercent,
             "The two peak tops must be within this percentage of the typical spacing between nearby bases.");
 
+        excludeEdited_ = new QCheckBox("Exclude hand-edited bases", this);
+        excludeEdited_->setObjectName("doublePeakExcludeEdited");
+        excludeEdited_->setChecked(defaults.excludeEdited);
+        excludeEdited_->setToolTip("Protect manual substitutions, case changes and added calls. Automatic calls can be reviewed again.");
+        form->addRow(excludeEdited_);
+
         auto* ruleToggle = new QToolButton(this);
         ruleToggle->setCheckable(true);
         ruleToggle->setText("Calculation rules");
@@ -317,6 +327,7 @@ public:
         timer_.setSingleShot(true);
         timer_.setInterval(120);
         connect(&timer_, &QTimer::timeout, this, [this] { calculate(); });
+        connect(excludeEdited_, &QCheckBox::toggled, this, [this] { schedule(); });
         connect(scope_, &QComboBox::currentIndexChanged, this, [this] { schedule(); });
         for (auto* spin : {secondary_, third_, displacement_})
             connect(spin, &QSpinBox::valueChanged, this, [this] { schedule(); });
@@ -356,7 +367,7 @@ protected:
 private:
     DoublePeakSettings settings() const {
         return {scope_->currentIndex() == 1, unsigned(secondary_->value()),
-                unsigned(third_->value()), unsigned(displacement_->value())};
+                unsigned(third_->value()), unsigned(displacement_->value()), excludeEdited_->isChecked()};
     }
 
     void schedule() {
@@ -424,6 +435,7 @@ private:
         auto summary = QString("%1 sequences · %2 current residues · %3 proposed · %4 checked · %5 without an anchor · %6 excluded by a third peak")
             .arg(plan.rows).arg(plan.sites).arg(plan.calls.size()).arg(model_->checkedCount)
             .arg(plan.unanchored).arg(plan.thirdPeakExcluded);
+        if (plan.editedExcluded) summary += QString(" · %1 edited bases skipped").arg(plan.editedExcluded);
         if (plan.unresolvedMajor)
             summary += QString(" · %1 without a clear major peak").arg(plan.unresolvedMajor);
         status_->setText(summary);
@@ -457,6 +469,7 @@ private:
     std::shared_ptr<std::atomic_bool> cancel_;
     bool closing_ = false;
     QComboBox* scope_;
+    QCheckBox* excludeEdited_;
     QSpinBox *secondary_, *third_, *displacement_;
     QTableView* table_;
     PeakTableModel* model_;

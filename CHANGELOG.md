@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.2 — testing
+
+- Windows setup offers verified MAFFT and BLAST+ downloads and an optional desktop shortcut. Settings and alignment/search dialogs can locate installed tools, including Homebrew tools when launched from Finder.
+- Save As and export use the current alignment’s folder and suggest a name for session and FASTA files. The alignment overview marks the caret with a thin arrow below the selection bracket.
+- Double peak calling protects hand-edited calls by default. Format 7 preserves distinctions between automatic calls and manual corrections when needed. Other sessions continue to save in format 6.
+- Finder can open sessions by double-click, Open With or Dock drop. Selecting multiple sessions opens each in its own window.
+
 ## 0.30.1 — testing
 
 - Measure double peak heights from the common chromatogram zero line. Skip sites where the tallest signal has no clear peak.

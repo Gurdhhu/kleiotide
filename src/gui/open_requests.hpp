@@ -12,9 +12,13 @@ public:
     explicit OpenRequests(QObject* parent=nullptr);
     bool listen(const QString& key);
     static bool forward(const QString& key,const QStringList& paths);
+    bool has_pending() const { return !pending_.isEmpty(); }
+    QStringList take_pending();
     void queue(const QStringList& paths);
     std::function<void(const QStringList&)> opened;
     std::function<void()> activate;
+protected:
+    bool eventFilter(QObject* target, QEvent* event) override;
 private:
     static QString directory(const QString& key);
     QTimer timer_,poll_;QStringList pending_;QString directory_;

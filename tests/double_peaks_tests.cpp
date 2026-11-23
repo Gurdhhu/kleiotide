@@ -1,5 +1,7 @@
 #include "core/double_peaks.hpp"
 #include "double_peak_fixture.hpp"
+#include "core/session.hpp"
+#include <sstream>
 
 #include <algorithm>
 #include <array>
@@ -69,7 +71,16 @@ int main() try {
     const auto evidence = document.sequence(1).trace;
     const auto state = document.state_id();
 
-    const auto plan = plan_double_peaks(document, {}, {1, 3});
+    auto mixed = test::double_peak_read("case", true);
+    mixed.symbols.front() = 'a';
+    Document caseOnly;
+    caseOnly.load({mixed});
+    require(plan_double_peaks(caseOnly, {true}, {}).calls.empty(), "A case-only edit is protected");
+    const auto protectedPlan = plan_double_peaks(document, {}, {1, 3});
+    require(protectedPlan.calls.size() == 1 && protectedPlan.editedExcluded == 1, "Default protects edited calls");
+    DoublePeakSettings includeEdited;
+    includeEdited.excludeEdited = false;
+    const auto plan = plan_double_peaks(document, includeEdited, {1, 3});
     require(plan.rows == 1 && plan.sites == 6 && plan.calls.size() == 2 && plan.thirdPeakExcluded == 1,
         "Selected scope, third peak rejection, displacement, height, prominence and deleted-call exclusion");
     const auto& supported = plan.calls[0];
@@ -83,12 +94,12 @@ int main() try {
         "A signal pair inconsistent with the current call needs review and keeps its case");
     require(document.state_id() == state && !document.can_undo(), "Preview leaves the source untouched");
 
-    const auto all = plan_double_peaks(document, {true}, {});
+    const auto all = plan_double_peaks(document, {true, 60, 30, 20, false}, {});
     require(all.rows == 2 && all.calls.size() == 4 &&
         all.calls[0].secondaryPercent == all.calls[2].secondaryPercent &&
         all.calls[1].proposed == all.calls[3].proposed,
         "Rows with and without Phred Q produce identical calls");
-    const auto relaxed = plan_double_peaks(document, {false, 50, 30, 35}, {1});
+    const auto relaxed = plan_double_peaks(document, {false, 50, 30, 35, false}, {1});
     require(relaxed.calls.size() == 3 && relaxed.calls[1].column == 3 &&
         relaxed.calls[1].proposed == 'W', "Relaxing displacement makes the shifted double peak eligible");
     const auto zero = plan_double_peaks(document, {false, 0, 100, 0}, {1});
@@ -99,20 +110,31 @@ int main() try {
 
     const std::array<unsigned char, 2> include{1, 0};
     apply_double_peaks(document, plan, include);
-    require(document.sequence(1).symbols.text() == "R~CACgG" && document.sequence(1).trace == evidence &&
+    require(document.sequence(1).symbols.text() == "R~CACgG" && document.sequence(1).trace->original == evidence->original &&
         !trace_position(document.sequence(1), 0).quality &&
         trace_position(document.sequence(1), 0).originalCall == 0 && evidence->original->quality.front() == 0,
         "Apply only checked calls and preserve original call, signal and Phred evidence");
+    require(!manually_edited_call(*document.sequence(1).trace, 0, 'R'), "Automatic call can be reconsidered");
+    document.replace(1,0,1,"A");
+    require(plan_double_peaks(document, {}, {1}).calls.empty(), "Manually restoring an imported letter protects it");
+    std::stringstream stream;
+    write_session(stream, document);
+    auto reopened=read_session(stream);
+    require(reopened.formatVersion==7 && plan_double_peaks(reopened.document, {}, {1}).calls.empty(),
+        "Session retains a deliberate correction back to the imported letter");
+    document.undo();
+    require(!manually_edited_call(*document.sequence(1).trace, 0, 'R'), "Undo restores automatic status");
     rejects([&] { apply_double_peaks(document, plan, include); }, "A stale preview cannot edit again");
     document.undo();
     require(document.state_id() == state && document.sequence(1).symbols.text() == "A~CACgG",
         "One Undo restores the source");
     document.redo();
     require(document.sequence(1).symbols.text() == "R~CACgG" &&
-        plan_double_peaks(document, {}, {1}).calls.size() == 1, "Redo and identical IUPAC no-op");
+        plan_double_peaks(document, includeEdited, {1}).calls.size() == 1, "Redo and identical IUPAC no-op");
 
     document.transform({2}, Document::Transform::ReverseComplement);
-    const auto reverse = plan_double_peaks(document, {}, {2});
+    require(plan_double_peaks(document, {}, {2}).editedExcluded == 1, "Protected edits follow reverse complementation");
+    const auto reverse = plan_double_peaks(document, includeEdited, {2});
     require(reverse.calls.size() == 2 && reverse.calls[0].column == 1 && reverse.calls[0].proposed == 'k' &&
         reverse.calls[1].column == 6 && reverse.calls[1].proposed == 'Y' && reverse.calls[1].major == 'T',
         "Reverse-strand proposals use complemented bases and current alignment columns");
@@ -131,7 +153,8 @@ int main() try {
     hints->inferredPeaks = {-1, -1, -1, -1, -1, -1, -1, 157};
     inferred.trace = hints;
     anchored.load({std::move(manual), std::move(inferred)});
-    const auto anchoredPlan = plan_double_peaks(anchored, {true}, {});
+    require(plan_double_peaks(anchored, {true}, {}).editedExcluded == 4, "Case-sensitive mismatches and inserted anchors are protected");
+    const auto anchoredPlan = plan_double_peaks(anchored, {true, 60, 30, 20, false}, {});
     const auto terminalUpdates = std::count_if(anchoredPlan.calls.begin(), anchoredPlan.calls.end(),
         [](const auto& row) { return row.column == 8 && row.proposed == 'Y' && !row.needsReview; });
     require(anchoredPlan.unanchored == 2 && terminalUpdates == 2,

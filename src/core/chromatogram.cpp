@@ -15,18 +15,40 @@ char trace_complement(char c) noexcept {
     if(i==std::string_view::npos)return c;
     const char result=complements[i];return lower?static_cast<char>(result-'A'+'a'):result;
 }
+namespace {
+bool differs_from_import(const TraceLink& link, std::int32_t index, char current) {
+    if (index < 0) return true;
+    auto imported = link.original->calls[static_cast<std::size_t>(index)];
+    if (link.reversed) imported = trace_complement(imported);
+    return current != imported;
+}
+CallEdit edit_at(const TraceLink& link, std::size_t ordinal) {
+    return link.callEdits.empty() ? CallEdit::FromEvidence : link.callEdits[ordinal];
+}
+void discard_implicit_edits(std::vector<CallEdit>& edits) {
+    if (std::all_of(edits.begin(), edits.end(), [](CallEdit edit) { return edit == CallEdit::FromEvidence; }))
+        edits.clear();
+}
+}
+bool manually_edited_call(const TraceLink& link, std::size_t ordinal, char current) {
+    const auto edit = edit_at(link, ordinal);
+    if (edit == CallEdit::FromEvidence)
+        return differs_from_import(link, link.originalCalls[ordinal], current);
+    return edit == CallEdit::Manual;
+}
 std::shared_ptr<const TraceLink> reversed_trace(const std::shared_ptr<const TraceLink>& link) {
     if(!link)return {};
     auto result=std::make_shared<TraceLink>(*link);
     std::reverse(result->originalCalls.begin(),result->originalCalls.end());
     std::reverse(result->inferredPeaks.begin(),result->inferredPeaks.end());
     std::reverse(result->adjustedPeaks.begin(),result->adjustedPeaks.end());
+    std::reverse(result->callEdits.begin(),result->callEdits.end());
     result->reversed=!result->reversed;return result;
 }
 std::size_t trace_storage_bytes(const std::shared_ptr<const TraceLink>& link) noexcept {
     if(!link)return 0;
     const auto& data=*link->original;
-    auto size=sizeof(TraceLink)+(link->originalCalls.size()+link->inferredPeaks.size()+link->adjustedPeaks.size())*sizeof(std::int32_t)+sizeof(Chromatogram)+data.sourcePath.size()+data.sampleName.size()+data.calls.size()+data.peaks.size()*sizeof(std::uint32_t)+data.quality.size();
+    auto size=sizeof(TraceLink)+link->callEdits.size()*sizeof(CallEdit)+(link->originalCalls.size()+link->inferredPeaks.size()+link->adjustedPeaks.size())*sizeof(std::int32_t)+sizeof(Chromatogram)+data.sourcePath.size()+data.sampleName.size()+data.calls.size()+data.peaks.size()*sizeof(std::uint32_t)+data.quality.size();
     for(const auto& channel:data.channels)size+=channel.size()*sizeof(std::int32_t);
     return size;
 }
@@ -35,6 +57,9 @@ void validate_trace(const Sequence& row) {
     const auto& link=*row.trace;
     if(row.kind!=RowKind::Nucleotide||!link.original||link.originalCalls.size()!=row.symbols.residue_count())
         throw std::invalid_argument("Invalid trace-to-sequence mapping.");
+    if (!link.callEdits.empty() && (link.callEdits.size() != link.originalCalls.size() ||
+        std::any_of(link.callEdits.begin(),link.callEdits.end(),[](auto edit){return edit > CallEdit::Automatic;})))
+        throw std::invalid_argument("Invalid trace edit history.");
     const auto& data=*link.original;
     if(data.calls.empty()||data.peaks.size()!=data.calls.size()||(!data.quality.empty()&&data.quality.size()!=data.calls.size()))
         throw std::invalid_argument("Inconsistent original trace calls.");
@@ -54,12 +79,40 @@ void validate_trace(const Sequence& row) {
         const auto peak=trace_sample_anchor(link,i);if(peak){if(lastPeak&&(!link.reversed?*peak<*lastPeak:*peak>*lastPeak))throw std::invalid_argument("Trace sample anchors must retain strand order.");lastPeak=peak;}
     }
 }
-std::shared_ptr<const TraceLink> edited_trace(const Sequence& row,std::size_t start,std::size_t count,const std::string& after) {
+std::shared_ptr<const TraceLink> edited_trace(const Sequence& row,std::size_t start,std::size_t count,const std::string& after, CallEdit origin) {
     if(!row.trace)return {};
     const auto before=row.symbols.text().substr(start,count);
-    auto residues=[](std::string_view text){std::string out;for(char c:text)if(!is_gap(c))out+=static_cast<char>(std::toupper(static_cast<unsigned char>(c)));return out;};
-    if(residues(before)==residues(after))return row.trace;
+    const auto residues=[](std::string_view text) {
+        std::string out;
+        for(char c:text) if(!is_gap(c)) out+=c;
+        return out;
+    };
+    const auto oldLetters=residues(before), newLetters=residues(after);
+    if(oldLetters==newLetters)return row.trace;
     const auto rank=row.symbols.residue_rank(start),end=row.symbols.residue_rank(start+count);
+    const auto changedEdit=[&](std::int32_t index, char current) {
+        const bool differs = differs_from_import(*row.trace, index, current);
+        return differs == (origin == CallEdit::Manual) ? CallEdit::FromEvidence : origin;
+    };
+    const bool caseOnly=oldLetters.size()==newLetters.size() &&
+        std::equal(oldLetters.begin(),oldLetters.end(),newLetters.begin(),[](unsigned char a,unsigned char b){
+            return std::toupper(a)==std::toupper(b);
+        });
+    if(caseOnly) {
+        auto updates=row.trace->callEdits;
+        for(std::size_t i=0;i<newLetters.size();++i) {
+            if(oldLetters[i]==newLetters[i])continue;
+            const auto next=changedEdit(row.trace->originalCalls[rank+i], newLetters[i]);
+            if(next==CallEdit::FromEvidence && updates.empty())continue;
+            if(updates.empty())updates.resize(row.trace->originalCalls.size());
+            updates[rank+i]=next;
+        }
+        discard_implicit_edits(updates);
+        if(updates==row.trace->callEdits)return row.trace;
+        auto result=std::make_shared<TraceLink>(*row.trace);
+        result->callEdits=std::move(updates);
+        return result;
+    }
     auto result=std::make_shared<TraceLink>();result->original=row.trace->original;result->reversed=row.trace->reversed;
     const auto& old=row.trace->originalCalls;
     const auto& oldHints=row.trace->inferredPeaks;
@@ -67,17 +120,28 @@ std::shared_ptr<const TraceLink> edited_trace(const Sequence& row,std::size_t st
     if(!oldHints.empty())result->inferredPeaks.insert(result->inferredPeaks.end(),oldHints.begin(),oldHints.begin()+static_cast<std::ptrdiff_t>(rank));
     if(!oldAdjustments.empty())result->adjustedPeaks.insert(result->adjustedPeaks.end(),oldAdjustments.begin(),oldAdjustments.begin()+static_cast<std::ptrdiff_t>(rank));
     result->originalCalls.insert(result->originalCalls.end(),old.begin(),old.begin()+static_cast<std::ptrdiff_t>(rank));
+    const auto& history=row.trace->callEdits;
+    if(!history.empty()) result->callEdits.assign(history.begin(),history.begin()+static_cast<std::ptrdiff_t>(rank));
     auto ordinal=rank;
     for(std::size_t c=0;c<std::max(before.size(),after.size());++c){
         const bool was=c<before.size()&&!is_gap(before[c]);
         if(c<after.size()&&!is_gap(after[c])){
-            result->originalCalls.push_back(was?old[ordinal]:-1);
+            const auto index=was?old[ordinal]:-1;
+            const auto edit=was && before[c]==after[c] ? edit_at(*row.trace,ordinal) : changedEdit(index,after[c]);
+            if(edit!=CallEdit::FromEvidence || !history.empty() || !result->callEdits.empty()) {
+                result->callEdits.resize(result->originalCalls.size());
+                result->callEdits.push_back(edit);
+            }
+            result->originalCalls.push_back(index);
             if(!oldHints.empty())result->inferredPeaks.push_back(was?oldHints[ordinal]:-1);
             if(!oldAdjustments.empty())result->adjustedPeaks.push_back(was?oldAdjustments[ordinal]:-1);
         }
         if(was)++ordinal;
     }
     result->originalCalls.insert(result->originalCalls.end(),old.begin()+static_cast<std::ptrdiff_t>(end),old.end());
+    if(!history.empty())result->callEdits.insert(result->callEdits.end(),history.begin()+static_cast<std::ptrdiff_t>(end),history.end());
+    else if(!result->callEdits.empty())result->callEdits.resize(result->originalCalls.size());
+    discard_implicit_edits(result->callEdits);
     if(!oldHints.empty())result->inferredPeaks.insert(result->inferredPeaks.end(),oldHints.begin()+static_cast<std::ptrdiff_t>(end),oldHints.end());
     if(!oldAdjustments.empty())result->adjustedPeaks.insert(result->adjustedPeaks.end(),oldAdjustments.begin()+static_cast<std::ptrdiff_t>(end),oldAdjustments.end());
     return result;

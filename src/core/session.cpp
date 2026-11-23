@@ -66,7 +66,10 @@ void write_session(std::ostream& output,const Document& d,std::string_view view,
         validate_protein_layout(row);
         validate_trace(row);if(row.trace&&!indices.contains(row.trace->original.get())){indices[row.trace->original.get()]=traces.size();traces.push_back(row.trace->original);}}
     if(d.rows().size()>1000000||traces.size()>1000000)throw std::runtime_error("Too many session rows or traces.");
-    Writer w(output,cancelled);w.bytes(session_magic.data(),session_magic.size());w.number(session_version,4);w.number(d.next_sequence_id());w.text(view,small);w.text(report,16*small);w.number(d.groups().size());w.number(d.next_group_id());
+    const bool withHistory=std::any_of(d.rows().begin(),d.rows().end(),[](const auto& row){
+        return row.trace && !row.trace->callEdits.empty();
+    });
+    Writer w(output,cancelled);w.bytes(session_magic.data(),session_magic.size());w.number(withHistory ? session_version : session_base_version,4);w.number(d.next_sequence_id());w.text(view,small);w.text(report,16*small);w.number(d.groups().size());w.number(d.next_group_id());
     for(const auto& g:d.groups()){w.number(g.id);w.text(g.name,small);w.number(g.color,4);}write_settings(w,d.translation_settings());w.number(traces.size());
     for(const auto& ptr:traces){const auto& t=*ptr;w.text(t.sourcePath,small);w.text(t.sampleName,small);w.number(t.callSet,4);w.text(t.calls,maxCalls);
         w.number(t.peaks.size());for(auto p:t.peaks)w.number(p,4);w.number(t.quality.size());w.bytes(reinterpret_cast<const char*>(t.quality.data()),t.quality.size());
@@ -78,13 +81,18 @@ void write_session(std::ostream& output,const Document& d,std::string_view view,
         if(row.trace){w.number(row.trace->reversed?1:0,1);w.number(row.trace->originalCalls.size());for(auto a:row.trace->originalCalls)w.number(std::bit_cast<std::uint32_t>(a),4);w.number(row.trace->inferredPeaks.size());for(auto peak:row.trace->inferredPeaks)w.number(std::bit_cast<std::uint32_t>(peak),4);
             w.number(row.trace->adjustedPeaks.size());
             for(auto peak:row.trace->adjustedPeaks)w.number(std::bit_cast<std::uint32_t>(peak),4);
+            if(withHistory){
+                const auto& edits=row.trace->callEdits;
+                w.number(edits.size());
+                w.bytes(reinterpret_cast<const char*>(edits.data()),edits.size());
+            }
         }
     write_protein(w,row.protein);
     }w.finish();
 }
 Session read_session(std::istream& input){
     Reader r(input);std::array<char,8> magic{};r.bytes(magic.data(),magic.size());if(std::string_view(magic.data(),8)!=session_magic)throw std::runtime_error("Not a Kleiotide session.");
-    const auto version=r.number(4);if(version<1||version>session_version)throw std::runtime_error("Unsupported Kleiotide session version "+std::to_string(version)+". This application reads versions 1–6.");
+    const auto version=r.number(4);if(version<1||version>session_version)throw std::runtime_error("Unsupported Kleiotide session version "+std::to_string(version)+". This application reads versions 1–7.");
     const auto next=r.number();Session result;result.formatVersion=static_cast<unsigned>(version);result.viewState=r.text(small);result.alignmentReport=r.text(16*small);
     std::vector<SequenceGroup> groups;GroupId nextGroup=1;
     if(version>=3){const auto count=r.count(100000);nextGroup=r.number();for(std::size_t i=0;i<count;++i){SequenceGroup g;g.id=r.number();g.name=r.text(small);g.color=static_cast<std::uint32_t>(r.number(4));groups.push_back(std::move(g));}}
@@ -112,6 +120,14 @@ Session read_session(std::istream& input){
             for(std::size_t j=0;j<n;++j)link->originalCalls.push_back(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(r.number(4))));
             if(version>=5){const auto hints=r.count(expected);if(hints&&hints!=expected)throw std::runtime_error("Invalid inferred peak count.");for(std::size_t j=0;j<hints;++j)link->inferredPeaks.push_back(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(r.number(4))));}
             if(version>=6){const auto peaks=r.count(expected);if(peaks&&peaks!=expected)throw std::runtime_error("Invalid adjusted peak count.");for(std::size_t j=0;j<peaks;++j)link->adjustedPeaks.push_back(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(r.number(4))));}
+            if(version>=7){
+                const auto edits=r.count(expected);
+                if(edits && edits!=expected)throw std::runtime_error("Invalid edit history length.");
+                if(edits){
+                    link->callEdits.resize(edits);
+                    r.bytes(reinterpret_cast<char*>(link->callEdits.data()),edits);
+                }
+            }
             row.trace=link;
         }if(version>=4)row.protein=read_protein(r);records.push_back(std::move(row));
     }r.finish();result.document.restore_session(std::move(records),ids,next,std::move(groups),nextGroup,settings);return result;

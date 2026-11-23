@@ -9,6 +9,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -155,7 +156,7 @@ int main(int argc, char** argv) {
         require(checkedMenu && failure.isEmpty(), qPrintable(failure));
 
         const auto state = window.current_document().state_id();
-        int stage = 0;
+        int stage = -1;
         QTimer driver;
         driver.setInterval(15);
         deadline.restart();
@@ -166,6 +167,13 @@ int main(int argc, char** argv) {
                 if (!dialog || dialog->objectName() != "doublePeakDialog") return;
                 auto* table = child<QTableView>(*dialog, "doublePeakPreview");
                 auto* model = table->model();
+                if (stage == -1 && model->rowCount() == 1) {
+                    auto* protect = child<QCheckBox>(*dialog, "doublePeakExcludeEdited");
+                    require(protect->isChecked(), "Edited bases are protected on opening");
+                    protect->click();
+                    ++stage;
+                    return;
+                }
                 if (stage == 0 && model->rowCount() == 2) {
                     require(child<QComboBox>(*dialog, "doublePeakScope")->currentIndex() == 0 &&
                         child<QSpinBox>(*dialog, "doublePeakSecondary")->value() == 60,

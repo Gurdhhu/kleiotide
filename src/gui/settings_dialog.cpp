@@ -1,3 +1,4 @@
+#include "gui/tool_discovery.hpp"
 #include "gui/file_output.hpp"
 #include "gui/settings_dialog.hpp"
 #include "gui/blast_data.hpp"
@@ -178,12 +179,14 @@ void show_settings(
     line->addWidget(field, 1);
     line->addWidget(button);
     form->addRow(label, row);
+    return line;
   };
   auto *mafft = page("MAFFT");
   QLineEdit launcher;
   launcher.setObjectName("settingsMafftLauncher");
   QPushButton browse("Browse…");
-  pathRow(mafft, "Default launcher", &launcher, &browse);
+  add_locate_button(pathRow(mafft, "Default launcher", &launcher, &browse), &launcher,
+                    [] { return find_local_tool("mafft"); });
   auto *threads =
       spin(mafft, "settingsMafftThreads", "Default threads", 0, 256);
   threads->setSpecialValueText("Automatic (safe)");
@@ -254,7 +257,11 @@ void show_settings(
       browseTblastx("Browse…"), browseMakeblastdb("Browse…");
   auto executable = [&](const QString &name, QLineEdit *field,
                         QPushButton *button) {
-    pathRow(local, "NCBI " + name + " executable", field, button);
+    auto* line = pathRow(local, "NCBI " + name + " executable", field, button);
+    add_locate_button(line, field, [&, name] {
+      return find_local_tool(name, {blastn.text(), blastp.text(), blastx.text(),
+                                     tblastn.text(), tblastx.text(), makeblastdb.text()});
+    });
     field->setToolTip("Path to the installed NCBI " + name +
                       " executable; blank searches beside the other BLAST+ "
                       "tools and on PATH.");

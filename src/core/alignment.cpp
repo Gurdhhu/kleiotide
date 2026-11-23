@@ -324,7 +324,7 @@ void Document::replace_many(const std::vector<Replacement>& edits,std::optional<
         if(protein!=row.protein)command.cost+=protein_storage_bytes(protein)+protein_storage_bytes(row.protein);
         if(trace!=row.trace){
             for(const auto& link:{trace,row.trace})if(link)
-                command.cost+=sizeof(TraceLink)+(link->originalCalls.size()+link->inferredPeaks.size()+link->adjustedPeaks.size())*sizeof(std::int32_t);
+                command.cost+=sizeof(TraceLink)+link->callEdits.size()*sizeof(CallEdit)+(link->originalCalls.size()+link->inferredPeaks.size()+link->adjustedPeaks.size())*sizeof(std::int32_t);
         }
         command.edits.emplace_back(TextPatch{edit.id, edit.start, std::move(before), std::move(after),
             row.trace,std::move(trace),row.protein,std::move(protein),edit.transfers});

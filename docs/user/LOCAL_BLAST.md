@@ -2,7 +2,7 @@
 
 Install a package matching your operating system: [Download NCBI BLAST+](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/). This link is also available in local search dialogs and Settings.
 
-Install NCBI BLAST+ separately. Kleiotide does not bundle its executables.
+Windows setup offers to install NCBI BLAST+ and configure all six executable paths. Debian 13 recommends the BLAST+ package through APT. On macOS with Homebrew, run `brew install blast`. Use **Locate** beside a path to find an installed executable.
 Set paths in File → Settings → BLAST, under Local BLAST+. You can set each tool,
 leave paths blank to find it beside another configured tool or on PATH, or browse
 for the required search executable in a search dialog. NCBI remote HTTPS searches

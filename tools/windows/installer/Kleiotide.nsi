@@ -28,6 +28,12 @@ Unicode true
   !define OPENWITH_PROG "Kleiotide.Test.${APP_VERSION}.${TEST_REVISION}"
   !define UNINSTALL_ID "Kleiotide-Test-${APP_VERSION}-${TEST_REVISION}"
 !endif
+Var InstallMafft
+Var InstallBlast
+Var DesktopLink
+Var MafftBox
+Var BlastBox
+Var DesktopBox
 !define APP_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_ID}"
 Name "${APP_NAME}"
 OutFile "${SETUP_FILE}"
@@ -46,6 +52,7 @@ ShowUninstDetails show
   !insertmacro MUI_PAGE_DIRECTORY
   Page custom AssociationPage SaveAssociations
 !endif
+Page custom ToolsPage SaveTools
 !insertmacro MUI_PAGE_INSTFILES
 !ifdef RELEASE_INSTALLER
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishOptions
@@ -88,6 +95,22 @@ Function .onInit
   ${EndIf}
   SetRegView 64
   SetShellVarContext all
+  StrCpy $InstallMafft ${BST_CHECKED}
+  StrCpy $InstallBlast ${BST_CHECKED}
+  StrCpy $DesktopLink ${BST_UNCHECKED}
+  ReadRegDWORD $0 HKLM "${APP_KEY}" "DesktopShortcut"
+  IfErrors +2
+    StrCpy $DesktopLink $0
+  ReadRegDWORD $0 HKLM "${APP_KEY}" "InstallMAFFT"
+  IfErrors +2
+    StrCpy $InstallMafft $0
+  ReadRegDWORD $0 HKLM "${APP_KEY}" "InstallBLAST"
+  IfErrors +2
+    StrCpy $InstallBlast $0
+  IfSilent 0 +3
+    StrCpy $InstallMafft ${BST_UNCHECKED}
+    StrCpy $InstallBlast ${BST_UNCHECKED}
+  ClearErrors
 !ifdef RELEASE_INSTALLER
   ReadRegStr $ExistingDir HKLM "${APP_KEY}" "InstallLocation"
   StrCpy $Sessions ${BST_CHECKED}
@@ -109,6 +132,45 @@ Function .onInit
   init_done:
 !endif
 FunctionEnd
+
+Function ToolsPage
+  !insertmacro MUI_HEADER_TEXT "Optional tools and shortcut" "Choose the features to set up on this computer."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 32u "Setup can download the tools from their publishers and configure Kleiotide for all users. A detected installation can be reused. You can also choose your own executables in Settings."
+  Pop $0
+  ${NSD_CreateCheckbox} 0 39u 100% 16u "Set up MAFFT for sequence alignment (about 27 MB)"
+  Pop $MafftBox
+  ${NSD_SetState} $MafftBox $InstallMafft
+  ${NSD_CreateCheckbox} 0 61u 100% 16u "Set up NCBI BLAST+ for local database searches (about 133 MB)"
+  Pop $BlastBox
+  ${NSD_SetState} $BlastBox $InstallBlast
+  ${NSD_CreateCheckbox} 0 90u 100% 16u "Create a desktop shortcut for Kleiotide"
+  Pop $DesktopBox
+  ${NSD_SetState} $DesktopBox $DesktopLink
+  nsDialogs::Show
+FunctionEnd
+
+Function SaveTools
+  ${NSD_GetState} $MafftBox $InstallMafft
+  ${NSD_GetState} $BlastBox $InstallBlast
+  ${NSD_GetState} $DesktopBox $DesktopLink
+FunctionEnd
+
+!macro SetupTool NAME FLAG
+  ${If} ${FLAG} == ${BST_CHECKED}
+    retry_${NAME}:
+    DetailPrint "Setting up ${NAME}..."
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-Dependency.ps1" -Tool ${NAME} -ProgramFiles64 "$PROGRAMFILES64"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Could not set up ${NAME}. See the installation details for the reason. Retry, or choose Cancel to finish installing Kleiotide without this tool." /SD IDCANCEL IDRETRY retry_${NAME}
+    ${EndIf}
+  ${EndIf}
+!macroend
 
 Function VerifyDestination
   ; The NSIS path instruction requires the final component to exist.
@@ -296,6 +358,7 @@ Section "Kleiotide" SEC_MAIN
   ; The original Microsoft installer performs runtime version detection.
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
+  File /oname=Install-Dependency.ps1 "Install-Dependency.ps1"
   File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
   DetailPrint "Installing/checking the Microsoft Visual C++ x64 runtime..."
   StrCpy $0 -1
@@ -345,6 +408,14 @@ Section "Kleiotide" SEC_MAIN
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\Kleiotide.lnk" "$INSTDIR\kleiotide.exe"
 
+  ${If} $DesktopLink == ${BST_CHECKED}
+    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\kleiotide.exe"
+  ${EndIf}
+  WriteRegDWORD HKLM "${APP_KEY}" "DesktopShortcut" $DesktopLink
+  WriteRegDWORD HKLM "${APP_KEY}" "InstallMAFFT" $InstallMafft
+  WriteRegDWORD HKLM "${APP_KEY}" "InstallBLAST" $InstallBlast
+  !insertmacro SetupTool MAFFT $InstallMafft
+  !insertmacro SetupTool BLAST $InstallBlast
   WriteRegStr HKLM "${APP_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKLM "${APP_KEY}" "DisplayVersion" "${DISPLAY_VERSION}"
   WriteRegStr HKLM "${APP_KEY}" "Publisher" "Oleg Shchepin"
@@ -408,6 +479,10 @@ Section "Uninstall"
   Delete "$INSTDIR\Uninstall.exe"
 !endif
   RMDir "$INSTDIR"
+  ReadRegDWORD $0 HKLM "${APP_KEY}" "DesktopShortcut"
+  ${If} $0 == ${BST_CHECKED}
+    Delete "$DESKTOP\${APP_NAME}.lnk"
+  ${EndIf}
   Delete "$SMPROGRAMS\${APP_NAME}\Kleiotide.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"

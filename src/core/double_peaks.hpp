@@ -11,6 +11,7 @@ struct DoublePeakSettings {
     unsigned secondaryPercent = 60;
     unsigned thirdPercent = 30;
     unsigned displacementPercent = 20;
+    bool excludeEdited = true;
 };
 
 struct DoublePeakCall {
@@ -28,7 +29,7 @@ struct DoublePeakPlan {
     std::uint64_t revision = 0;
     DoublePeakSettings settings;
     std::vector<DoublePeakCall> calls;
-    std::size_t rows = 0, sites = 0, unanchored = 0, unresolvedMajor = 0, thirdPeakExcluded = 0;
+    std::size_t rows = 0, sites = 0, unanchored = 0, unresolvedMajor = 0, thirdPeakExcluded = 0, editedExcluded = 0;
 };
 
 DoublePeakPlan plan_double_peaks(const Document&, DoublePeakSettings,

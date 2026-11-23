@@ -1,3 +1,4 @@
+#include "gui/tool_discovery.hpp"
 #include "gui/local_blast.hpp"
 #include "gui/search_status.hpp"
 #include "core/fasta.hpp"
@@ -73,18 +74,8 @@ QString local_blast_executable(const QString &name) {
     chosen = p.makeblastdbLauncher;
   if (!chosen.isEmpty())
     return chosen;
-  QString binary = name;
-#ifdef Q_OS_WIN
-  binary += ".exe";
-#endif
-  for (const auto &path :
-       {p.blastnLauncher, p.blastpLauncher, p.makeblastdbLauncher})
-    if (!path.isEmpty()) {
-      auto sibling = QFileInfo(path).dir().filePath(binary);
-      if (QFileInfo(sibling).isExecutable())
-        return sibling;
-    }
-  return QStandardPaths::findExecutable(binary);
+  return find_local_tool(name, {p.blastnLauncher, p.blastpLauncher, p.blastxLauncher,
+                                p.tblastnLauncher, p.tblastxLauncher, p.makeblastdbLauncher});
 }
 LocalDatabase read_local_database(const QString &path) {
   QFile file(path);
@@ -480,6 +471,11 @@ public:
     exeLayout->addWidget(launcher, 1);
     auto *browseExe = new QPushButton("Browse…");
     exeLayout->addWidget(browseExe);
+    add_locate_button(exeLayout, launcher, [this] {
+      const auto& p = AppSettings::instance().values();
+      return find_local_tool(program->currentText(), {launcher->text(), p.blastnLauncher,
+          p.blastpLauncher, p.blastxLauncher, p.tblastnLauncher, p.tblastxLauncher, p.makeblastdbLauncher});
+    });
     auto *exeLabel = new QLabel;
     form->addRow(exeLabel, exeRow);
     launcher->setToolTip(

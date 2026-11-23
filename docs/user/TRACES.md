@@ -91,6 +91,8 @@ examines non-gap residues in the **Current** row with an imported, inferred
 or manually placed sample anchor. Positions with only an interpolated
 location are counted in the status line.
 
+**Exclude hand-edited bases** is selected by default. It protects substitutions, case changes and inserted calls. A manual correction back to the imported letter remains protected after saving and reopening. Automatic substitutions made by this version remain eligible on the next scan. Older sessions have no edit history, so Kleiotide protects differences from the original call (including case) and added calls. Clear the checkbox to review these sites too.
+
 The default secondary peak threshold is **60%** of the major peak height.
 Sites with a qualifying third peak at **30%** of the major peak height or
 higher are excluded. Peak tops may be separated by at most **20%** of the

@@ -32,6 +32,11 @@ public:
     void offer_recovery(bool startup=false);
     void open_path(const QString& path);
     void open_paths(const QStringList& paths);
+    bool is_empty_start_window() const {
+        return !busy_ && path_.isEmpty() && inputOrigin_.isEmpty() && resultLabel_.isEmpty()
+            && document_->rows().empty() && savedState_ == document_->state_id();
+    }
+    QString output_source_path() const { return path_.isEmpty() ? inputOrigin_ : path_; }
     const Document& current_document() const {return *document_;}
 protected:
     void closeEvent(QCloseEvent*) override;
@@ -112,7 +117,7 @@ private:
     QAction* undoAction_ = nullptr;
     QAction* redoAction_ = nullptr;
     QAction* deleteAction_ = nullptr;
-    QString path_;
+    QString path_, inputOrigin_;
     QString resultLabel_,mafftReport_;
     std::uint64_t savedState_ = 0;
     bool nativePath_=false;

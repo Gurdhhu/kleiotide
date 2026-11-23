@@ -105,6 +105,20 @@ void AlignmentOverview::paintEvent(QPaintEvent*){
             p.setPen(QPen(Qt::white,6));p.drawPolyline(bracket);
             p.setPen(QPen(QColor(220,0,95),4));p.drawPolyline(bracket);
         }
+        if (const auto caret = view_->caret()) {
+            const auto column = std::min(caret->second, document_->columns()-1);
+            const qreal tip = std::clamp(area.left() + (double(column) + 0.5) * scale,
+                                        double(area.left()), double(area.right()));
+            const qreal bottom = area.bottom();
+            const QPolygonF arrow{QPointF(tip-3,bottom+1), QPointF(tip,bottom-5), QPointF(tip+3,bottom+1)};
+            p.save();
+            p.setRenderHint(QPainter::Antialiasing);
+            p.setPen(QPen(Qt::white, 3));
+            p.drawPolyline(arrow);
+            p.setPen(QPen(QColor(190, 20, 35), 1.4));
+            p.drawPolyline(arrow);
+            p.restore();
+        }
         p.setPen(QColor(55,64,73));p.drawText(QRect(10,area.bottom()+2,width()-20,18),Qt::AlignLeft|Qt::AlignVCenter,QString("1  ·  Click or drag to navigate  ·  Viewing %1–%2").arg(static_cast<qulonglong>(begin+1)).arg(static_cast<qulonglong>(end)));
         p.drawText(QRect(10,area.bottom()+2,width()-20,18),Qt::AlignRight|Qt::AlignVCenter,QString::number(static_cast<qulonglong>(document_->columns())));
     }

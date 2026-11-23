@@ -1,6 +1,6 @@
 # Native session format (.kleio)
 
-The writer emits **format 6** starting in Kleiotide 0.29.8. The reader accepts **formats 1–6**. Format 6 stores manual trace positions and requires Kleiotide 0.29.8 or later. Loading older formats preserves their recorded mappings and migrates missing metadata; it does not automatically relink traces. Undo/Redo history is not serialized: reopening creates a new editing baseline.
+Kleiotide 0.30.2 reads **formats 1–7**. It writes format 7 when a trace needs explicit base-edit history and otherwise writes format 6. Format 6 stores manual trace positions and requires Kleiotide 0.29.8 or later. Loading older formats preserves their recorded mappings and migrates missing metadata; it does not automatically relink traces. Undo/Redo history is not serialized: reopening creates a new editing baseline.
 
 Sessions embed names, typed rows, aligned symbols, stable IDs/order, groups, translation metadata, analyzed chromatogram channels, original calls/positions/quality and current sequence-to-trace mappings. Original AB1 paths are provenance labels: the files are not required on reopening. Raw instrument channels and unrelated vendor tags are not embedded. Source AB1 files are never modified.
 
@@ -47,6 +47,8 @@ If the trace reference is nonzero, continue with:
 
 4. Adjusted-peak count u64 and that many signed i32 original sample positions (format 6). Count is zero or equals the current non-gap residue count. -1 uses the default. A manual adjustment takes precedence over imported or inferred positions for that current call, while the original call index, original peak and measured Q remain stored independently. Effective anchors must retain strand order.
 
+5. In format 7, an edit-history count u64 followed by that many u8 values. The count is zero or equals the non-gap residue count. State 0 derives edit status by comparing the current and imported letters in the same orientation and case, with an unmapped residue considered edited. State 1 records a manual edit and state 2 an automatic edit. A user who deliberately restores the imported letter can therefore protect it from subsequent double peak calling.
+
 Every row then has a protein-presence u8 and, if present, the protein metadata record below. Trace links are nucleotide-only; protein metadata requires a protein row without a trace.
 
 An inferred peak does not change an original-call index of -1 or create measured quality. This distinction is retained through edits, reverse complement, Undo/Redo and serialization. Unsupported original/inferred anchors remain absent. Ordinary import preserves older exported AB1 PLOC values; explicit relinking performs a new mapping.
@@ -90,7 +92,7 @@ The `highlight` object stores column rules and scope, the display color, and the
 | 5 | Separate inferred sample anchors on trace-linked rows | Preserves inferred positions without original-call/Q fabrication |
 | 6 | Separate manually positioned current calls | Preserves independent display/export positions and original evidence |
 
-Formats 1–4 load with an empty inference array. Formats 1–5 load with an empty manual-position array. Unsupported version numbers are rejected before applying the file. Saving writes format 6. Keep an earlier copy if you need to open it in an older release.
+Formats 1–4 load with an empty inference array. Formats 1–5 load with an empty manual-position array. Unsupported version numbers are rejected before applying the file. Formats 1–6 derive base-edit status from the available evidence. Files containing format-7 edit history require version 0.30.2 or later. Keep an earlier copy if you need to open it in an older release.
 
 ## Limits and validation
 
