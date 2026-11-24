@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "core/abif.hpp"
 #include "core/fasta.hpp"
 #include "gui/alignment_view.hpp"
@@ -86,6 +87,8 @@ void mafft_check(const QString& path,const QString& launcher){
 }
 }
 int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+    kleiotide::TestPreferences isolatedPreferences;
+
     require(argc>=3,"Two AB1 paths required");canvas_check(argc>3?QString::fromLocal8Bit(argv[3]):QString());window_check(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2]),argc>4?QString::fromLocal8Bit(argv[4]):QString());
     if(argc>5)mafft_check(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[5]));
     std::cout<<"PASS stage 0.8: original/synthetic/deleted anchors, zoom/render/reverse/undo, both AB1 imports, paired navigation, hide/show and real MAFFT provenance\n";

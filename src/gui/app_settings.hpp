@@ -40,6 +40,7 @@ public:
     static AppSettings& instance();
     const AppPreferences& values()const{return values_;}
     bool apply(const AppPreferences&,QString* error=nullptr);
+    void remember_if_empty(QString AppPreferences::*field, const QString& value);
     void reload();
     static std::size_t bytes(int mib);
 signals:

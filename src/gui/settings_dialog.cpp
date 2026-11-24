@@ -239,7 +239,7 @@ void show_settings(
   auto *blastWait = spin(blast, "settingsBlastWait",
                          "Maximum monitoring time per batch", 1, 1440, " min");
   note(blast, "New NCBI searches use HTTPS. These defaults populate new "
-              "dialogs; per-search changes do not rewrite them.");
+              "dialogs. Your first confirmed search saves the contact email if this field is empty.");
   blastEmail.setToolTip(
       "Contact email required when submitting an NCBI search.");
   auto *localBox = new QGroupBox("Local BLAST+ searches and database creation");

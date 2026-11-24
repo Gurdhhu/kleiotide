@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/main_window.hpp"
 #include <QAction>
@@ -137,7 +138,9 @@ void window_checks(const QString& screenshot) {
 }
 int main(int argc,char** argv) {
     QApplication app(argc,argv);
-    try { selection_checks();edit_checks();window_checks(argc>1?QString::fromLocal8Bit(argv[1]):QString{});
+    try {
+    kleiotide::TestPreferences isolatedPreferences;
+ selection_checks();edit_checks();window_checks(argc>1?QString::fromLocal8Bit(argv[1]):QString{});
         std::cout<<"PASS stage 0.6: all-mode selection/colors, typing/paste/replacement/deletion/undo, double-click, Esc/Ctrl+F/Ctrl+C, MAFFT help, async statistics/copy/cancel\n";
     } catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}
 }

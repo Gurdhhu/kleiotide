@@ -4,6 +4,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QScrollBar>
 #include <QThread>
 #include <QTimer>
@@ -70,14 +71,49 @@ int main(int argc,char**argv){
         palette.load(std::move(paletteRows));view.set_document(&palette);overview.set_document(&palette);wait_ready(app,overview);
         const auto paletteImage=overview.grab().toImage();const auto pdpr=paletteImage.devicePixelRatio();
         const QColor expected[]={QColor(38,93,151),QColor(77,141,182),QColor(140,178,180),QColor(239,181,78),QColor(255,128,0),QColor(255,128,0),QColor(38,93,151),QColor(166,174,181),QColor(166,174,181)};
-        for(int col=0;col<9;++col){const int x=10+static_cast<int>((col+.5)*(overview.width()-20)/10);require(paletteImage.pixelColor(qRound(x*pdpr),qRound(86*pdpr))==expected[col],"Discrete conservation steps and N neutrality");}
+        // These short alignments fit entirely within the tinted viewport.
+        const auto framed=[](QColor original){
+            QImage patch(1,1,QImage::Format_RGB32);patch.fill(original);
+            QPainter paint(&patch);paint.fillRect(0,0,1,1,QColor(0,220,255,38));paint.end();
+            return patch.pixelColor(0,0);
+        };
+        for(int col=0;col<9;++col){const int x=10+static_cast<int>((col+.5)*(overview.width()-20)/10);require(paletteImage.pixelColor(qRound(x*pdpr),qRound(50*pdpr))==framed(expected[col]),"Discrete conservation steps and N neutrality");}
+        const auto inspectMarker=[&](int span){
+            view.select_fragment({{palette.rows().front().id},2,static_cast<std::size_t>(span)});
+            const auto image=overview.grab().toImage();
+            const auto x=[&](int column){return qRound((10+(column+.5)*(overview.width()-20)/10)*pdpr);};
+            const auto marked=[&](int column,int y){
+                for(int dx=-1;dx<=1;++dx){
+                    const auto c=image.pixelColor(x(column)+dx,qRound(y*pdpr));
+                    if(c.red()>140 && c.green()<100 && c.blue()<110)return true;
+                }
+                return false;
+            };
+            require(marked(2,29),"Selection points at the center of the first column");
+            if(span>1){
+                require(marked(2+span-1,29),"Bracket points at last column center");
+                require(marked(3,26)&&!marked(3,31),"Bracket joins only across the top");
+            }else require(!marked(3,26),"A single selected column has no bracket");
+            require(!marked(2,overview.height()-25),"No second marker below the plot");
+        };
+        inspectMarker(1);
+        inspectMarker(3);
+        for(auto choice : {ResiduePalette::OkabeIto,ResiduePalette::TolBright}){
+            view.set_residue_palette(choice);overview.update_palette();
+            require(overview.ready()&&overview.toolTip().contains("dark purple"),"Palette immediately updates conservation legend");
+            const auto image=overview.grab().toImage();
+            const auto center=[&](int col){return qRound((10+(col+.5)*(overview.width()-20)/10)*pdpr);};
+            require(image.pixelColor(center(0),qRound(50*pdpr))==QColor("#440154") &&
+                    image.pixelColor(center(5),qRound(50*pdpr))==QColor("#fde725"),"Accessible conservation colors");
+        }
+        view.set_residue_palette(ResiduePalette::Classic);overview.update_palette();
         Document partial;partial.load({{"one","ARRBN~"},{"two","AGRN~-"},{"mask","CCGT01"}});
         view.set_document(&partial);overview.set_document(&partial);wait_ready(app,overview);
         const auto& partialBins=overview.displayed_bins();require(partialBins.size()==6&&partialBins[0].residues==1&&partialBins[1].conservation==.75&&partialBins[2].conservation==.5&&std::abs(partialBins[3].conservation-1.0/3)<1e-12,"Partial IUPAC contributes and masks do not");
         const auto partialImage=overview.grab().toImage();const auto partialDpr=partialImage.devicePixelRatio();
         auto partialPixel=[&](int col,int y){const int x=10+static_cast<int>((col+.5)*(overview.width()-20)/6);return partialImage.pixelColor(qRound(x*partialDpr),qRound(y*partialDpr));};
-        require(partialPixel(0,36)==QColor(38,93,151)&&partialPixel(1,36)==QColor(140,178,180)&&partialPixel(2,36)==QColor(255,128,0)&&partialPixel(3,36)==QColor(255,128,0),"Partial IUPAC overview colors");
-        require(partialPixel(4,36)==QColor(246,247,249)&&partialPixel(4,66)==QColor(166,174,181)&&partialPixel(5,66)==QColor(246,247,249),"Masks excluded from residue height denominator");
+        require(partialPixel(0,36)==framed(QColor(38,93,151))&&partialPixel(1,36)==framed(QColor(140,178,180))&&partialPixel(2,36)==framed(QColor(255,128,0))&&partialPixel(3,36)==framed(QColor(255,128,0)),"Partial IUPAC overview colors");
+        require(partialPixel(4,36)==framed(QColor(246,247,249))&&partialPixel(4,66)==framed(QColor(166,174,181))&&partialPixel(5,66)==framed(QColor(246,247,249)),"Masks excluded from residue height denominator");
         Document replacement;replacement.load({{"short","ACGT"}});view.set_document(&replacement);overview.set_document(&replacement);wait_ready(app,overview);require(overview.displayed_bins().size()==4,"Document replacement");
         overview.set_document(nullptr);app.processEvents();require(!overview.ready(),"Cleared overview");
         if(argc>3){

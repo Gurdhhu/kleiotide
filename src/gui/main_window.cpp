@@ -718,7 +718,7 @@ void MainWindow::apply_operational_preferences(){
 }
 void MainWindow::set_residue_palette(ResiduePalette palette){
     const auto& colors=view_->custom_residue_colors();
-    view_->set_residue_palette(palette);traces_->set_residue_palette(palette,colors);
+    view_->set_residue_palette(palette);overview_->update_palette();traces_->set_residue_palette(palette,colors);
     findChild<QAction*>("residuePalette."+palette_id(palette))->setChecked(true);
     findChild<QAction*>("identityDots")->setIcon(view_icon(0,palette,&colors));findChild<QAction*>("chromatogramView")->setIcon(view_icon(1,palette,&colors));
     findChild<QAction*>("residueDisplay.backgrounds")->setIcon(view_icon(4,palette,&colors));

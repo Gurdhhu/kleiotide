@@ -56,22 +56,21 @@ QProcessEnvironment local_environment() {
   env.insert("BLAST_USAGE_REPORT", "false");
   return env;
 }
+QString AppPreferences::*launcher_field(const QString& name) {
+  if (name == "blastn") return &AppPreferences::blastnLauncher;
+  if (name == "blastp") return &AppPreferences::blastpLauncher;
+  if (name == "blastx") return &AppPreferences::blastxLauncher;
+  if (name == "tblastn") return &AppPreferences::tblastnLauncher;
+  if (name == "tblastx") return &AppPreferences::tblastxLauncher;
+  if (name == "makeblastdb") return &AppPreferences::makeblastdbLauncher;
+  return nullptr;
+}
 } // namespace
 QString local_blast_executable(const QString &name) {
   const auto &p = AppSettings::instance().values();
-  QString chosen;
-  if (name == "blastn")
-    chosen = p.blastnLauncher;
-  else if (name == "blastp")
-    chosen = p.blastpLauncher;
-  else if (name == "blastx")
-    chosen = p.blastxLauncher;
-  else if (name == "tblastn")
-    chosen = p.tblastnLauncher;
-  else if (name == "tblastx")
-    chosen = p.tblastxLauncher;
-  else if (name == "makeblastdb")
-    chosen = p.makeblastdbLauncher;
+  const auto field = launcher_field(name);
+  if (!field) return {};
+  const auto& chosen = p.*field;
   if (!chosen.isEmpty())
     return chosen;
   return find_local_tool(name, {p.blastnLauncher, p.blastpLauncher, p.blastxLauncher,
@@ -712,6 +711,7 @@ public:
               if (!version.contains(options.program + ":", Qt::CaseInsensitive))
                 bad("Select the NCBI " + options.program +
                     " executable. Version output: " + version.left(2048));
+              AppSettings::instance().remember_if_empty(launcher_field(options.program), options.launcher);
               backendVersion=version.trimmed();
               record(backendVersion);
               output.clear();

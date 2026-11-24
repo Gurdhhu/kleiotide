@@ -11,7 +11,7 @@ Unicode true
   !define APP_NAME "Kleiotide"
   !define DISPLAY_VERSION "${APP_VERSION}"
   !define CAPABILITIES "Software\Kleiotide\Capabilities"
-  !define UNINSTALL_HOME "$PROGRAMFILES64\Kleiotide Setup"
+  !define LEGACY_HOME "$PROGRAMFILES64\Kleiotide Setup"
   !define OPENWITH_PROG "Kleiotide.Document"
   !define UNINSTALL_ID "Kleiotide"
   Var ExistingDir
@@ -28,6 +28,12 @@ Unicode true
   !define OPENWITH_PROG "Kleiotide.Test.${APP_VERSION}.${TEST_REVISION}"
   !define UNINSTALL_ID "Kleiotide-Test-${APP_VERSION}-${TEST_REVISION}"
 !endif
+Var ConfigBox
+Var RemoveMafftBox
+Var RemoveBlastBox
+Var RemoveConfig
+Var RemoveMafft
+Var RemoveBlast
 Var InstallMafft
 Var InstallBlast
 Var DesktopLink
@@ -59,6 +65,7 @@ Page custom ToolsPage SaveTools
 !endif
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
+UninstPage custom un.RemovalPage un.SaveRemoval
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
@@ -140,7 +147,7 @@ Function ToolsPage
   ${If} $0 == error
     Abort
   ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 32u "Setup can download the tools from their publishers and configure Kleiotide for all users. A detected installation can be reused. You can also choose your own executables in Settings."
+  ${NSD_CreateLabel} 0 0 100% 32u "Setup can download the tools from their publishers and configure Kleiotide for all users. If an existing installation is detected, it will be reused. You can also choose your own executables in Settings."
   Pop $0
   ${NSD_CreateCheckbox} 0 39u 100% 16u "Set up MAFFT for sequence alignment (about 27 MB)"
   Pop $MafftBox
@@ -167,7 +174,7 @@ FunctionEnd
     nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-Dependency.ps1" -Tool ${NAME} -ProgramFiles64 "$PROGRAMFILES64"'
     Pop $0
     ${If} $0 != 0
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Could not set up ${NAME}. See the installation details for the reason. Retry, or choose Cancel to finish installing Kleiotide without this tool." /SD IDCANCEL IDRETRY retry_${NAME}
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Could not set up ${NAME}. Check your internet connection and see the installation details. Retry, or choose Cancel to finish installing Kleiotide without this tool." /SD IDCANCEL IDRETRY retry_${NAME}
     ${EndIf}
   ${EndIf}
 !macroend
@@ -186,16 +193,21 @@ Function VerifyDestination
       SetErrorLevel 1
       Abort
     ${EndIf}
-    IfFileExists "${UNINSTALL_HOME}\Uninstall.exe" destination_ok
+    ReadRegStr $0 HKLM "${APP_KEY}" "UninstallerSHA256"
+    ${If} $0 != ""
+      IfFileExists "$INSTDIR\Uninstall.exe" destination_ok
+    ${Else}
+      IfFileExists "${LEGACY_HOME}\Uninstall.exe" destination_ok
+    ${EndIf}
     MessageBox MB_OK|MB_ICONSTOP "The existing Kleiotide uninstaller is missing. Repair or remove the existing installation first." /SD IDOK
     SetErrorLevel 1
     Abort
   ${EndIf}
 !endif
 !ifdef RELEASE_INSTALLER
-  StrLen $0 "${UNINSTALL_HOME}\"
+  StrLen $0 "${LEGACY_HOME}\"
   StrCpy $1 "$INSTDIR\" $0
-  StrCmp $1 "${UNINSTALL_HOME}\" destination_invalid
+  StrCmp $1 "${LEGACY_HOME}\" destination_invalid
 !endif
   ; A fresh installation must not overwrite another package or a user's files.
   System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR") i .r0 ?e'
@@ -358,6 +370,9 @@ Section "Kleiotide" SEC_MAIN
   ; The original Microsoft installer performs runtime version detection.
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
+!ifdef RELEASE_INSTALLER
+  File "Uninstaller-Identity.ps1"
+!endif
   File /oname=Install-Dependency.ps1 "Install-Dependency.ps1"
   File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
   DetailPrint "Installing/checking the Microsoft Visual C++ x64 runtime..."
@@ -380,12 +395,24 @@ Section "Kleiotide" SEC_MAIN
   ${EndIf}
 !ifdef RELEASE_INSTALLER
   ${If} $ExistingDir != ""
-    ; The previous uninstaller runs from the protected setup directory.
-    ClearErrors
-    ExecWait '"${UNINSTALL_HOME}\Uninstall.exe" /S /KleiotideUpgrade _?=${UNINSTALL_HOME}' $0
+    ReadRegStr $1 HKLM "${APP_KEY}" "UninstallerSHA256"
+    ${If} $1 != ""
+      nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Uninstaller-Identity.ps1" Stage "${APP_KEY}" "$PLUGINSDIR\previous.exe" "$INSTDIR\Uninstall.exe"'
+      Pop $0
+      StrCmp $0 0 0 upgrade_failed
+      ClearErrors
+      ExecWait '"$PLUGINSDIR\previous.exe" /S /KleiotideUpgrade _?=$INSTDIR' $0
+    ${Else}
+      ClearErrors
+      ExecWait '"${LEGACY_HOME}\Uninstall.exe" /S /KleiotideUpgrade _?=${LEGACY_HOME}' $0
+    ${EndIf}
     IfErrors upgrade_failed
     ${If} $0 != 0
       Goto upgrade_failed
+    ${EndIf}
+    ${If} $1 == ""
+      Delete "${LEGACY_HOME}\Uninstall.exe"
+      RMDir "${LEGACY_HOME}"
     ${EndIf}
     Goto upgrade_done
     upgrade_failed:
@@ -398,8 +425,17 @@ Section "Kleiotide" SEC_MAIN
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD_DIR}\*"
 !ifdef RELEASE_INSTALLER
-  CreateDirectory "${UNINSTALL_HOME}"
-  WriteUninstaller "${UNINSTALL_HOME}\Uninstall.exe"
+  WriteUninstaller "$PLUGINSDIR\Uninstall.exe"
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Uninstaller-Identity.ps1" Record "${APP_KEY}" "$PLUGINSDIR\Uninstall.exe"'
+  Pop $0
+  StrCmp $0 0 +3
+    MessageBox MB_ICONSTOP "Could not register the new uninstaller." /SD IDOK
+    Abort
+  ClearErrors
+  CopyFiles /SILENT "$PLUGINSDIR\Uninstall.exe" "$INSTDIR"
+  IfErrors 0 +3
+    MessageBox MB_ICONSTOP "Could not install Uninstall.exe in the application folder." /SD IDOK
+    Abort
 !else
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 !endif
@@ -420,13 +456,8 @@ Section "Kleiotide" SEC_MAIN
   WriteRegStr HKLM "${APP_KEY}" "DisplayVersion" "${DISPLAY_VERSION}"
   WriteRegStr HKLM "${APP_KEY}" "Publisher" "Oleg Shchepin"
   WriteRegStr HKLM "${APP_KEY}" "InstallLocation" "$INSTDIR"
-!ifdef RELEASE_INSTALLER
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "${UNINSTALL_HOME}\Uninstall.exe"
-  WriteRegStr HKLM "${APP_KEY}" "UninstallString" '$\"${UNINSTALL_HOME}\Uninstall.exe$\"'
-!else
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKLM "${APP_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
-!endif
   WriteRegStr HKLM "${APP_KEY}" "DisplayIcon" "$INSTDIR\kleiotide.exe"
 !ifdef RELEASE_INSTALLER
   WriteRegDWORD HKLM "${APP_KEY}" "Sessions" $Sessions
@@ -438,16 +469,13 @@ Section "Kleiotide" SEC_MAIN
 SectionEnd
 
 Function un.onInit
+  StrCpy $RemoveConfig 0
+  StrCpy $RemoveMafft 0
+  StrCpy $RemoveBlast 0
   SetRegView 64
   SetShellVarContext all
   ReadRegStr $0 HKLM "${APP_KEY}" "InstallLocation"
-!ifdef RELEASE_INSTALLER
-  StrCmp $0 "" incorrect_location
-  StrCmp $INSTDIR "${UNINSTALL_HOME}" correct_location
-  incorrect_location:
-!else
   StrCmp $INSTDIR $0 correct_location
-!endif
   MessageBox MB_OK|MB_ICONSTOP "Run this uninstaller from its registered Kleiotide installation folder." /SD IDOK
   SetErrorLevel 1
   Abort
@@ -463,6 +491,49 @@ Function un.onInit
 !endif
 FunctionEnd
 
+Function un.RemovalPage
+  nsDialogs::Create 1018
+  Pop $0
+  StrCmp $0 error 0 +2
+    Abort
+  ${NSD_CreateLabel} 0 0 100% 30u "Optional cleanup. MAFFT and BLAST+ are shared with other installations and applications. Saved sessions, recovery copies and BLAST jobs are kept."
+  Pop $0
+  ReadEnvStr $0 USERNAME
+  ${NSD_CreateCheckbox} 0 37u 100% 20u "Delete Kleiotide settings for the Windows account $0"
+  Pop $ConfigBox
+  ${NSD_SetState} $ConfigBox $RemoveConfig
+  ${NSD_CreateCheckbox} 0 63u 100% 16u "Uninstall MAFFT installed by Kleiotide Setup"
+  Pop $RemoveMafftBox
+  ${NSD_SetState} $RemoveMafftBox $RemoveMafft
+  ReadRegStr $0 HKLM "Software\Kleiotide\Tools" "OwnedMAFFT"
+  StrCmp $0 "" 0 +2
+    EnableWindow $RemoveMafftBox 0
+  ${NSD_CreateCheckbox} 0 84u 100% 16u "Uninstall BLAST+ installed by Kleiotide Setup"
+  Pop $RemoveBlastBox
+  ${NSD_SetState} $RemoveBlastBox $RemoveBlast
+  ReadRegStr $0 HKLM "Software\Kleiotide\Tools" "OwnedBLAST"
+  StrCmp $0 "" 0 +2
+    EnableWindow $RemoveBlastBox 0
+  nsDialogs::Show
+FunctionEnd
+
+Function un.SaveRemoval
+  ${NSD_GetState} $ConfigBox $RemoveConfig
+  ${NSD_GetState} $RemoveMafftBox $RemoveMafft
+  ${NSD_GetState} $RemoveBlastBox $RemoveBlast
+FunctionEnd
+
+!macro RemoveOptional NAME FLAG
+  ${If} ${FLAG} == ${BST_CHECKED}
+    retry_remove_${NAME}:
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Remove-Dependency.ps1" -Tool ${NAME} -ProgramFiles64 "$PROGRAMFILES64"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Could not finish removing ${NAME}. Close any programs using it. Retry or choose Cancel to continue." /SD IDCANCEL IDRETRY retry_remove_${NAME}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 Section "Uninstall"
   ; Refuse before removing anything else if the running program locks its EXE.
   ClearErrors
@@ -475,9 +546,7 @@ Section "Uninstall"
   remove_payload:
   ; Generated exact paths; no recursive deletion of user-created files.
   !include "${DELETE_LIST}"
-!ifndef RELEASE_INSTALLER
   Delete "$INSTDIR\Uninstall.exe"
-!endif
   RMDir "$INSTDIR"
   ReadRegDWORD $0 HKLM "${APP_KEY}" "DesktopShortcut"
   ${If} $0 == ${BST_CHECKED}
@@ -488,9 +557,17 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 !ifdef RELEASE_INSTALLER
   ${If} $UpgradeUninstall != 1
-    Delete "${UNINSTALL_HOME}\Uninstall.exe"
-    RMDir "${UNINSTALL_HOME}"
 !endif
+    ${If} $RemoveConfig == ${BST_CHECKED}
+      DeleteRegKey HKCU "Software\Kleiotide\Kleiotide"
+      DeleteRegKey /ifempty HKCU "Software\Kleiotide"
+    ${EndIf}
+    InitPluginsDir
+    SetOutPath "$PLUGINSDIR"
+    File "Remove-Dependency.ps1"
+    File "mafft-7.526-files.txt"
+    !insertmacro RemoveOptional MAFFT $RemoveMafft
+    !insertmacro RemoveOptional BLAST $RemoveBlast
     !insertmacro UnregisterOpenWith
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
     DeleteRegKey HKLM "${APP_KEY}"

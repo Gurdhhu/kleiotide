@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "core/session.hpp"
@@ -28,6 +29,8 @@ template<class F>void wait(QApplication& app,F f){QElapsedTimer t;t.start();whil
 QAction* find(const QList<QAction*>& actions,const QString& text){for(auto* a:actions){auto name=a->text();name.remove('&');if(name==text)return a;if(a->menu())if(auto* found=find(a->menu()->actions(),text))return found;}return nullptr;}
 QAction* action(MainWindow& w,const QString& text){auto* a=find(w.menuBar()->actions(),text);need(a,"Missing command");return a;}
 int main(int argc,char** argv){QApplication app(argc,argv);try{
+    kleiotide::TestPreferences isolatedPreferences;
+
     need(argc>1,"Pass MAFFT launcher");const auto launcher=QString::fromLocal8Bit(argv[1]);QTemporaryDir dir;Document protein;protein.load({{"one","M-~EFYWVIL",RowKind::Protein},{"two","MEFYWVIL",RowKind::Protein},{"mask","1234567890",RowKind::Mask}});protein.apply_groups({{1,"Family",0x0072b2}},{{1,1},{2,1}});const auto file=dir.filePath("protein.kleio");{std::ofstream out(file.toStdString(),std::ios::binary);write_session(out,protein);}
     MainWindow window;window.show();window.open_path(file);auto* view=dynamic_cast<AlignmentView*>(window.centralWidget());wait(app,[&]{return view->isEnabled()&&window.current_document().rows().size()==3;});
     auto settings=[&]{QTimer::singleShot(0,[&]{auto* d=qobject_cast<QDialog*>(QApplication::activeModalWidget());need(d&&d->objectName()=="mafftSettings","Protein settings launched from menu");need(d->findChild<QComboBox*>("mafftProteinScoring")->isVisible()&&!d->findChild<QComboBox*>("mafftDirection")->isVisible(),"Protein control selection from declared types");d->findChild<QLineEdit*>("mafftLauncher")->setText(launcher);d->findChild<QSpinBox*>("mafftThreads")->setValue(1);d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();});};

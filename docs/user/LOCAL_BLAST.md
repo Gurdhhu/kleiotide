@@ -1,5 +1,7 @@
 # Local BLAST
 
+Starting a local search with a verified executable fills its empty path in Settings. Each BLAST program remembers its own path. A per-search override preserves any previously configured path.
+
 Install a package matching your operating system: [Download NCBI BLAST+](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/). This link is also available in local search dialogs and Settings.
 
 Windows setup offers to install NCBI BLAST+ and configure all six executable paths. Debian 13 recommends the BLAST+ package through APT. On macOS with Homebrew, run `brew install blast`. Use **Locate** beside a path to find an installed executable.

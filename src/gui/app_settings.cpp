@@ -271,6 +271,12 @@ void AppSettings::reload() {
       values_ = AppPreferences::defaults();
   }
 }
+void AppSettings::remember_if_empty(QString AppPreferences::*field, const QString& value) {
+  if (!field || !(values_.*field).isEmpty() || value.trimmed().isEmpty()) return;
+  auto updated = values_;
+  updated.*field = value.trimmed();
+  apply(updated);
+}
 bool AppSettings::apply(const AppPreferences &p, QString *error) {
   const auto invalid = p.error();
   if (!invalid.isEmpty()) {

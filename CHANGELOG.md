@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.3 — testing
+
+- The first validated MAFFT or local BLAST path and the first confirmed NCBI contact email fill the corresponding empty setting.
+- The overview shows a top arrow for one selected column and a pointed bracket spanning a multi-column selection. Accessible residue palettes also switch the overview’s conservation scale and viewport outline.
+- Windows setup places the uninstaller beside the editor, explains tool reuse and suggests checking connectivity after download failures. Interactive uninstall offers independent cleanup of settings, setup-installed MAFFT and setup-installed BLAST+.
+
 ## 0.30.2 — testing
 
 - Windows setup offers verified MAFFT and BLAST+ downloads and an optional desktop shortcut. Settings and alignment/search dialogs can locate installed tools, including Homebrew tools when launched from Finder.

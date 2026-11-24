@@ -760,6 +760,7 @@ public:
         QMessageBox::warning(this, "BLAST job storage", status->text());
         return;
       }
+      AppSettings::instance().remember_if_empty(&AppPreferences::blastEmail, options.email);
       set_running(true);
       ++generation;
       schedule(0);

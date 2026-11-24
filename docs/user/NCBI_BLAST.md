@@ -11,7 +11,7 @@ Settings → BLAST separates HTTPS defaults from the optional local executables.
 HTTPS offers core_nt and the listed databases, megablast/blastn, target count,
 E value, identity/query-cover result filters, documented scoring/masking options
 and a monitoring limit. A valid contact email (marked *) is required. Review the
-submission summary before sending. Per-search choices do not rewrite defaults.
+submission summary before sending. Your first confirmed submission fills an empty contact email in Settings. Later per-search overrides apply only to that search.
 
 Contacts are spaced by at least ten seconds and the same RID is polled at most
 once per minute. The countdown is the next allowed contact, not a completion

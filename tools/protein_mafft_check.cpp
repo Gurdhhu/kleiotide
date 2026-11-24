@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/mafft_run.hpp"
 #include "gui/mafft_dialog.hpp"
 #include "core/fasta.hpp"
@@ -21,6 +22,8 @@ std::string ungap(std::string_view t){std::string r;for(char c:t)if(!is_gap(c))r
 struct Outcome{std::shared_ptr<Document> result;QString error,report;bool cancelled=false;};
 Outcome run(QApplication& app,const std::shared_ptr<Document>& source,MafftConfiguration config,std::optional<Document::ColumnRange> range={},bool cancel=false){bool done=false;Outcome o;MafftRun job(source,config,range);job.finished=[&](auto d,const auto& report,const auto& error,bool cancelled){o={d,error,report,cancelled};done=true;};job.start();if(cancel)job.cancel();wait(app,[&]{return done;});if(!o.result&&!o.error.isEmpty())std::cerr<<o.error.toStdString()<<'\n';return o;}
 int main(int argc,char** argv){QApplication app(argc,argv);try{
+    kleiotide::TestPreferences isolatedPreferences;
+
     need(argc>=2,"Pass MAFFT 7.526+ launcher");const auto path=QString::fromLocal8Bit(argv[1]);MafftOptions options;options.molecule=RowKind::Protein;options.threads=1;options.iterations=2;
     const std::string aa="MeFYWVILACGTNDBZJXUO*?AGPGKTLDNAEQLRDKLMETFHG";
     auto source=std::make_shared<Document>();source->load({{"dup Я",aa,RowKind::Protein},{"dup Я",aa.substr(0,18)+"~ME~F"+aa.substr(22),RowKind::Protein},{"short",aa.substr(8,29),RowKind::Protein},{"mask","0123456789",RowKind::Mask},{"empty","",RowKind::Protein}});source->apply_groups({{1,"Family",0x0072b2}},{{1,1},{2,1}});const auto before=fasta(*source);

@@ -21,7 +21,7 @@ cmake --build build-debian --target release-check --parallel 2
 cpack --config build-debian/CPackConfig.cmake -B packages
 ```
 
-The package is `packages/kleiotide_0.30.2-1~deb13_amd64.deb`. The workflow
+The package is `packages/kleiotide_0.30.3-1~deb13_amd64.deb`. The workflow
 also installs it in its Debian build container to verify dependencies, desktop
 registration and AppStream metadata. The default release tests use BLAST fixtures.
 The optional installed BLAST+ check is described in [TESTING.md](TESTING.md#automatic-suite).
@@ -29,7 +29,7 @@ The optional installed BLAST+ check is described in [TESTING.md](TESTING.md#auto
 ## Install and test
 
 ```sh
-sudo apt install ./kleiotide_0.30.2-1~deb13_amd64.deb
+sudo apt install ./kleiotide_0.30.3-1~deb13_amd64.deb
 ```
 
 1. Launch Kleiotide from the desktop menu and from a terminal with `kleiotide`.

@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/main_window.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/alignment_overview.hpp"
@@ -38,6 +39,8 @@ void save(MainWindow& w,const QString& path,const QString& command="&Save"){
 }
 }
 int main(int argc,char** argv){QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);QApplication app(argc,argv);try{
+    kleiotide::TestPreferences isolatedPreferences;
+
     QTemporaryDir dir;const auto fasta=dir.filePath("mixed.faa");{std::ofstream out(fasta.toStdString());out<<">overlap\nACGT\n>protein\nMeF*\n>mask\n120A\n";}
     MainWindow w;w.resize(1280,850);w.show();auto* view=dynamic_cast<AlignmentView*>(w.centralWidget());
     require(action(w,"fastaImportNucleotide")->isChecked(),"Legacy import remains default");w.open_path(fasta);wait([&]{return view->isEnabled();});

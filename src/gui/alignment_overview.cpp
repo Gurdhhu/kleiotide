@@ -10,9 +10,19 @@
 #include <limits>
 namespace kleiotide {
 namespace {
-const QString colorExplanation=QStringLiteral("Color: conserved column (blue) -> variable (orange), gray = no information");
-QColor color(const OverviewBin& bin){
+QString colorExplanation(bool accessible){
+    if(accessible)return QStringLiteral("Color: conserved column (dark purple) to variable (yellow), gray = no information");
+    return QStringLiteral("Color: conserved column (blue) -> variable (orange), gray = no information");
+}
+QColor color(const OverviewBin& bin, bool accessible){
     if(!bin.hasInformation)return QColor(166,174,181);
+    if (accessible) {
+        if(bin.conservation>=1.0-1e-12)return QColor("#440154");
+        if(bin.conservation>=.9)return QColor("#3b528b");
+        if(bin.conservation>=.75)return QColor("#21918c");
+        if(bin.conservation>=.6)return QColor("#5ec962");
+        return QColor("#fde725");
+    }
     // Majority fraction: 25% (four equally frequent bases) through 100%.
     if(bin.conservation>=1.0-1e-12)return QColor(38,93,151);
     if(bin.conservation>=.9)return QColor(77,141,182);
@@ -22,11 +32,20 @@ QColor color(const OverviewBin& bin){
 }
 }
 AlignmentOverview::AlignmentOverview(AlignmentView* view,QWidget* parent):QWidget(parent),view_(view){
-    setToolTip("Height = % non-gap symbols; "+colorExplanation+". Nucleotide rows only; proteins and masks are excluded.");
+    update_palette();
     setObjectName("alignmentOverview");setMinimumHeight(65);setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);setMouseTracking(true);
     debounce_.setSingleShot(true);debounce_.setInterval(150);work_.setInterval(4);
     connect(&debounce_,&QTimer::timeout,this,[this]{begin_scan();});
     connect(&work_,&QTimer::timeout,this,[this]{advance_scan();});
+}
+void AlignmentOverview::update_palette(){
+    const auto palette=view_->residue_palette();
+    const bool active=palette==ResiduePalette::OkabeIto || palette==ResiduePalette::TolBright || palette==ResiduePalette::HighContrast;
+    setToolTip("Height = % non-gap symbols; "+colorExplanation(active)+". Nucleotide rows only; proteins and masks are excluded.");
+    if(active==accessible_)return;
+    accessible_=active;
+    rebuild_plot();
+    update();
 }
 void AlignmentOverview::set_document(const Document* document){
     if(document_!=document){work_.stop();debounce_.stop();document_=document;requested_=std::numeric_limits<std::uint64_t>::max();scan_.reset();bins_.clear();plot_=QPixmap{};}
@@ -69,7 +88,7 @@ void AlignmentOverview::rebuild_plot(){
     const int barBottom=rect.height()-11;
     for(std::size_t i=0;i<bins_.size();++i){
         const int x=static_cast<int>(i*static_cast<std::size_t>(rect.width())/bins_.size()),end=static_cast<int>((i+1)*static_cast<std::size_t>(rect.width())/bins_.size());
-        const int height=qRound(bins_[i].residues*barBottom);const auto c=color(bins_[i]);
+        const int height=qRound(bins_[i].residues*barBottom);const auto c=color(bins_[i],accessible_);
         if(height)p.fillRect(x,barBottom-height,std::max(1,end-x),height,c);
         p.fillRect(x,barBottom+4,std::max(1,end-x),6,c); // Gray baseline also identifies empty columns.
     }
@@ -78,7 +97,7 @@ void AlignmentOverview::resizeEvent(QResizeEvent*event){QWidget::resizeEvent(eve
 void AlignmentOverview::paintEvent(QPaintEvent*){
     QPainter p(this);p.fillRect(rect(),QColor(250,251,252));
     auto f=font();f.setPointSize(9);p.setFont(f);p.setPen(QColor(55,64,73));
-    p.drawText(QRect(10,2,width()-20,20),Qt::AlignVCenter,"Alignment overview · Height = % non-gap symbols · "+colorExplanation);
+    p.drawText(QRect(10,2,width()-20,20),Qt::AlignVCenter,"Alignment overview · Height = % non-gap symbols · "+colorExplanation(accessible_));
     const auto area=plot_rect();p.fillRect(area,QColor(239,241,244));
     if(ready()){
         if(!qFuzzyCompare(dpr_,devicePixelRatioF()))rebuild_plot();
@@ -91,32 +110,30 @@ void AlignmentOverview::paintEvent(QPaintEvent*){
         const auto [begin,end]=view_->visible_column_range();const double scale=static_cast<double>(area.width())/document_->columns();
         const int x=area.left()+static_cast<int>(begin*scale),finish=area.left()+static_cast<int>(std::ceil(end*scale));
         const QRect viewport(x,area.top(),std::max(6,finish-x),area.height());
-        p.fillRect(viewport,QColor(0,220,255,38));p.setPen(QPen(Qt::white,5));p.drawRect(viewport.adjusted(2,2,-2,-2));
-        p.setPen(QPen(QColor(0,90,180),3));p.drawRect(viewport.adjusted(2,2,-2,-2));
+        if(!accessible_)p.fillRect(viewport,QColor(0,220,255,38));
+        p.setPen(QPen(Qt::white,5));p.drawRect(viewport.adjusted(2,2,-2,-2));
+        p.setPen(QPen(accessible_?QColor(Qt::black):QColor(0,90,180),3));p.drawRect(viewport.adjusted(2,2,-2,-2));
         std::optional<std::pair<std::size_t,std::size_t>> selected;
         if(const auto& fragment=view_->fragment())selected=std::pair{fragment->start,fragment->start+fragment->width};
         else if(const auto caret=view_->caret())selected=std::pair{caret->second,caret->second+1};
-        if(selected){
-            const int left=std::clamp(area.left()+int(std::min(selected->first,document_->columns())*scale),
-                                      area.left(),std::max(area.left(),area.right()-4));
-            const int right=std::min(area.right(),std::max(left+4,area.left()+int(std::ceil(std::min(selected->second,document_->columns())*scale))));
-            const int y=area.top()+1;
-            const QPolygon bracket{QPoint(left,y+6),QPoint(left,y),QPoint(right,y),QPoint(right,y+6)};
-            p.setPen(QPen(Qt::white,6));p.drawPolyline(bracket);
-            p.setPen(QPen(QColor(220,0,95),4));p.drawPolyline(bracket);
-        }
-        if (const auto caret = view_->caret()) {
-            const auto column = std::min(caret->second, document_->columns()-1);
-            const qreal tip = std::clamp(area.left() + (double(column) + 0.5) * scale,
-                                        double(area.left()), double(area.right()));
-            const qreal bottom = area.bottom();
-            const QPolygonF arrow{QPointF(tip-3,bottom+1), QPointF(tip,bottom-5), QPointF(tip+3,bottom+1)};
+        if(selected && selected->second>selected->first){
+            const auto center=[&](std::size_t col){
+                return std::clamp(area.left()+(std::min(col,document_->columns()-1)+0.5)*scale,
+                                  double(area.left()),double(area.right()));
+            };
+            const double left=center(selected->first), right=center(selected->second-1);
+            const double y=area.top(), tip=y+8;
             p.save();
             p.setRenderHint(QPainter::Antialiasing);
-            p.setPen(QPen(Qt::white, 3));
-            p.drawPolyline(arrow);
-            p.setPen(QPen(QColor(190, 20, 35), 1.4));
-            p.drawPolyline(arrow);
+            p.setPen(QPen(Qt::white,1.5,Qt::SolidLine,Qt::FlatCap,Qt::MiterJoin));
+            p.setBrush(accessible_?QColor("#9a004d"):QColor("#cb1827"));
+            if(selected->second-selected->first==1){
+                p.drawPolygon(QPolygonF{QPointF(left-5,y-2),QPointF(left+5,y-2),QPointF(left,tip)});
+            }else{
+                const double wing=std::min(3.0,(right-left)/2);
+                p.drawPolygon(QPolygonF{QPointF(left-3,y-2),QPointF(right+3,y-2),
+                    QPointF(right,tip),QPointF(right-wing,y+2),QPointF(left+wing,y+2),QPointF(left,tip)});
+            }
             p.restore();
         }
         p.setPen(QColor(55,64,73));p.drawText(QRect(10,area.bottom()+2,width()-20,18),Qt::AlignLeft|Qt::AlignVCenter,QString("1  ·  Click or drag to navigate  ·  Viewing %1–%2").arg(static_cast<qulonglong>(begin+1)).arg(static_cast<qulonglong>(end)));

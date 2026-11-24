@@ -1,4 +1,5 @@
 #include "gui/mafft_run.hpp"
+#include "gui/app_settings.hpp"
 #include "core/fasta.hpp"
 #include <QDir>
 #include <QFileInfo>
@@ -157,6 +158,7 @@ void MafftRun::process_finished(int code,bool crashed){
         if(configuration_.templateRequest&&configuration_.templateRequest->fragments&&version_.mid(2).toInt()<526){
             finish("Fragment addition requires MAFFT 7.526 or later. The selected installation reports "+version_+". Please update MAFFT and try again.");return;
         }
+        AppSettings::instance().remember_if_empty(&AppPreferences::mafftLauncher, configuration_.launcher);
         launch(false);return;
     }
 #ifdef _WIN32

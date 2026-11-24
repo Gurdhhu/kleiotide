@@ -11,6 +11,7 @@ public:
     AlignmentOverview(AlignmentView* view,QWidget* parent=nullptr);
     void set_document(const Document* document);
     void refresh();
+    void update_palette();
     void set_limits(std::size_t workspace,int delayMs);
     bool ready() const;
     QSize sizeHint() const override { return {500,112}; }
@@ -38,6 +39,7 @@ private:
     QTimer debounce_,work_;
     std::uint64_t requested_=0;
     qreal dpr_=0;
+    bool accessible_=false;
     bool navigationDrag_=false;
     QString error_;
     std::size_t workspace_=16*1024*1024;

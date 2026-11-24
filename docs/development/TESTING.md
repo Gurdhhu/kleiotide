@@ -11,6 +11,13 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.30.3 focused acceptance
+
+1. With empty paths, run MAFFT and local BLAST from their dialogs. Restart and check the matching paths in Settings. Try a different launcher for a single run. Check that the saved path and other defaults survive. Repeat for an empty HTTPS contact email and cancel one submission before confirming.
+2. Select the first column, last column, two adjacent columns, then a wide block. Inspect the top pointer or bracket at different zoom levels and Windows display scales. Switch between Kleio, Okabe–Ito and Paul Tol. Check the legend, conservation colors and viewport outline.
+3. Upgrade 0.30.2 RC1, then reinstall 0.30.3. Check that Windows Installed apps and the Start menu use the program folder’s Uninstall.exe. Repeat with a fresh custom folder and the side-by-side test installer. Interrupt a tool download and inspect the Retry prompt.
+4. On a disposable Windows machine, install both tools through 0.30.3 setup. Verify that all three uninstall cleanup boxes start unchecked. Exercise each independently, including with another Kleiotide installation present. Check that retained tools still run, saved data survive settings cleanup, and reused external tools and copies of unknown origin are ineligible for removal. Repeat a silent upgrade and check that both tools and settings survive.
+
 ## 0.30.2 focused acceptance
 
 1. On a clean Windows x64 installation, leave both optional tools selected and choose a desktop shortcut. Start Kleiotide as a standard user. Run MAFFT, create a local database and run local BLAST. Check the six tool paths under Settings. Repeat on Windows 11 ARM with x64 emulation. Test an offline or interrupted download, Retry, skip, an upgrade and uninstall. Check that test and RC shortcuts remain separate.

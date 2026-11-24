@@ -82,6 +82,11 @@ try {
             if ($result.ExitCode -ne 0) { throw "NCBI installer returned $($result.ExitCode)." }
             if (!(Test-BlastSuite $directory)) { throw "Could not find the six BLAST+ tools in $directory." }
         }
+        if ($Tool -eq 'BLAST') {
+            $uninstaller = Join-Path $installRoot 'Uninstall-ncbi-blast-2.17.0+.exe'
+            $key.SetValue('BlastUninstallerSHA256', (Get-FileHash -LiteralPath $uninstaller).Hash)
+        }
+        $key.SetValue("Owned$Tool", $directory)
     }
     $key.SetValue($valueName, $directory)
     Write-Output "$Tool is available in $directory"

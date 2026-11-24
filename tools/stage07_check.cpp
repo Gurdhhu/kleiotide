@@ -1,3 +1,4 @@
+#include "test_preferences.hpp"
 #include "gui/alignment_view.hpp"
 #include "gui/main_window.hpp"
 #include "gui/mafft_run.hpp"
@@ -72,6 +73,8 @@ void window(const QString& fixture,const QString& screenshot){
 int main(int argc,char** argv){
     QApplication app(argc,argv);
     try{
+    kleiotide::TestPreferences isolatedPreferences;
+
         require(argc>=2,"Pass MAFFT process fixture");qputenv("KLEIOTIDE_FIXTURE_VERSION","7.526");insertion();const auto fixture=QFileInfo(QString::fromLocal8Bit(argv[1])).absoluteFilePath();auto source=std::make_shared<Document>();source->load({{"target","a~CG"},{"dup","A-~C"},{"dup","a~-C"},{"mask","0123456789"},{"empty",""}});const auto before=fasta(*source);
         for(bool fragments:{false,true}){const auto o=run(source,fixture,{{1},{2,3},fragments});if(!o.result)std::cerr<<o.error.toStdString()<<'\n';require(o.result&&o.error.isEmpty()&&!o.cancelled,"Fixture addition succeeds");require(fasta(*source)==before&&o.result->columns()==13,"Full old axis retained plus three target insertions");require(o.result->rows()[1].symbols.text().substr(0,4)=="A-~C"&&o.result->rows()[3].symbols.text().substr(0,10)=="0123456789","Exact original gaps and mask projection");require(residues(o.result->rows()[0].symbols.text())=="aCG"&&o.report.contains("New insertion columns: 3"),"Exact target case and report");}
         qputenv("KLEIOTIDE_FIXTURE_VERSION","7.525");const auto older=run(source,fixture,{{1},{2,3},true});require(!older.result&&older.error.contains("7.526")&&fasta(*source)==before,"Older fragment engine stopped before alignment with upgrade message");qputenv("KLEIOTIDE_FIXTURE_VERSION","7.526");
