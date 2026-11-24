@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.30.3 LANGUAGES CXX)
+project(Kleiotide VERSION 0.30.4 LANGUAGES CXX)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()

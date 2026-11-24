@@ -1,6 +1,6 @@
 # Windows installer preparation
 
-For Kleiotide **0.30.3**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.30.3_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 52-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
+For Kleiotide **0.30.4**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.30.4_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 52-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
 
 The selected kit must provide Qt Widgets, Concurrent, Network and windeployqt. Windows deployment verifies Qt6Network.dll and tls/qschannelbackend.dll, using Schannel rather than assuming OpenSSL is installed on a recipient's machine. Build scripts do not download packaging inputs automatically.
 
@@ -8,14 +8,14 @@ The **release-installer** target builds the release-candidate installer. It
 uses a stable Windows entry named Kleiotide and defaults to
 `C:\Program Files\Kleiotide`. Browse on a fresh install to choose a dedicated
 folder. An upgrade starts in that same folder. The file associations page offers
-Kleiotide sessions (selected on first install), Sanger chromatograms and FASTA
-files. The latter two are opt-in. Setup remembers these choices across upgrades.
+Kleiotide sessions, Sanger chromatograms and FASTA files. All three are selected
+on first install. Setup remembers these choices across upgrades.
 Use **Open Windows Default Apps** at the end to choose the double-click handler.
 
 ## What the test installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.30.3-1`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.30.4-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -28,7 +28,7 @@ Use **Open Windows Default Apps** at the end to choose the double-click handler.
 - Uninstall removes an explicit list of installed files and empty directories.
   It preserves additional files, user settings and the shared Microsoft runtime.
 - Advertises supported files in Open With and refreshes stale application commands.
-  The additional setup page offers MAFFT 7.526 and NCBI BLAST+ 2.17.0 for x64 and an optional all-users desktop shortcut. Interactive setup initially selects both tools. Silent setup skips downloads.
+  The additional setup page offers MAFFT 7.526 and NCBI BLAST+ 2.17.0 for x64 and an optional all-users desktop shortcut. Both tools and the desktop shortcut are selected on first install. Silent setup skips downloads.
 - Setup checks each publisher download against its pinned SHA-256 before extracting MAFFT or running the NCBI installer. It registers discovered installation folders for all Windows users. Manual paths in Kleiotide Settings take precedence. A failed download can be retried or skipped.
 - Uninstall.exe resides beside kleiotide.exe. Interactive uninstall offers separate unchecked boxes for the displayed Windows account’s settings, MAFFT, and BLAST+. Tool removal is available for copies recorded as installed by setup starting in 0.30.3. Reused and older installations can be managed separately. Removing a tool affects all programs using that copy. Silent upgrades preserve settings and tools.
 - Embeds matching Kleiotide source, GPL/branding documents and third-party
@@ -82,7 +82,7 @@ provide the source for the bundled Qt libraries.
    execution-policy change is needed. Organisation policy still applies.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt version is unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.30.3` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.30.4` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -90,7 +90,7 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.30.3_Source_For_Installer.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.30.4_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
@@ -107,10 +107,10 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.30.3_test1/
+test-installers/Kleiotide_0.30.4_test1/
 ```
 
-For an RC, the equivalent folder is `release-installers/Kleiotide_0.30.3_rc1/`.
+For an RC, the equivalent folder is `release-installers/Kleiotide_0.30.4_rc1/`.
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,
 `READ-ME.txt`, `BUILD-MANIFEST.json` and `SHA256SUMS.txt`. The manifest records
@@ -158,8 +158,8 @@ can increment the test revision. Retain exact package hashes and results for eve
    Check that Next advances and setup creates the folder. On another fresh
    install, try a new folder with spaces and Unicode, and check that setup
    accepts an empty existing folder and rejects a nonempty unrelated folder
-   or an existing file. Verify the default .kleio checkbox, opt in to AB1 and
-   FASTA, and choose Kleiotide in Windows Default apps for a disposable file
+   or an existing file. Verify that session, chromatogram, FASTA and desktop shortcut are selected by
+   default. Uncheck an option before upgrading and check that it stays off. Choose Kleiotide in Windows Default apps for a disposable file
    of each type.
 3. Upgrade the RC. Check that setup uses the previous folder and restores the
    association checkboxes. Check that files removed from the old package are

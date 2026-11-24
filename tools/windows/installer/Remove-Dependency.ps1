@@ -3,15 +3,7 @@ param([Parameter(Mandatory)][ValidateSet('MAFFT','BLAST')][string]$Tool,
       [Parameter(Mandatory)][string]$ProgramFiles64)
 $ErrorActionPreference = 'Stop'
 $machine = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine','Registry64')
-function Assert-OrdinaryPath([string]$Path) {
-    while ($Path -and $Path -ne $ProgramFiles64) {
-        if ((Test-Path -LiteralPath $Path) -and
-            ((Get-Item -LiteralPath $Path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-            throw "Refusing to remove a redirected path: $Path"
-        }
-        $Path = [IO.Path]::GetDirectoryName($Path)
-    }
-}
+. (Join-Path $PSScriptRoot 'Mafft-Files.ps1')
 try {
     $key = $machine.OpenSubKey('SOFTWARE\Kleiotide\Tools', $true)
     if (!$key) { throw 'No setup-managed tools are registered.' }
@@ -24,27 +16,12 @@ try {
         $folder = Join-Path $root 'bin'
     }
     if ($key.GetValue("Owned$Tool") -ne $folder) { throw 'This copy is not registered as installed by setup.' }
-    Assert-OrdinaryPath $folder
+    Assert-OrdinaryPath $folder $ProgramFiles64
     if ($Tool -eq 'MAFFT') {
-        $directories = @{}
-        foreach ($entry in (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'mafft-7.526-files.txt'))) {
-            $file = Join-Path $folder $entry
-            Assert-OrdinaryPath $file
-            if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
-            $parent = [IO.Path]::GetDirectoryName($file)
-            while ($parent -and $parent.Length -ge $folder.Length) {
-                $directories[$parent] = $true
-                $parent = [IO.Path]::GetDirectoryName($parent)
-            }
-        }
-        foreach ($dir in ($directories.Keys | Sort-Object Length -Descending)) {
-            if ([IO.Directory]::Exists($dir) -and !(Get-ChildItem -LiteralPath $dir -Force | Select-Object -First 1)) {
-                [IO.Directory]::Delete($dir)
-            }
-        }
+        Remove-MafftDirectory $folder $ProgramFiles64
     } else {
         $uninstaller = Join-Path $root 'Uninstall-ncbi-blast-2.17.0+.exe'
-        Assert-OrdinaryPath $uninstaller
+        Assert-OrdinaryPath $uninstaller $ProgramFiles64
         if ((Get-FileHash -LiteralPath $uninstaller).Hash -ne $key.GetValue('BlastUninstallerSHA256')) {
             throw 'The registered NCBI uninstaller has changed. Use Windows Installed apps to remove this version.'
         }

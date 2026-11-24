@@ -11,6 +11,14 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.30.4 focused acceptance
+
+1. On a fresh Windows install, verify that the Kleiotide session, Sanger chromatogram, FASTA and desktop shortcut options are selected. Deselect one association and the shortcut, then upgrade and check that setup remembers both choices.
+2. Install MAFFT and BLAST+ with setup. Uninstall and select both tool removal boxes. Verify that MAFFT-7.526 and its empty tmp folder are gone. Reinstall both tools and run an alignment and a local BLAST search.
+3. Before installing MAFFT, create an empty `C:\Program Files\Kleiotide Tools\MAFFT-7.526\tmp` to simulate the 0.30.3 leftover. Reinstall and run MAFFT. Repeat with a disposable file inside tmp and check that setup reports the conflict without deleting the file.
+
+Run the MAFFT filesystem regression without registry changes or administrator access by passing the official MAFFT 7.526 Windows ZIP to `tools/windows/check-mafft-lifecycle.ps1`.
+
 ## 0.30.3 focused acceptance
 
 1. With empty paths, run MAFFT and local BLAST from their dialogs. Restart and check the matching paths in Settings. Try a different launcher for a single run. Check that the saved path and other defaults survive. Repeat for an empty HTTPS contact email and cancel one submission before confirming.

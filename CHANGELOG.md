@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.4 — testing
+
+- Select the Sanger chromatogram and FASTA associations and the desktop shortcut on a fresh Windows install. Retain existing choices on upgrade.
+- Remove MAFFT’s empty scratch directory during uninstall. Reinstall successfully over an empty MAFFT directory left by 0.30.3.
+
 ## 0.30.3 — testing
 
 - The first validated MAFFT or local BLAST path and the first confirmed NCBI contact email fill the corresponding empty setting.

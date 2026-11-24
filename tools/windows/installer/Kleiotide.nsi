@@ -104,7 +104,7 @@ Function .onInit
   SetShellVarContext all
   StrCpy $InstallMafft ${BST_CHECKED}
   StrCpy $InstallBlast ${BST_CHECKED}
-  StrCpy $DesktopLink ${BST_UNCHECKED}
+  StrCpy $DesktopLink ${BST_CHECKED}
   ReadRegDWORD $0 HKLM "${APP_KEY}" "DesktopShortcut"
   IfErrors +2
     StrCpy $DesktopLink $0
@@ -121,8 +121,8 @@ Function .onInit
 !ifdef RELEASE_INSTALLER
   ReadRegStr $ExistingDir HKLM "${APP_KEY}" "InstallLocation"
   StrCpy $Sessions ${BST_CHECKED}
-  StrCpy $Traces ${BST_UNCHECKED}
-  StrCpy $Fasta ${BST_UNCHECKED}
+  StrCpy $Traces ${BST_CHECKED}
+  StrCpy $Fasta ${BST_CHECKED}
   ${If} $ExistingDir != ""
     StrCpy $INSTDIR $ExistingDir
     ReadRegDWORD $Sessions HKLM "${APP_KEY}" "Sessions"
@@ -373,6 +373,7 @@ Section "Kleiotide" SEC_MAIN
 !ifdef RELEASE_INSTALLER
   File "Uninstaller-Identity.ps1"
 !endif
+  File "Mafft-Files.ps1"
   File /oname=Install-Dependency.ps1 "Install-Dependency.ps1"
   File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
   DetailPrint "Installing/checking the Microsoft Visual C++ x64 runtime..."
@@ -564,6 +565,7 @@ Section "Uninstall"
     ${EndIf}
     InitPluginsDir
     SetOutPath "$PLUGINSDIR"
+    File "Mafft-Files.ps1"
     File "Remove-Dependency.ps1"
     File "mafft-7.526-files.txt"
     !insertmacro RemoveOptional MAFFT $RemoveMafft

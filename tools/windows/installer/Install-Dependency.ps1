@@ -6,6 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'Mafft-Files.ps1')
 $toolsRoot = Join-Path $ProgramFiles64 'Kleiotide Tools'
 $stage = $null
 $machine = $null
@@ -58,6 +59,7 @@ try {
         $ready = Test-BlastSuite $directory
     }
     if (!$ready) {
+        Assert-OrdinaryPath $toolsRoot $ProgramFiles64
         [void][IO.Directory]::CreateDirectory($toolsRoot)
         $stage = Join-Path $toolsRoot ([Guid]::NewGuid().ToString())
         [void][IO.Directory]::CreateDirectory($stage)
@@ -74,7 +76,7 @@ try {
             [IO.Compression.ZipFile]::ExtractToDirectory($download, $stage)
             $extracted = Join-Path $stage 'mafft-win'
             if (!(Test-MafftSuite $extracted)) { throw 'The archive has an incomplete MAFFT installation.' }
-            [IO.Directory]::Move($extracted, $directory)
+            Publish-MafftDirectory $extracted $directory $ProgramFiles64
         } else {
             Write-Output 'Running the NCBI BLAST+ installer...'
             # NSIS requires /D= as its final, unquoted argument, even for paths with spaces.

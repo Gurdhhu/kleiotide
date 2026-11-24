@@ -4,7 +4,7 @@
 
 I started Kleiotide to build a practical tool for the daily work of myself and my colleagues: checking sequences against chromatograms, preparing and refining alignments, comparing specimens, and organizing molecular data for taxonomic and phylogenetic studies. Although shaped by these needs, I hope it will also prove useful to a broader community of biologists.
 
-Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.30.3, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
+Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.30.4, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
 
 The interface follows a straightforward principle: common tasks should be easy to start. Open an alignment directly, inspect a chromatogram, or align two sequences without first creating a project, defining a pipeline, or completing a multistep import procedure. Alignments open in independent main windows, avoiding differently sized document windows nested inside another window.
 
@@ -29,11 +29,11 @@ Native **`.kleio` sessions** preserve the alignment together with linked trace e
 
 ## Getting started
 
-Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.30.3**. Save As and exports start in the alignment’s own folder. For a new alignment they use the original input folder or the last folder used to open a file.
+Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.30.4**. Save As and exports start in the alignment’s own folder. For a new alignment they use the original input folder or the last folder used to open a file.
 
 Windows setup can install MAFFT and NCBI BLAST+ and create a desktop shortcut. Debian’s standard APT installation includes both recommended tools. **Locate** beside an executable field finds an installed tool, and **Browse** lets you choose your own copy.
 
-- [Latest release](https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.1-rc1)
+- [Latest release](https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.4-rc1)
 - [User guides](docs/README.md#user-guides)
 - [Build from source](docs/development/BUILDING.md)
 - [Windows installer preparation](docs/development/WINDOWS_INSTALLER.md)
