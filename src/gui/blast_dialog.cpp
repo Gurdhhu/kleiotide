@@ -1,4 +1,6 @@
 #include "gui/blast_dialog.hpp"
+#include "core/version.hpp"
+#include <QClipboard>
 #include "gui/search_status.hpp"
 #include "gui/app_settings.hpp"
 #include "gui/blast_data.hpp"
@@ -167,6 +169,7 @@ public:
       services.pollMs = std::max(60000, services.pollMs);
     }
     setObjectName("blastDialog");
+    setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     setWindowModality(Qt::WindowModal);
     setWindowTitle(p ? "NCBI protein BLAST" : "NCBI nucleotide BLAST");
     resize(680, 620);
@@ -371,6 +374,7 @@ public:
         });
     status = new QLabel("Configure a search. Nothing has been submitted.");
     status->setObjectName("blastStatus");
+    status->setTextFormat(Qt::PlainText);
     status->setWordWrap(true);
     badge=new QLabel;badge->setObjectName("blastStatusBadge");search_status(badge,"Ready — no search submitted","#e7effa");resultsLayout->insertWidget(0,badge);
     resultsLayout->addWidget(status);
@@ -384,7 +388,24 @@ public:
         "contact occurs until submission confirmation.");
     resultsLayout->addWidget(details);
     auto *buttons = new QDialogButtonBox;
-    outer->addWidget(buttons);
+    auto *actions = new QHBoxLayout;
+    outer->addLayout(actions);
+    auto *openWeb = new QPushButton("Open NCBI BLAST and copy query");
+    openWeb->setObjectName("blastOpenWeb");
+    openWeb->setToolTip("Copy ungapped FASTA with original names and duplicate sequences. Paste it into the NCBI nucleotide BLAST page to search in your browser.");
+    actions->addWidget(openWeb);
+    actions->addStretch();
+    actions->addWidget(buttons);
+    connect(openWeb, &QPushButton::clicked, this, [this] {
+      const auto fasta = blast_web_fasta(*source, query_ids());
+      if (fasta.isEmpty()) {
+        QMessageBox::warning(this, "Open NCBI BLAST", "There are no nonempty nucleotide sequences in the query scope.");
+        return;
+      }
+      QApplication::clipboard()->setText(fasta);
+      if (!QDesktopServices::openUrl(QUrl("https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE_TYPE=BlastSearch")))
+        QMessageBox::information(this, "Open NCBI BLAST", "The FASTA query was copied. Open NCBI nucleotide BLAST in your browser and paste it into the query box.");
+    });
     start = buttons->addButton("Search NCBI", QDialogButtonBox::ActionRole);
     start->setObjectName("blastStart");
     resume = buttons->addButton("Resume job…", QDialogButtonBox::ActionRole);
@@ -483,7 +504,7 @@ public:
       if (path.isEmpty())
         return;
       QString text =
-          "Kleiotide 0.29.0 BLAST diagnostics\nDatabase: " + options.database +
+          "Kleiotide " + QString::fromLatin1(version) + " BLAST diagnostics\nDatabase: " + options.database +
           "; task: " + options.task + "; backend: " +
           (options.toolkit() ? options.launcher : QString("Built-in HTTPS")) +
           "\nCurrent status: " + status->text() + "\n" +
@@ -618,8 +639,8 @@ public:
     set_running(false);
     persist();
     search_status(badge,metadata?"Metadata failed — BLAST hits retained":"Failed — completed results retained","#ffd9dc");
-    status->setText(error +
-                    "\nCompleted results are retained. Job: " + jobPath);
+    status->setText(error.simplified().left(360) +
+                    "\nCompleted results are retained. Job: " + QFileInfo(jobPath).fileName());
   }
   void refresh() {
     try {
@@ -668,6 +689,14 @@ public:
     }
     return true;
   }
+  std::vector<SequenceId> query_ids() const {
+    if (scope->currentIndex() != 1) return selected;
+    std::vector<SequenceId> ids;
+    ids.reserve(source->rows().size());
+    for (const auto &row : source->rows()) ids.push_back(row.id);
+    return ids;
+  }
+
   void begin() {
     const auto previousOptions = options;
     const auto previousQueries = queries;
@@ -680,13 +709,7 @@ public:
         options = previousOptions;
         return;
       }
-      std::vector<SequenceId> ids = selected;
-      if (scope->currentIndex() == 1) {
-        ids.clear();
-        for (const auto &row : source->rows())
-          ids.push_back(row.id);
-      }
-      queries = blast_queries(*source, ids, protein);
+      queries = blast_queries(*source, query_ids(), protein);
       if (queries.empty()) {
         QMessageBox::warning(
             this, "BLAST query scope",
@@ -785,6 +808,13 @@ public:
       diagnostics.removeFirst();
     details->appendPlainText(line);
   }
+  void record_response(const QByteArray &bytes) {
+    const auto prefix = bytes.left(512).trimmed();
+    if (prefix.startsWith('<') || prefix.toLower().contains("<html"))
+      record("NCBI returned an HTML page (" + QString::number(bytes.size()) + " bytes).");
+    else if (!prefix.isEmpty())
+      record("NCBI returned an unexpected text reply (" + QString::number(bytes.size()) + " bytes).");
+  }
   void set_phase(const QString &value) {
     phase = value;
     search_status(badge,metadata?"Fetching GenBank metadata":"Search in progress",metadata?"#fff0c2":"#d7eaff");
@@ -850,7 +880,7 @@ public:
                                : "Submitting query batch to NCBI…");
     const auto current = generation;
     QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::UserAgentHeader, "Kleiotide/0.29.0");
+    req.setHeader(QNetworkRequest::UserAgentHeader, "Kleiotide/" + QString::fromLatin1(version));
     req.setTransferTimeout(120000);
     if (!post.isEmpty())
       req.setHeader(QNetworkRequest::ContentTypeHeader,
@@ -941,15 +971,13 @@ public:
         return;
       }
       request(services.search, body, [this](const QByteArray &response) {
-        const auto text = QString::fromUtf8(response);
-        const auto match =
-            QRegularExpression("RID\\s*=\\s*([A-Za-z0-9-]+)").match(text);
-        if (!match.hasMatch()) {
-          fail("No RID returned. Submission status unknown; inspect the saved "
-               "job before starting another search.");
+        const auto received = blast_response_field(response, "RID");
+        if (received.isEmpty() || received.compare("RTOE", Qt::CaseInsensitive) == 0) {
+          record_response(response);
+          fail("NCBI did not return a request ID. Check the search settings, or use Open NCBI BLAST and copy query to submit it in your browser.");
           return;
         }
-        rid = match.captured(1);
+        rid = received;
         lastServer = "RID accepted at " +
                      QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
         record(lastServer + "; RID " + rid);
@@ -984,12 +1012,8 @@ public:
           return;
         }
         emptyReplies = 0;
-        const auto statusMatch =
-            QRegularExpression("Status\\s*=\\s*(WAITING|FAILED|UNKNOWN|READY)",
-                               QRegularExpression::CaseInsensitiveOption)
-                .match(text);
-        if (statusMatch.hasMatch()) {
-          const auto state = statusMatch.captured(1).toUpper();
+        const auto state = blast_response_field(response, "Status").toUpper();
+        if (state == "WAITING" || state == "FAILED" || state == "UNKNOWN" || state == "READY") {
           ++polls;
           lastServer = state + " at " +
                        QDateTime::currentDateTimeUtc().toString(Qt::ISODate) +
@@ -1000,7 +1024,8 @@ public:
             return;
           }
           if (state == "FAILED" || state == "UNKNOWN") {
-            fail("NCBI RID failed or expired: " + rid + "\n" + text.left(2048));
+            record_response(response);
+            fail("NCBI RID failed or expired: " + rid);
             return;
           }
           if (state == "READY" && !response.trimmed().startsWith('{')) {
@@ -1053,7 +1078,7 @@ public:
       else
         schedule(0);
     } catch (const std::exception &e) {
-      record("Response excerpt: " + QString::fromUtf8(bytes.left(2048)));
+      record_response(bytes);
       fail(e.what());
     }
   }
@@ -1198,6 +1223,8 @@ public:
       const auto nextBatch = std::size_t(j["batch"].toInt(-1));
       auto nextCompleted = j["completed"].toArray();
       auto nextRid = j["rid"].toString();
+      if (nextRid.compare("RTOE", Qt::CaseInsensitive) == 0)
+        throw std::runtime_error("This saved job has no valid NCBI request ID. The earlier client read the server's RTOE field as a request ID.");
       if (nextQueries.empty() || nextBatch > nextBatches.size() ||
           nextCompleted.size() != int(nextBatch) ||
           (!nextRid.isEmpty() &&

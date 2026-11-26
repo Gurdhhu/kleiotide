@@ -396,6 +396,7 @@ public:
       : QDialog(parent), source(std::move(d)), selected(std::move(ids)) {
     setObjectName("localBlastDialog");
     setWindowTitle("Local BLAST");
+    setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     setWindowModality(Qt::WindowModal);
     resize(680, 620);
     auto *layout = new QVBoxLayout(this);

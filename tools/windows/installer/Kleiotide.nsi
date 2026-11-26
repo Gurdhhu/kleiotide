@@ -14,6 +14,9 @@ Unicode true
   !define LEGACY_HOME "$PROGRAMFILES64\Kleiotide Setup"
   !define OPENWITH_PROG "Kleiotide.Document"
   !define UNINSTALL_ID "Kleiotide"
+  Var ExistingVersion
+  Var KeepSettings
+  Var KeepSettingsBox
   Var ExistingDir
   Var Sessions
   Var Traces
@@ -54,6 +57,7 @@ ShowUninstDetails show
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${PAYLOAD_DIR}\LICENSE"
 !ifdef RELEASE_INSTALLER
+  Page custom UpgradePage SaveUpgradeChoice
   !define MUI_PAGE_CUSTOMFUNCTION_LEAVE VerifyDestination
   !insertmacro MUI_PAGE_DIRECTORY
   Page custom AssociationPage SaveAssociations
@@ -119,7 +123,9 @@ Function .onInit
     StrCpy $InstallBlast ${BST_UNCHECKED}
   ClearErrors
 !ifdef RELEASE_INSTALLER
+  StrCpy $KeepSettings ${BST_CHECKED}
   ReadRegStr $ExistingDir HKLM "${APP_KEY}" "InstallLocation"
+  ReadRegStr $ExistingVersion HKLM "${APP_KEY}" "DisplayVersion"
   StrCpy $Sessions ${BST_CHECKED}
   StrCpy $Traces ${BST_CHECKED}
   StrCpy $Fasta ${BST_CHECKED}
@@ -139,6 +145,35 @@ Function .onInit
   init_done:
 !endif
 FunctionEnd
+
+!ifdef RELEASE_INSTALLER
+Function UpgradePage
+  ${If} $ExistingDir == ""
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Replace Kleiotide?" "Choose what setup should do with your existing installation."
+  nsDialogs::Create 1018
+  Pop $0
+  StrCmp $0 error 0 +2
+    Abort
+  ${If} $ExistingVersion == ""
+    StrCpy $ExistingVersion "(version unavailable)"
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 36u "Kleiotide $ExistingVersion is installed. Click Replace to continue installing Kleiotide ${DISPLAY_VERSION}, or Cancel to keep the installed version."
+  Pop $0
+  ReadEnvStr $0 USERNAME
+  ${NSD_CreateCheckbox} 0 43u 100% 24u "Keep Kleiotide settings for Windows account $0"
+  Pop $KeepSettingsBox
+  ${NSD_SetState} $KeepSettingsBox $KeepSettings
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Replace"
+  nsDialogs::Show
+FunctionEnd
+
+Function SaveUpgradeChoice
+  ${NSD_GetState} $KeepSettingsBox $KeepSettings
+FunctionEnd
+!endif
 
 Function ToolsPage
   !insertmacro MUI_HEADER_TEXT "Optional tools and shortcut" "Choose the features to set up on this computer."
@@ -467,6 +502,13 @@ Section "Kleiotide" SEC_MAIN
 !endif
   WriteRegDWORD HKLM "${APP_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${APP_KEY}" "NoRepair" 1
+!ifdef RELEASE_INSTALLER
+  ${If} $ExistingDir != ""
+  ${AndIf} $KeepSettings != ${BST_CHECKED}
+    DeleteRegKey HKCU "Software\Kleiotide\Kleiotide"
+    DeleteRegKey /ifempty HKCU "Software\Kleiotide"
+  ${EndIf}
+!endif
 SectionEnd
 
 Function un.onInit

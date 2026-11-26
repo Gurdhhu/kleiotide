@@ -7,6 +7,8 @@ case is normalized and ? becomes N. Identical queries share a search and expand
 back to their original names and submission ordinals in the table. Only synthetic
 query IDs and sequence text are sent; names and traces stay on this computer.
 
+For a browser search, choose **Open NCBI BLAST and copy query**, then paste into the nucleotide BLAST form. The clipboard contains the selected scope as ungapped FASTA with the original names and duplicate sequences. Choose the search settings on the website and submit there.
+
 Settings → BLAST separates HTTPS defaults from the optional local executables.
 HTTPS offers core_nt and the listed databases, megablast/blastn, target count,
 E value, identity/query-cover result filters, documented scoring/masking options

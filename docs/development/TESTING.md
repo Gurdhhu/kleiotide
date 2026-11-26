@@ -11,6 +11,14 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows the script tools/windows/validate.ps1 can configure/build/test with a specified QtRoot. GUI tests use disposable data and loopback HTTP, never NCBI. Optional installed BLAST+ validation sets KLEIOTIDE_TEST_REAL_BLAST=1 before running kleiotide_local_blast_check. Use isolated test preferences and synthetic/public inputs for external-tool tests.
 
+## 0.30.5 focused acceptance
+
+1. Use the toolbar to save an untitled alignment, undo, and redo. Open five FASTA, AB1, or .kleio files and verify File shows the four most recent. Add another file to the current alignment and verify it does not appear in the list. Check the Kleio adenine color and motif tooltip.
+2. Copy and open NCBI BLAST with selected queries that include gaps, case differences, and two identical sequences. Verify the clipboard is ungapped FASTA with original names and duplicates. No query is sent until you submit in the browser. Try minimize, maximize, and restore on each BLAST search window.
+3. Use the loopback release tests for a blank RID followed by RTOE and an NCBI failure page. Confirm the status is compact, the missing RID is never polled, and the saved diagnostic shows the current application version.
+4. Open Help → Check for updates… and check the no-update and network-error paths. On a machine using a prior build with the updater, use a published newer matching release to exercise confirmation, download, verified ZIP extraction and setup on Windows, or APT installation on Debian 13. Select Cancel before installing to check that the installed version stays in place.
+5. Replace an existing Windows RC with the new installer. Confirm the existing version is displayed. Cancel once, then complete the install with Keep settings selected. Repeat with it unchecked under a disposable Windows account, and verify Kleiotide starts with default preferences while sessions and analysis files remain in place. Check silent upgrades preserve settings.
+
 ## 0.30.4 focused acceptance
 
 1. On a fresh Windows install, verify that the Kleiotide session, Sanger chromatogram, FASTA and desktop shortcut options are selected. Deselect one association and the shortcut, then upgrade and check that setup remembers both choices.

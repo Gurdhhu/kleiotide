@@ -1,13 +1,16 @@
 # Windows installer preparation
 
-For Kleiotide **0.30.4**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.30.4_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 52-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
+For Kleiotide **0.30.5**, use a fresh Qt/MSVC x64 Release build and the exact matching Kleiotide_0.30.5_Source_For_Installer.zip. Set KLEIOTIDE_INSTALLER_REVISION=1 for the first installer attempt of this application version. The test-installer target runs the full 52-test release suite before staging deployment. Native acceptance is tracked separately in [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md).
 
 The selected kit must provide Qt Widgets, Concurrent, Network and windeployqt. Windows deployment verifies Qt6Network.dll and tls/qschannelbackend.dll, using Schannel rather than assuming OpenSSL is installed on a recipient's machine. Build scripts do not download packaging inputs automatically.
 
 The **release-installer** target builds the release-candidate installer. It
 uses a stable Windows entry named Kleiotide and defaults to
 `C:\Program Files\Kleiotide`. Browse on a fresh install to choose a dedicated
-folder. An upgrade starts in that same folder. The file associations page offers
+folder. An upgrade starts in that same folder. Interactive setup shows the
+installed version and asks before replacing it. **Keep Kleiotide settings**
+is selected by default for the Windows account running setup. Silent setup keeps
+user settings. The file associations page offers
 Kleiotide sessions, Sanger chromatograms and FASTA files. All three are selected
 on first install. Setup remembers these choices across upgrades.
 Use **Open Windows Default Apps** at the end to choose the double-click handler.
@@ -15,7 +18,7 @@ Use **Open Windows Default Apps** at the end to choose the double-click handler.
 ## What the test installer does
 
 - Installs an x64 MSVC Release build for Windows 10 (1809+) / Windows 11 under
-  `C:\Program Files\Kleiotide Test 0.30.4-1`, with a Start menu shortcut and
+  `C:\Program Files\Kleiotide Test 0.30.5-1`, with a Start menu shortcut and
   Windows Settings > Apps uninstall entry. Administrator approval is required.
 - Deploys Qt DLLs/plugins using the selected application kit's `windeployqt`.
   Colleagues need neither Qt Creator nor a Qt development installation.
@@ -46,6 +49,10 @@ See ARM64_COMPATIBILITY.md for the focused procedure and the test-1 finding.
 The official icon can be added when available. This test installer is unsigned and uses
 the default installer artwork. Signing is a later distribution improvement.
 Edge may flag a new installer as an uncommon download. Compare the finished installer against the release’s SHA256SUMS.txt. A file ending in `.crdownload` is pending in the browser. Complete the download in Edge’s Downloads panel after checking the release source. Publish the final setup checksum alongside the release asset.
+
+## Releases used by Check for updates
+
+Publish Windows x64 setup as a release asset. For a tag such as `v0.30.5-rc1`, the asset must be named `Kleiotide_0.30.5_rc1_Windows_x64_Setup.exe` or `Kleiotide_0.30.5_rc1_Windows_x64_Setup.zip`. Put the matching EXE at the top level inside a setup ZIP. The app uses the SHA-256 digest reported by GitHub for the uploaded asset. Debian 13 amd64 package names can use either `~deb13` or `.deb13`.
 
 ## 1. Download the one-time packaging inputs
 
@@ -82,7 +89,7 @@ provide the source for the bundled Qt libraries.
    execution-policy change is needed. Organisation policy still applies.
 2. Open its `CMakeLists.txt`, select the same **Qt 6.5.3 / MSVC2022 64 bit** kit
    and **Release**. Use a fresh build directory. Qt Creator's own Qt version is unrelated to the DLLs needed by this build.
-   A short build path such as `C:\Kleiotide-build\0.30.4` avoids Windows path
+   A short build path such as `C:\Kleiotide-build\0.30.5` avoids Windows path
    length problems while staging the original third-party notice paths.
 3. Keep `BUILD_TESTING=ON` and `KLEIOTIDE_BUILD_RELEASE_CHECKS=ON`.
 4. Run CMake. In Projects > Build Settings > CMake, set the following variables
@@ -90,7 +97,7 @@ provide the source for the bundled Qt libraries.
 
    | Variable | Example value |
    | --- | --- |
-   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.30.4_Source_For_Installer.zip` |
+   | `KLEIOTIDE_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/Kleiotide_0.30.5_Source_For_Installer.zip` |
    | `KLEIOTIDE_QT_SOURCE_ARCHIVE` | `C:/Kleiotide-packaging/qt-everywhere-src-6.5.3.zip` |
    | `KLEIOTIDE_VC_REDIST` | `C:/Kleiotide-packaging/vc_redist.x64.exe` |
 
@@ -107,10 +114,10 @@ The **Compile Output** ends with the setup filename and release-folder path.
 Inside the build directory, find:
 
 ```text
-test-installers/Kleiotide_0.30.4_test1/
+test-installers/Kleiotide_0.30.5_test1/
 ```
 
-For an RC, the equivalent folder is `release-installers/Kleiotide_0.30.4_rc1/`.
+For an RC, the equivalent folder is `release-installers/Kleiotide_0.30.5_rc1/`.
 
 It contains the `...Windows_x64_Setup.exe`, matching Kleiotide/Qt source ZIPs,
 `READ-ME.txt`, `BUILD-MANIFEST.json` and `SHA256SUMS.txt`. The manifest records

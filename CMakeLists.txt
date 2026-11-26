@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Kleiotide VERSION 0.30.4 LANGUAGES CXX)
+project(Kleiotide VERSION 0.30.5 LANGUAGES CXX)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()
@@ -121,6 +121,8 @@ if(KLEIOTIDE_BUILD_GUI)
     src/gui/local_blast.cpp
     src/gui/spart.cpp
     src/gui/table_io.cpp
+    src/gui/zip_entry.cpp
+    src/gui/update_check.cpp
     src/gui/table_export.cpp
     third_party/miniz/miniz_tinfl.cpp
     src/gui/open_requests.cpp
@@ -163,6 +165,9 @@ if(KLEIOTIDE_BUILD_GUI)
   target_include_directories(kleiotide_gui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
   target_compile_definitions(kleiotide_gui PRIVATE MINIZ_NO_STDIO MINIZ_NO_TIME MINIZ_NO_ARCHIVE_APIS MINIZ_NO_ZLIB_APIS)
   target_link_libraries(kleiotide_gui PUBLIC kleiotide_core Qt6::Widgets Qt6::Concurrent Qt6::Network)
+  if(WIN32)
+    target_link_libraries(kleiotide_gui PRIVATE shell32)
+  endif()
   if(MSVC)
     target_compile_options(kleiotide_gui PRIVATE /W4)
   else()

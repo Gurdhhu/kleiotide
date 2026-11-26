@@ -137,6 +137,29 @@ BlastOptions BlastOptions::from_json(const QJsonObject &j) {
   o.shortQuery = j["shortQuery"].toBool();
   return o;
 }
+QString blast_web_fasta(const Document &document, const std::vector<SequenceId> &ids) {
+  QString fasta;
+  for (const auto id : ids) {
+    const auto &row = document.sequence(id);
+    if (row.kind != RowKind::Nucleotide || !row.symbols.residue_count()) continue;
+    fasta += '>' + QString::fromStdString(row.name) + '\n';
+    for (const char c : row.symbols.text())
+      if (!is_gap(c)) fasta += QChar::fromLatin1(c);
+    fasta += '\n';
+  }
+  return fasta;
+}
+QString blast_response_field(const QByteArray &response, const QString &name) {
+  const auto text = QString::fromUtf8(response).trimmed();
+  if (text.startsWith('{') || text.startsWith('[')) return {};
+  const auto start = text.indexOf("QBlastInfoBegin", 0, Qt::CaseInsensitive);
+  const auto end = start < 0 ? -1 : text.indexOf("QBlastInfoEnd", start, Qt::CaseInsensitive);
+  const auto info = end > start ? text.mid(start, end - start) : text;
+  const QRegularExpression field(
+      "^[ \t]*" + QRegularExpression::escape(name) + "[ \t]*=[ \t]*([A-Za-z0-9-]{1,80})[ \t]*\\r?$",
+      QRegularExpression::MultilineOption | QRegularExpression::CaseInsensitiveOption);
+  return field.match(info).captured(1);
+}
 std::vector<BlastQuery> blast_queries(const Document &d,
                                       const std::vector<SequenceId> &ids,
                                       bool protein, bool local) {

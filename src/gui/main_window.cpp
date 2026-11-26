@@ -1,6 +1,7 @@
 #include "gui/menu_shortcuts.hpp"
 #include "gui/file_output.hpp"
 #include "core/version.hpp"
+#include "gui/update_check.hpp"
 #include "gui/site_highlighter.hpp"
 #include "gui/main_window.hpp"
 #include "gui/spart.hpp"
@@ -78,6 +79,8 @@
 #include <QRegularExpression>
 #include <QRandomGenerator>
 #include <QStatusBar>
+#include <QStyle>
+#include <QSettings>
 #include <QToolBar>
 #include <QToolButton>
 #include <QUrl>
@@ -94,6 +97,38 @@
 
 namespace kleiotide {
 namespace {
+QIcon editing_icon(bool redo, const QColor& color){
+    QIcon icon;
+    for(const int scale : {1,2,3}){
+        QPixmap pixmap(20*scale,20*scale);
+        pixmap.setDevicePixelRatio(scale);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        if(redo){painter.translate(20,0);painter.scale(-1,1);}
+        painter.setPen(QPen(color,1.9,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
+        QPainterPath curve(QPointF(4,9));
+        curve.cubicTo(16,5,19,12,12,16);
+        painter.drawPath(curve);
+        painter.drawPolyline(QPolygonF{QPointF(8,4),QPointF(4,9),QPointF(10,11)});
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
+}
+QSettings recent_settings(){
+    return QSettings(QSettings::defaultFormat(),QSettings::UserScope,"Kleiotide","Kleiotide");
+}
+void remember_recent(const QStringList& paths){
+    auto settings=recent_settings();
+    auto recent=settings.value("files/recentlyOpened").toStringList();
+    for(const auto& path : paths){
+        const auto absolute=QFileInfo(path).absoluteFilePath();
+        recent.removeAll(absolute);
+        recent.prepend(absolute);
+    }
+    settings.setValue("files/recentlyOpened",recent.mid(0,4));
+}
 QIcon view_icon(int kind,ResiduePalette palette=ResiduePalette::Classic,const CustomResidueColors* custom=nullptr) {
     QIcon icon;
     for(int scale:{1,2,3}) {
@@ -300,7 +335,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         mutatingActions_.push_back(a);
         return a;
     };
-    action(file, "&New", QKeySequence::New, [this] {
+    action(file, "&New session", QKeySequence::New, [this] {
         auto document=std::make_shared<Document>();document->load({},AppSettings::instance().values().translation());
         install_document(std::move(document), {}, true);
     });
@@ -327,7 +362,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         a->setObjectName(importIds[i]);a->setCheckable(true);a->setChecked(i==static_cast<int>(fastaImport_));importGroup->addAction(a);
         a->setToolTip("Applies to FASTA Open, Add and clipboard imports in this window. Alphabets overlap: ACGT can be either nucleotide or protein. Incompatible printable rows become masks. Saved sessions and AB1 files retain their declared types.");}
     file->addSeparator();
-    action(file, "&Save", QKeySequence::Save, [this] { save(); })->setObjectName("saveAlignment");
+    auto* saveAction=action(file, "&Save", QKeySequence::Save, [this] { save(); });
+    saveAction->setObjectName("saveAlignment");
     action(file, "Save &as…", QKeySequence::SaveAs, [this] { save(true); });
     action(file,"Export FASTA…",{},[this]{save(true,{},true);});
     auto* exportAbif=action(file,"Export edited trace (AB1)…",{},[this]{export_trace();});exportAbif->setObjectName("exportAbif");exportAbif->setToolTip("Export one trace-linked sequence and its signal as an edited AB1 copy, including inserted/substituted calls and the current orientation.");
@@ -335,7 +371,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     action(file,"Export sequence groups…",{},[this]{export_sequence_groups(*document_,this);})->setObjectName("exportGroups");
     file->addSeparator();
     action(file,"Recover session…",{},[this]{offer_recovery();})->setObjectName("recoverSession");
-    action(file,"Write recovery checkpoint now (testing only)",{},[this]{write_recovery(true);})->setObjectName("checkpointNow");
     auto* recoveryStatus=file->addAction("Recovery status…");connect(recoveryStatus,&QAction::triggered,this,[this]{QMessageBox::information(this,"Recovery status",recoveryStatus_+"\n\n"+QDir::toNativeSeparators(RecoveryStore::default_directory()));});
     file->addSeparator();
     auto* settingsAction=action(file,"Settings…",{},[this]{
@@ -345,6 +380,31 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         });
     });settingsAction->setObjectName("appSettingsAction");
     file->addSeparator();
+    QList<QAction*> recent;
+    for(int index=0;index<4;++index){
+        auto* entry=file->addAction(QString{});
+        mutatingActions_.push_back(entry);
+        connect(entry,&QAction::triggered,this,[this,entry]{
+            const auto path=entry->data().toString();
+            if(QFileInfo(path).isFile())open_path(path);
+            else QMessageBox::warning(this,"Open recent file","This file is no longer available:\n"+path);
+        });
+        entry->setObjectName("recentFile"+QString::number(index));entry->setVisible(false);recent.append(entry);
+    }
+    auto* recentSeparator=file->addSeparator();recentSeparator->setVisible(false);
+    file->setToolTipsVisible(true);
+    connect(file,&QMenu::aboutToShow,this,[recent,recentSeparator]{
+        const auto paths=recent_settings().value("files/recentlyOpened").toStringList();
+        for(int index=0;index<recent.size();++index){
+            auto* entry=recent[index];
+            const auto path=paths.value(index);
+            entry->setVisible(!path.isEmpty());
+            entry->setText(QFileInfo(path).fileName().replace('&',"&&"));
+            entry->setToolTip(QDir::toNativeSeparators(path));
+            entry->setData(path);
+        }
+        recentSeparator->setVisible(!paths.isEmpty());
+    });
     auto* exit = file->addAction("E&xit"); connect(exit, &QAction::triggered, this, &QWidget::close);
     auto* edit = menuBar()->addMenu("&Edit");
     undoAction_ = action(edit, "&Undo", QKeySequence::Undo, [this] {
@@ -498,7 +558,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     auto* view = menuBar()->addMenu("&View");
     auto* motifToggle=motifDock_->toggleViewAction();
     motifToggle->setText("Motif search");motifToggle->setIcon(view_icon(6));
-    motifToggle->setToolTip("Show or hide motif search.");
+    motifToggle->setToolTip("Show or hide motif search (Ctrl+Shift+F)");
     auto* overviewToggle=overviewDock->toggleViewAction();overviewToggle->setObjectName("alignmentOverviewView");
     overviewToggle->setIcon(view_icon(2));overviewToggle->setToolTip("Show or hide the alignment overview: column conservation, non-gap height and navigation.");
     auto* traceToggle=traceDock_->toggleViewAction();traceToggle->setObjectName("chromatogramView");
@@ -541,6 +601,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
         auto* button=new QToolButton(frame);button->setObjectName(object);button->setText(text);button->setCheckable(true);button->setFocusPolicy(Qt::StrongFocus);button->setAccessibleName(text+" mode");button->setToolTip(tip);frame->findChild<QButtonGroup*>()->addButton(button);frame->layout()->addWidget(button);return button;
     };
     auto addSpacing=[&](const char* object){auto* space=new QWidget(toolbar);space->setObjectName(object);space->setFixedWidth(12);toolbar->addWidget(space);};
+    saveAction->setIcon(QIcon::fromTheme("document-save",style()->standardIcon(QStyle::SP_DialogSaveButton)));
+    undoAction_->setIcon(editing_icon(false,palette().color(QPalette::ButtonText)));
+    redoAction_->setIcon(editing_icon(true,palette().color(QPalette::ButtonText)));
+    for(auto* command : {saveAction,undoAction_,redoAction_})toolbar->addAction(command);
+    toolbar->addSeparator();
+    addSpacing("fileEditingSpacing");
     auto* modeSwitch=makeSwitch("editViewSwitch","Edit or View mode");
     auto* editToggle=addSegment(modeSwitch,"editToggle","Edit","Edit residues using Overwrite or Insert; drag selected residues/blocks to slide");
     auto* viewToggle=addSegment(modeSwitch,"viewToggle","View","View and select residues without editing them");editToggle->setChecked(true);
@@ -585,6 +651,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), document_(std::ma
     toolbarMenu->addAction(motifDock_->toggleViewAction());toolbarMenu->addAction(overviewToggle);toolbarMenu->addAction(traceToggle);
     auto* editingVisibility=toolbar->toggleViewAction();editingVisibility->setText("Editing controls");editingVisibility->setObjectName("editingToolbarView");toolbarMenu->addAction(editingVisibility);
     auto* help = menuBar()->addMenu("&Help");
+    auto* updates = action(help,"Check for updates…",{},[this] {
+        check_for_updates(this,[this](const QString& installer){install_windows_update(installer);});
+    });
+    updates->setObjectName("checkForUpdates");
     auto* about = help->addAction("About Kleiotide");
     about->setObjectName("aboutKleiotide");
     connect(about, &QAction::triggered, this, [this] {
@@ -868,6 +938,24 @@ bool MainWindow::maybe_save(std::function<void()> continuation) {
     }
     return choice == QMessageBox::Discard;
 }
+void MainWindow::install_windows_update(const QString& installer){
+    for(auto* widget : QApplication::topLevelWidgets()){
+        if(widget!=this && dynamic_cast<MainWindow*>(widget) && widget->isVisible()){
+            QMessageBox::information(this,"Install Kleiotide update",
+                "Close the other Kleiotide windows before installing. The verified setup is saved at:\n"+QDir::toNativeSeparators(installer));
+            return;
+        }
+    }
+    if(!maybe_save([this,installer]{install_windows_update(installer);}))return;
+    if(!launch_windows_update(installer)){
+        QMessageBox::warning(this,"Install Kleiotide update",
+            "Windows did not start the installer. You can open the verified setup at:\n"+QDir::toNativeSeparators(installer));
+        return;
+    }
+    // The save prompt above has already accepted saving or discarding edits.
+    savedState_=document_->state_id();
+    close();
+}
 void MainWindow::open_path(const QString& path) {open_paths({path});}
 void MainWindow::open_paths(const QStringList& paths) {
     if(paths.isEmpty()||busy_||!maybe_save([this,paths]{open_paths(paths);}))return;
@@ -922,7 +1010,10 @@ void MainWindow::load_files(const QStringList& paths, bool append) {
             }
             traceDock_->show();
         }
-        if(!openingRecovery_)remember_opened_file(paths.back());
+        if(!openingRecovery_){
+            remember_opened_file(paths.back());
+            if(!append)remember_recent(paths);
+        }
         if(result->isSession)restore_view(result->viewState);
         if(openingRecovery_){
             path_.clear();nativePath_=false;savedState_=0;resultLabel_="Recovered session";openingRecovery_=false;

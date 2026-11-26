@@ -1,7 +1,7 @@
 #include "gui/file_output.hpp"
 #include "gui/table_io.hpp"
 #include "core/group_import.hpp"
-#include "third_party/miniz/miniz_tinfl.h"
+#include "gui/zip_entry.hpp"
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -21,77 +21,7 @@ void check_xml(const QXmlStreamReader &x) {
   if (x.hasError())
     bad("Invalid worksheet XML: " + x.errorString());
 }
-QByteArray zip_entry(const QByteArray &zip, const QByteArray &name) {
-  auto u16 = [&](qsizetype at) -> quint16 {
-    if (at < 0 || at > zip.size() - 2)
-      bad("Truncated XLSX archive.");
-    return quint16(quint8(zip.at(at))) |
-           quint16(quint16(quint8(zip.at(at + 1))) << 8);
-  };
-  auto u32 = [&](qsizetype at) -> quint32 {
-    if (at < 0 || at > zip.size() - 4)
-      bad("Truncated XLSX archive.");
-    return quint32(quint8(zip.at(at))) |
-           (quint32(quint8(zip.at(at + 1))) << 8) |
-           (quint32(quint8(zip.at(at + 2))) << 16) |
-           (quint32(quint8(zip.at(at + 3))) << 24);
-  };
-  qsizetype end = -1;
-  for (qsizetype at = zip.size() - 22;
-       at >= std::max(qsizetype(0), zip.size() - 65557); --at)
-    if (u32(at) == 0x06054b50 && at + 22 + u16(at + 20) == zip.size()) {
-      end = at;
-      break;
-    }
-  if (end < 0 || u16(end + 4) || u16(end + 6) || u16(end + 8) != u16(end + 10))
-    bad("Unsupported or invalid XLSX ZIP archive.");
-  qsizetype at = u32(end + 16);
-  for (unsigned n = 0; n < u16(end + 10); ++n) {
-    if (u32(at) != 0x02014b50)
-      bad("Invalid XLSX directory.");
-    const auto method = u16(at + 10), flags = u16(at + 8);
-    const quint32 size = u32(at + 24), packed = u32(at + 20),
-                  crc = u32(at + 16);
-    const auto length = u16(at + 28);
-    const auto local = u32(at + 42);
-    if (at + 46 + length > zip.size())
-      bad("Truncated XLSX directory.");
-    if (zip.mid(at + 46, length) == name) {
-      if (quint64(local) + 30 > quint64(zip.size()) || flags & 1 ||
-          size > 64 * 1024 * 1024 || packed > 64 * 1024 * 1024 ||
-          u32(local) != 0x04034b50)
-        bad("Unsupported or oversized XLSX entry.");
-      const quint64 offset =
-          quint64(local) + 30 + u16(local + 26) + u16(local + 28);
-      if (offset + packed > quint64(zip.size()))
-        bad("Truncated XLSX entry.");
-      QByteArray out;
-      if (method == 0) {
-        out = zip.mid(qsizetype(offset), packed);
-        if (out.size() != size)
-          bad("Invalid XLSX entry length.");
-      } else if (method == 8) {
-        out.resize(size);
-        const auto decoded = tinfl_decompress_mem_to_mem(
-            out.data(), size, zip.constData() + offset, packed, 0);
-        if (decoded != size)
-          bad("Could not decompress XLSX entry.");
-      } else
-        bad("Unsupported XLSX compression.");
-      quint32 sum = 0xffffffffU;
-      for (unsigned char b : out) {
-        sum ^= b;
-        for (int bit = 0; bit < 8; ++bit)
-          sum = (sum >> 1) ^ ((sum & 1U) ? 0xedb88320U : 0U);
-      }
-      if (~sum != crc)
-        bad("Damaged XLSX entry (checksum mismatch).");
-      return out;
-    }
-    at += 46 + length + u16(at + 30) + u16(at + 32);
-  }
-  return {};
-}
+
 } // namespace
 QString normalized_table_cell(QString s) {
   if (s.startsWith('(') && s.endsWith(')')) {

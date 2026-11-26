@@ -39,6 +39,8 @@ std::vector<BlastQuery> blast_queries(const Document &,
 std::vector<std::vector<BlastQuery>>
 blast_batches(const std::vector<BlastQuery> &, std::size_t maxResidues = 100000,
               std::size_t maxQueries = 50);
+QString blast_web_fasta(const Document &, const std::vector<SequenceId> &);
+QString blast_response_field(const QByteArray &, const QString &name);
 QString blast_fasta(const std::vector<BlastQuery> &);
 QUrlQuery blast_parameters(const BlastOptions &,
                            const std::vector<BlastQuery> &);

@@ -95,6 +95,7 @@ private:
     enum class SelectionTool { TitlePrefix,TitleContains,TitleExact,DuplicateNames,DuplicateSequences,Motif,Random };
     void select_by_rule(SelectionTool);
     void run_row_selection(std::function<std::vector<SequenceId>(const Document&)>);
+    void install_windows_update(const QString& installer);
     bool maybe_save(std::function<void()> continuation = {});
     void set_busy(bool busy, const QString& text = {});
     void update_state();
@@ -124,6 +125,7 @@ private:
     FastaImport fastaImport_=FastaImport::NucleotideAndMasks;
     std::string session_view() const;
     void restore_view(const std::string& state);
+    friend struct RecoveryCheck;
     void write_recovery(bool forced=false);
     void retire_recovery();
     void clear_recovered_claim();

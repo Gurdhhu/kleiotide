@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.5 — testing
+
+- Check GitHub for updates from Help and verify compatible downloads before installing. Windows setup identifies the installed release and offers to keep that account’s settings during replacement.
+- Add Save, Undo, and Redo to the main toolbar, list up to four explicitly opened files in File, and update the Kleio palette’s adenine color.
+- Copy original ungapped query sequences and open NCBI nucleotide BLAST in the browser. Keep NCBI errors compact, reject a blank request ID, and show the current version in diagnostic reports. Add minimize and maximize controls to both BLAST search windows.
+
 ## 0.30.4 — testing
 
 - Select the Sanger chromatogram and FASTA associations and the desktop shortcut on a fresh Windows install. Retain existing choices on upgrade.

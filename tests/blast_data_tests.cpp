@@ -17,5 +17,9 @@ int main(int argc,char** argv){QCoreApplication app(argc,argv);try{
  o.launcher="configured-blastn";need(!o.toolkit(),"A saved executable does not force standard HTTPS");o.forceToolkit=true;need(!o.error().isEmpty()&&!o.toolkit(),"Remote toolkit switch is rejected");o.launcher.clear();o.forceToolkit=false;
  auto proteinQueries=blast_queries(d,{1,2,3},true);need(proteinQueries.size()==1&&proteinQueries[0].sequence=="MKT","Protein scope excludes nucleotide rows");BlastOptions protein;protein.protein=true;protein.task="blastp";protein.word=3;protein.database="nr";protein.email=o.email;need(!protein.error().isEmpty(),"Remote protein search is removed");
  o.coverage=90;need(blast_table(queries,hits,o).empty(),"Local coverage filter");bool bad=false;try{parse_blast("{}",queries);}catch(...){bad=true;}need(bad,"Malformed response refused");
+ Document browserQuery;browserQuery.load({{"original ASCII and spaces","aa~~CG--TN"},{"another copy","aaCGTN"},{"protein","MKT",RowKind::Protein}});
+ need(blast_web_fasta(browserQuery,{1,2,3})==">original ASCII and spaces\naaCGTN\n>another copy\naaCGTN\n","Browser FASTA preserves names, letters and duplicate queries");
+ need(blast_response_field("<!--\r\nQBlastInfoBegin\r\n    RID = \r\n    RTOE = 0\r\nQBlastInfoEnd\r\n-->","RID").isEmpty(),"An empty RID cannot capture the following field name");
+ need(blast_response_field("<!--\nQBlastInfoBegin\n    RID = TEST-RID2\nQBlastInfoEnd\n-->","RID")=="TEST-RID2","Complete RID line in NCBI envelope");
  std::cout<<"PASS BLAST defaults, supported parameters/toolkit routing, query dedup, HSP union/reverse coordinates, metadata, local filtering, TSV/XLSX and malformed responses\n";
 }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

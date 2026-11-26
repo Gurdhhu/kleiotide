@@ -15,7 +15,7 @@ using CustomResidueColors=std::array<QColor,custom_palette_symbols.size()>;
 inline CustomResidueColors default_residue_colors(){
     CustomResidueColors colors;
     colors.fill(QColor(110,70,130));
-    colors[0]=QColor(180,125,0);colors[1]=Qt::blue;colors[2]=Qt::black;colors[3]=colors[4]=Qt::red;
+    colors[0]=QColor(193,170,0);colors[1]=Qt::blue;colors[2]=Qt::black;colors[3]=colors[4]=Qt::red;
     return colors;
 }
 QJsonObject encode_residue_colors(const CustomResidueColors&);
@@ -30,12 +30,12 @@ inline ResidueDisplay display_from_id(const QString& id){return id=="monochrome"
 // A, C, G, T. Okabe/Ito and Tol source URLs and text adaptations are in DISPLAY_COLORS.md.
 inline std::array<QColor,4> palette_colors(ResiduePalette p,const CustomResidueColors* custom=nullptr){switch(p){
     case ResiduePalette::Custom:if(custom)return {(*custom)[0],(*custom)[1],(*custom)[2],(*custom)[3]};[[fallthrough]];
-    case ResiduePalette::Classic:return {QColor(180,125,0),QColor(0,0,255),QColor(0,0,0),QColor(255,0,0)};
+    case ResiduePalette::Classic:return {QColor(193,170,0),QColor(0,0,255),QColor(0,0,0),QColor(255,0,0)};
     case ResiduePalette::HighContrast:return {QColor("#8B6500"),QColor("#0050A4"),QColor("#202020"),QColor("#A00070")};
     case ResiduePalette::OkabeIto:return {QColor("#E69F00"),QColor("#0072B2"),QColor("#009E73"),QColor("#CC79A7")};
     case ResiduePalette::TolBright:return {QColor("#CCBB44"),QColor("#4477AA"),QColor("#228833"),QColor("#AA3377")};
     case ResiduePalette::Chromas:return {QColor("#008040"),QColor("#0000FF"),QColor("#000000"),QColor("#FF0000")};
-    default:return {QColor(180,125,0),QColor(0,0,255),QColor(0,0,0),QColor(255,0,0)};
+    default:return {QColor(193,170,0),QColor(0,0,255),QColor(0,0,0),QColor(255,0,0)};
 }}
 inline double relative_luminance(const QColor& c){const auto linear=[](double v){return v<=0.04045?v/12.92:std::pow((v+0.055)/1.055,2.4);};return .2126*linear(c.redF())+.7152*linear(c.greenF())+.0722*linear(c.blueF());}
 inline double color_contrast(const QColor& a,const QColor& b){const auto x=relative_luminance(a),y=relative_luminance(b);return (std::max(x,y)+.05)/(std::min(x,y)+.05);}

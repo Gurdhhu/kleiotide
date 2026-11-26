@@ -42,8 +42,20 @@ void put(const QString& path,const QByteArray& data){QFile f(path);need(f.open(Q
 int main(int argc,char** argv){QApplication app(argc,argv);try{
     TestPreferences preferences;QTemporaryDir tmp;MainWindow window;window.resize(1600,900);window.show();
     auto* view=dynamic_cast<AlignmentView*>(window.centralWidget());need(view,"Alignment view");
-    auto* settings=child<QAction>(window,"appSettingsAction");auto* file=qobject_cast<QMenu*>(settings->parent());need(file,"File menu");const auto actions=file->actions();const auto i=actions.indexOf(settings);need(i>0&&actions[i-1]->isSeparator()&&actions[i+1]->isSeparator()&&actions[i+2]->text().contains("xit"),"Settings has its own section immediately before Exit");
-    need(child<QAction>(window,"checkpointNow")->text().contains("testing only"),"Manual checkpoint is labeled testing only");
+    auto* settings=child<QAction>(window,"appSettingsAction");auto* file=qobject_cast<QMenu*>(settings->parent());need(file,"File menu");
+    auto* recent=child<QAction>(window,"recentFile0");const auto actions=file->actions();
+    const auto i=actions.indexOf(settings), first=actions.indexOf(recent);
+    need(i>0&&actions[i-1]->isSeparator()&&actions[i+1]->isSeparator()&&first==i+2&&
+        actions[first+4]->isSeparator()&&actions[first+5]->text().contains("xit"),"Recent files are between Settings and Exit");
+    need(actions.front()->text().contains("New session"),"File starts with New session");
+    need(!recent->isVisible(),"Empty recent history is hidden");
+    auto* editBar=child<QToolBar>(window,"editingToolbar");
+    const auto commands=editBar->actions();
+    need(commands[0]==child<QAction>(window,"saveAlignment")&&commands[1]->shortcut()==QKeySequence::Undo&&
+        commands[2]->shortcut()==QKeySequence::Redo&&!commands[0]->icon().isNull()&&!commands[1]->icon().isNull()&&
+        !commands[2]->icon().isNull(), "Toolbar starts with Save, Undo and Redo with icons");
+    need(child<QAction>(window,"checkForUpdates")->text().contains("updates"),"Help exposes Check for updates");
+    need(!window.findChild<QAction*>("checkpointNow"),"Manual checkpoint is absent from File");
     const auto* toolbars=child<QMenu>(window,"toolbarsMenu");need(toolbars->actions().contains(child<QAction>(window,"alignmentOverviewView"))&&toolbars->actions().contains(child<QAction>(window,"chromatogramView")),"View panels grouped under Toolbars");
     need(child<QToolButton>(window,"rewriteToggle")->text()=="Overwrite","Overwrite label");
     const auto fasta=tmp.filePath("a Я.fasta"),ab1=tmp.filePath("trace Я.ab1");put(fasta,">existing\nACGT\n");put(ab1,QByteArray::fromStdString(test::synthetic_abif("ACGT")));
@@ -51,7 +63,13 @@ int main(int argc,char** argv){QApplication app(argc,argv);try{
     QMimeData mime;mime.setUrls({QUrl::fromLocalFile(ab1),QUrl::fromLocalFile(fasta)});QDragEnterEvent enter(QPoint(50,150),Qt::CopyAction,&mime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&window,&enter);need(enter.isAccepted(),"Local FASTA/AB1 batch accepted");
     QDropEvent drop(QPointF(50,150),Qt::CopyAction,&mime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&window,&drop);need(drop.isAccepted(),"Drop appended through import path");until(app,[&]{return view->isEnabled()&&window.current_document().rows().size()==3;});
     need(window.current_document().rows()[0].name=="existing"&&window.current_document().rows()[1].trace&&window.current_document().rows()[2].name=="existing","Drop preserves existing rows and AB1 evidence");
-    for(auto* a:window.findChildren<QAction*>())if(a->shortcut()==QKeySequence::Undo){a->trigger();break;}need(window.current_document().rows().size()==1,"Batch drop is one Undo");
+    file->aboutToShow();
+    need(recent->isVisible()&&recent->data().toString()==fasta&&
+        !child<QAction>(window,"recentFile1")->isVisible(),"Recent files record explicit Open and exclude dropped imports");
+    need(commands[1]->isEnabled(),"Toolbar enables Undo after an edit");
+    commands[1]->trigger();need(window.current_document().rows().size()==1,"Batch drop is one Undo");
+    commands[2]->trigger();need(window.current_document().rows().size()==3,"Toolbar Redo restores the drop");
+    commands[1]->trigger();
     Document imported;std::istringstream traceInput(test::synthetic_abif("ACGT"));imported.load({read_abif(traceInput,"linked","original.ab1"),{"mask","1234",RowKind::Mask},{"protein","MKT",RowKind::Protein}});imported.apply_groups({{1,"discarded",0x123456}},{{1,1}});auto code=imported.translation_settings();code.code=2;imported.set_translation_settings(code);std::ostringstream sessionBytes;write_session(sessionBytes,imported,"{\"font\":\"ignored\"}");const auto sessionPath=tmp.filePath("import.kleio");put(sessionPath,QByteArray::fromStdString(sessionBytes.str()));
     int notices=0;QTimer noticeTimer;noticeTimer.setInterval(1);QObject::connect(&noticeTimer,&QTimer::timeout,[&]{if(auto* box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget());box&&box->windowTitle()=="Session sequence import"){need(box->text().contains("metadata"),"Import explains discarded metadata");++notices;box->accept();}});noticeTimer.start();
     const auto currentCode=window.current_document().translation_settings();QMimeData sessionMime;sessionMime.setUrls({QUrl::fromLocalFile(sessionPath)});QDragEnterEvent sessionEnter(QPoint(50,150),Qt::CopyAction,&sessionMime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&window,&sessionEnter);need(sessionEnter.isAccepted(),"Session drop accepted");QDropEvent sessionDrop(QPointF(50,150),Qt::CopyAction,&sessionMime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&window,&sessionDrop);until(app,[&]{return notices==1&&view->isEnabled();});noticeTimer.stop();

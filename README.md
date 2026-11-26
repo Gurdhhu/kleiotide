@@ -1,88 +1,102 @@
 # Kleiotide
 
-**Kleiotide** is a desktop nucleotide sequence and chromatogram editor designed primarily for **molecular taxonomy and phylogenetics**. It brings alignment editing, Sanger trace inspection, sequence comparison and common data preparation tasks into one convenient workspace.
+## Table of contents
 
-I started Kleiotide to build a practical tool for the daily work of myself and my colleagues: checking sequences against chromatograms, preparing and refining alignments, comparing specimens, and organizing molecular data for taxonomic and phylogenetic studies. Although shaped by these needs, I hope it will also prove useful to a broader community of biologists.
+- [Introduction](#introduction)
+- [Why use Kleiotide?](#why-use-kleiotide)
+- [Installation](#installation)
+  - [Windows](#windows)
+  - [Debian](#debian)
+  - [Other Linux (build from source)](#other-linux-build-from-source)
+  - [macOS (build from source)](#build-on-macos-experimental)
+- [Getting started](#getting-started)
+- [Acknowledgments](#acknowledgments)
+- [Source, citation and licensing](#source-citation-and-licensing)
 
-Kleiotide is explicitly **nucleotide sequence-centered**. As of v0.30.4, protein sequence support remains limited and secondary, providing translation and basic protein editing and analysis. Kleiotide is not intended to be an all-in-one bioinformatics platform or a framework for complex analysis pipelines. Its focus is the everyday work that benefits from direct interaction with sequences and their underlying evidence.
+## Introduction
 
-The interface follows a straightforward principle: common tasks should be easy to start. Open an alignment directly, inspect a chromatogram, or align two sequences without first creating a project, defining a pipeline, or completing a multistep import procedure. Alignments open in independent main windows, avoiding differently sized document windows nested inside another window.
+**Kleiotide** is a desktop editor for nucleotide sequences, alignments and Sanger chromatograms, designed primarily for **molecular taxonomy and phylogenetics**. I developed it to make everyday work in our lab easier, from checking base calls against chromatograms and refining alignments to comparing specimens and organizing sequence data for analysis. The editor focuses on nucleotide workflows and also supports translation and basic protein editing and analysis.
 
-Kleiotide draws inspiration from several established tools: **BioEdit** for its philosophy of direct, hands-on alignment editing; **AliView** for translation within the nucleotide alignment; **MEGA** for accessible distance calculations; and **VSEARCH** for similarity-based sequence clustering. These influences guide particular workflows rather than imply complete feature or algorithmic equivalence.
+## Why use Kleiotide?
 
-A central feature is the persistent connection between an alignment and its chromatograms. **Every trace-linked sequence can retain its trace throughout an editing session, including after alignment with MAFFT.** Residues are mapped to original base calls and signal peaks, allowing navigation between an alignment position and the corresponding chromatogram. You can move conveniently among linked traces, inspect original and current calls, and edit sequences while checking the signal.
+- **Check and edit Sanger reads against the original signal.** Open AB1 files directly or link them in batches to an existing alignment. Jump between alignment positions and chromatogram peaks, review quality scores and double peaks, and export edited chromatograms. A `.kleio` session stores the original trace evidence alongside your edits, so you can reopen it without the source AB1 files.
+- **Edit alignments directly.** Insert or overwrite bases, move blocks, lock gaps, reverse-complement sequences and undo or redo edits. Use the alignment overview to navigate, and highlight sites or search for sequence motifs.
+- **Align or merge sequences.** Use MAFFT to align a dataset, selected sequences or columns, or align against templates while retaining linked traces, sequence groups and row order. Build a consensus from overlapping reads and review conflicts before merging.
+- **Compare and organize specimens.** Group sequences manually or by different criteria, calculate pairwise and group distances, inspect alignment statistics and nucleotide composition, cluster similar sequences, collapse duplicates and exchange group assignments through tables or SPART files.
+- **Inspect translations in place.** View amino acids alongside nucleotide coordinates, choose genetic codes and reading frames, and export translated sequences.
+- **Search reference databases.** Run NCBI nucleotide BLAST over HTTPS, open the same query in the browser, or search local databases with BLAST+. Export analysis tables as XLSX, TSV or CSV.
 
-AB1 files can be opened directly or linked in batches to sequences already present in an alignment, with assignment and mapping previews for review. Once imported, the working trace data are independent of the original AB1 files: editing does not modify those files, and saved native sessions embed the analyzed signals, original calls, peak positions, available quality scores and sequence-to-trace mappings. Reopening a session therefore does not require locating the original AB1 files. Original trace evidence remains preserved alongside sequence edits; manual changes do not acquire invented quality scores.
+## Installation
 
-Other capabilities include:
+Downloads below target [**v0.30.5-rc1**][release]. Other versions are available on the [releases page](https://github.com/Gurdhhu/kleiotide/releases).
 
-- **Direct alignment editing:** insert and overwrite residues, select and move blocks, lock gaps, reverse-complement sequences, and undo or redo changes. An alignment overview, configurable colors and site highlighting help navigate and inspect the data.
-- **MAFFT integration:** align complete datasets or selected sequences, realign selected columns or sequences against templates while retaining trace associations, sequence groups and sorting order.
-- **Trace editing and quality tools:** inspect and clean up reads using available original quality information from AB1 files, map AB1 trace peaks to sequences in your alignment, and export edited chromatograms individually or in batches.
-- **Sequence merging:** build an IUPAC consensus from the current alignment or find overlaps between reads. Previews show read placements and conflicts; eligible conflicts can optionally be resolved using original trace quality scores.
-- **Translation within the alignment:** view amino-acid translation while retaining nucleotide coordinates, choose genetic codes and reading frames, annotate coding and noncoding regions, and generate translated sequences.
-- **Sequence organization:** group identical sequences, perform VSEARCH-inspired similarity clustering, select group representatives, collapse duplicates, and exchange group assignments through tables or SPART files.
-- **Comparison and inspection:** calculate MEGA-inspired pairwise and group distances, inspect alignment statistics and nucleotide composition, highlight conserved or variable sites, and search motifs using literal patterns or regular expressions.
-- **Database searches and reusable results:** run NCBI nucleotide BLAST searches over HTTPS or search local databases through BLAST+, and export analysis tables as XLSX, TSV or CSV.
+### Windows
 
-Native **`.kleio` sessions** preserve the alignment together with linked trace evidence, sequence groups and translation metadata, so work can resume with its supporting context intact. FASTA remains available for straightforward sequence exchange with other tools.
+Download the [Windows x64 installer ZIP][windows-zip], extract it, and run the setup `.exe`. The installer supports x64 Windows 10 (version 1809 or later) and Windows 11. Windows 11 on ARM can use the x64 installer through emulation. Setup lets you choose the installation folder, register file types and install optional copies of MAFFT and NCBI BLAST+.
 
-## Getting started
+### Debian
 
-Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata; use FASTA for sequence-only exchange. The current testing version is **0.30.4**. Save As and exports start in the alignment’s own folder. For a new alignment they use the original input folder or the last folder used to open a file.
-
-Windows setup can install MAFFT and NCBI BLAST+ and create a desktop shortcut. Debian’s standard APT installation includes both recommended tools. **Locate** beside an executable field finds an installed tool, and **Browse** lets you choose your own copy.
-
-- [Latest release](https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.4-rc1)
-- [User guides](docs/README.md#user-guides)
-- [Build from source](docs/development/BUILDING.md)
-- [Windows installer preparation](docs/development/WINDOWS_INSTALLER.md)
-- [Testing and acceptance](docs/development/TESTING.md)
-- [Changelog](CHANGELOG.md)
-
-## Platform availability
-
-- **Windows:** x64 Windows 10 version 1809 (build 17763) or later and x64 Windows 11. Windows 11 on ARM can run the x64 build through x64 emulation. The selected Qt kit must also support the target Windows version.
-- **Linux:** Debian 13 (trixie), amd64, is the initial test target. See [building and installing the Debian package](docs/development/DEBIAN_PACKAGE.md).
-- **macOS:** experimental build from source. See the instructions below.
-
-## Build and test
-
-Requirements: CMake 3.21+, a C++20 compiler, and Qt 6.5 or later with Widgets, Concurrent and Network. A Qt/MSVC 2022 x64 Release kit is used for Windows builds.
+Download the [Debian 13 (trixie) amd64 package][debian-deb]. In a terminal opened in the download folder, run:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/kit -DKLEIOTIDE_BUILD_RELEASE_CHECKS=ON
-cmake --build build --target release-check --parallel 2
+sudo apt install ./kleiotide_0.30.5-1.deb13_amd64.deb
 ```
 
-The full release suite currently registers **52 tests**. Automated remote BLAST checks use loopback HTTP and do not submit sequences to NCBI. See [building](docs/development/BUILDING.md) for core-only builds and platform details.
+Launch **Kleiotide** from your desktop menu. APT normally installs the recommended MAFFT and NCBI BLAST+ packages. Use `--no-install-recommends` to skip them.
+
+### Other Linux (build from source)
+
+Download the [tar.gz source archive][source-tar] and extract it. Install a C++20 compiler, CMake 3.21 or later, and Qt 6.5 or later with the Widgets, Concurrent and Network development components. From the extracted source directory, run:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target kleiotide --parallel 2
+./build/kleiotide
+```
+
+If CMake cannot find Qt, add `-DCMAKE_PREFIX_PATH=/path/to/Qt` to the configure command. See [Build from source](docs/development/BUILDING.md) for more details.
 
 ### Build on macOS (experimental)
 
-Download the Kleiotide source archive and open its extracted directory in
-Terminal. Install Apple's free Command Line Tools with `xcode-select --install`
-if needed. With Homebrew installed, run:
+Download and extract the [source ZIP][source-zip], then open its folder in Terminal. Install Apple’s Command Line Tools with `xcode-select --install` if needed. With Homebrew installed, run:
 
 ```sh
-brew install cmake qtbase  # for alignment and local searches, also install mafft and blast
+brew install cmake qtbase
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)"
 cmake --build build --target kleiotide --parallel 2
 open build/kleiotide.app
 ```
 
-A tester built and ran 0.30.1 on an Apple Silicon M2 and verified the Finder fix locally. Copy the built app to Applications and use Finder’s **Open With → Kleiotide** for a session. To use Kleiotide for all `.kleio` files, choose **Get Info → Open with → Kleiotide → Change All**. Kleiotide also checks the usual Homebrew locations for MAFFT and BLAST+. Install both with `brew install mafft blast`.
+You can copy `build/kleiotide.app` to Applications and open `.kleio` sessions from Finder. To make Kleiotide the default for these files, use **Get Info → Open with → Kleiotide → Change All**. For optional alignment and local search tools, run `brew install mafft blast`.
 
-The local app uses the Qt libraries installed on your Mac. You can also open files from
-**File → Open**. A local build requires no paid developer membership, signing
-certificate or notarization.
+## Getting started
+
+Open FASTA, AB1 or `.kleio` files with File → Open or drag them onto a main window. Save a native session to keep trace evidence and metadata. Use FASTA for sequence-only exchange. Save As and exports start in the alignment’s own folder. For a new alignment they use the original input folder or the last folder used to open a file.
+
+Windows setup can install MAFFT and NCBI BLAST+ and create a desktop shortcut. Debian’s standard APT installation includes both recommended tools. **Locate** beside an executable field finds an installed tool, and **Browse** lets you choose your own copy.
+
+**Help → Check for updates…** lists newer public builds. From there you can download and install a compatible Windows x64 installer or Debian 13 amd64 package. Debian in-app installation uses APT and PolicyKit. Other systems can open the release page for source and build instructions.
+
+- [Latest release](https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.5-rc1)
+- [User guides](docs/README.md#user-guides)
+- [Build from source](docs/development/BUILDING.md)
+- [Windows installer preparation](docs/development/WINDOWS_INSTALLER.md)
+- [Testing and acceptance](docs/development/TESTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## Acknowledgments
 
-Many thanks to Martin Schnittler, Dmytro Leontyev, Maho Inoue and Kristina Kuprina for testing Kleiotide and suggesting how to make it more intuitive and what features to add.
+Many thanks to Martin Schnittler, Dmytro Leontyev, Maho Inoue, Kristina Kuprina, Manuela Bog and other people for testing Kleiotide, reporting bugs and suggesting improvements.
 
 ## Source, citation and licensing
 
-Source and issue tracker: [github.com/Gurdhhu/kleiotide](https://github.com/Gurdhhu/kleiotide). See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports and development contributions. When citing Kleiotide, identify the version used; machine-readable citation metadata is in [CITATION.cff](CITATION.cff).
+The source code and issue tracker are on [GitHub](https://github.com/Gurdhhu/kleiotide). See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports and development contributions. When citing Kleiotide, identify the version used. Machine-readable citation metadata is in [CITATION.cff](CITATION.cff).
 
-Copyright © 2026 Oleg Shchepin. The program is licensed under [GPL version 3 only](LICENSE), without warranty; see [licensing](LICENSE-STATUS.md). Logo/icon designer: **Elizaveta Shchepina (Storminka / Io Tikhaya)**. The name and official artwork have a separate [branding policy](BRANDING.md). Third-party components retain their own licenses; see [dependencies](docs/development/DEPENDENCIES.md).
+Copyright © 2026 Oleg Shchepin. The program is licensed under [GPL version 3 only](LICENSE) and provided without warranty. See the [licensing details](LICENSE-STATUS.md). **Elizaveta Shchepina (Storminka / Io Tikhaya)** designed the logo and icon. The name and official artwork have a separate [branding policy](BRANDING.md). Third-party components retain their own licenses. See [dependencies](docs/development/DEPENDENCIES.md).
+
+[release]: https://github.com/Gurdhhu/kleiotide/releases/tag/v0.30.5-rc1
+[windows-zip]: https://github.com/Gurdhhu/kleiotide/releases/download/v0.30.5-rc1/Kleiotide_0.30.5_rc1_Windows_x64_Setup.zip
+[debian-deb]: https://github.com/Gurdhhu/kleiotide/releases/download/v0.30.5-rc1/kleiotide_0.30.5-1.deb13_amd64.deb
+[source-tar]: https://github.com/Gurdhhu/kleiotide/archive/refs/tags/v0.30.5-rc1.tar.gz
+[source-zip]: https://github.com/Gurdhhu/kleiotide/archive/refs/tags/v0.30.5-rc1.zip
